@@ -15,7 +15,8 @@ Welcome, Artificial Intelligence Coder! You are assisting a developer on the Har
 - **Backend/DB**: Express + better-sqlite3 (SQLite).
 - **Authentication**: Custom JWT authentication implementation. Tokens are stored in frontend `localStorage`.
 
-## 3. Code Quality
+## 3. Code Quality & Workflow
+- **Pull Requests ONLY**: Never commit directly to the `main` branch. All work must be conducted on feature branches and submitted via a Pull Request (PR) for review.
 - Deliver **COMPLETE, working code**. No placeholders like `// Add your logic here`.
 - Ensure mobile-first responsiveness. Police officers will use this predominately on tablets and mobile phones.
 - Use Role-Based Access Control logic (e.g. `<RoleGate allowedRoles={['io', 'sho']}>`) to show/hide features appropriately.
