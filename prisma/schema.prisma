@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:../data.db"
+}
+
+model profiles {
+  id           String   @id
+  username     String   @unique
+  password     String
+  role         String
+  full_name    String
+  badge_number String?
+  rank         String?
+  station_id   String?
+  status       String?  @default("active")
+  created_at   DateTime? @default(now())
+}
+
+
+model SmartGDEntry {
+  id              Int      @id @default(autoincrement())
+  gdNumber        String   @unique
+  gdDate          DateTime
+  gdTime          String
+  policeStationId Int
+  beatId          Int?
+  entryType       String
+  priority        String
+  personName      String?
+  fatherName      String?
+  mobileNo        String?
+  vehicleNo       String?
+  placeText       String
+  latitude        Float?
+  longitude       Float?
+  summary         String
+  remarks         String?
+  linkedComplaintId Int?
+  linkedFirId     Int?
+  preventiveFlag  Boolean  @default(false)
+  preventiveReason String?
+  attachmentUrl   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model PreventiveHotspot {
+  id          Int      @id @default(autoincrement())
+  areaName    String
+  policeStationId Int
+  beatId      Int?
+  sourceType  String
+  sourceCount Int
+  riskScore   Float
+  hotspotType String
+  status      String
+  createdAt   DateTime @default(now())
+}
+
+model PreventivePattern {
+  id          Int      @id @default(autoincrement())
+  patternName String
+  patternType String
+  summary     String
+  confidence  Float
+  createdAt   DateTime @default(now())
+}
+
+model PreventiveSuggestion {
+  id          Int      @id @default(autoincrement())
+  hotspotId   Int?
+  suggestionText String
+  priority    String
+  actionStatus String
+  createdAt   DateTime @default(now())
+}
+
+model PreventiveAction {
+  id          Int      @id @default(autoincrement())
+  suggestionId Int
+  actionNote  String
+  actionDate  DateTime
+  status      String
+}

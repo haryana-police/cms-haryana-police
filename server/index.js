@@ -10,6 +10,12 @@ const JWT_SECRET = 'local-dev-secret-haryana-police-123';
 app.use(cors());
 app.use(express.json());
 
+import gdRoutes from './gdRoutes.js';
+import preventiveRoutes from './preventiveRoutes.js';
+
+app.use('/api/gd', gdRoutes);
+app.use('/api/preventive', preventiveRoutes);
+
 // Helper middleware to verify token
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
