@@ -5,6 +5,7 @@ import { ProtectedRoute } from './components/Auth/ProtectedRoute';
 import AppShell from './components/Layout/AppShell';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import SearchPage from './pages/SearchPage';
 
 // Module Placeholders
 const Placeholder = ({ title }) => (
@@ -29,7 +30,7 @@ export default function App() {
               <Route path="/investigation" element={<Placeholder title="M3: Investigation Guide" />} />
               <Route path="/hc-reply" element={<Placeholder title="M4: HC Reply" />} />
               <Route path="/analysis" element={<Placeholder title="M5: Case Analysis" />} />
-              <Route path="/search" element={<Placeholder title="M6: Smart Search" />} />
+              <Route path="/search" element={<SearchPage />} />
               <Route path="/crime-map" element={<Placeholder title="M7: Preventive Policing" />} />
               <Route path="/gd" element={<Placeholder title="M8: Smart GD" />} />
               <Route path="*" element={<Placeholder title="Page Not Found" />} />

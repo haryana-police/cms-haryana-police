@@ -78,7 +78,7 @@ export default function Login() {
             </Button>
           </Form.Item>
         </Form>
-        
+
         <Divider plain>Dev: Quick Login Options</Divider>
         <Space direction="horizontal" style={{ width: '100%', justifyContent: 'center', flexWrap: 'wrap' }} size="small">
           <Button size="small" onClick={() => quickLogin('admin', 'admin123')}>Admin</Button>
