@@ -59,7 +59,7 @@ function MarkdownRenderer({ content, isDarkMode }) {
             elements.push(
                 <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, margin: '8px 0' }}>
                     {checked ? <CheckCircleOutlined style={{ color: '#52c41a', marginTop: 4 }} /> : <div style={{ width: 14, height: 14, border: '1px solid var(--text)', borderRadius: 2, marginTop: 4 }}></div>}
-                    <Text delete={checked} type={checked ? 'secondary' : undefined}>{renderInline(line.slice(6))}</Text>
+                    <Text {...(checked ? { delete: true, type: 'secondary' } : {})}>{renderInline(line.slice(6))}</Text>
                 </div>
             );
         } else if (line.startsWith('- ')) {
@@ -102,6 +102,7 @@ function MarkdownRenderer({ content, isDarkMode }) {
 }
 
 function renderInline(text) {
+    if (typeof text !== 'string') return text || '';
     const parts = text.split(/(\*\*[^*]+\*\*|\[.*?\]\(.*?\)|⚠️|✅|⬜)/g);
     return parts.map((part, i) => {
         if (part.startsWith('**') && part.endsWith('**')) return <strong key={i}>{part.slice(2, -2)}</strong>;
@@ -215,7 +216,7 @@ export default function InsightsView({ caseId, headers }) {
                 </div>
                 <Menu
                     mode="inline"
-                    selectedKeys={[activePage]}
+                    selectedKeys={activePage ? [activePage] : []}
                     onClick={(e) => setActivePage(e.key)}
                     style={{ borderRight: 0, background: 'transparent', padding: '8px 0' }}
                     items={pages.map(p => ({
