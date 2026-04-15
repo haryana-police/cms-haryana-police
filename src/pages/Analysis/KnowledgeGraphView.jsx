@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 const NODE_COLORS = {
     case: '#6366f1',
@@ -16,7 +16,6 @@ const NODE_LABELS = {
     event: 'Event',
 };
 
-// Lazy import to avoid SSR issues
 let ForceGraph2D;
 
 export default function KnowledgeGraphView({ caseId, headers }) {
@@ -26,7 +25,6 @@ export default function KnowledgeGraphView({ caseId, headers }) {
     const [ForceGraphComp, setForceGraphComp] = useState(null);
 
     useEffect(() => {
-        // Dynamic import of force graph
         import('react-force-graph-2d').then(mod => {
             setForceGraphComp(() => mod.default);
         });
@@ -46,14 +44,15 @@ export default function KnowledgeGraphView({ caseId, headers }) {
     }, []);
 
     if (loading || !ForceGraphComp) return (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400, color: '#94a3b8', flexDirection: 'column', gap: 12 }}>
-            <div style={{ width: 32, height: 32, border: '3px solid #e2e8f0', borderTopColor: '#6366f1', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400, color: 'var(--text)', flexDirection: 'column', gap: 12 }}>
+            <div style={{ width: 32, height: 32, border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
             Rendering knowledge graph...
         </div>
     );
 
     if (!graphData || graphData.nodes?.length === 0) return (
-        <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8' }}>
+        <div style={{ padding: 32, textAlign: 'center', color: 'var(--text)' }}>
+            <i className="fa-solid fa-project-diagram" style={{ fontSize: '2rem', display: 'block', marginBottom: 12 }}></i>
             No graph data for this case. Add persons and events to see relationships.
         </div>
     );
@@ -64,18 +63,22 @@ export default function KnowledgeGraphView({ caseId, headers }) {
             <div style={{ flex: 1, position: 'relative' }}>
                 <div style={{
                     position: 'absolute', top: 12, left: 12, zIndex: 10,
-                    background: 'rgba(255,255,255,0.95)', borderRadius: 10,
-                    padding: '10px 14px', border: '1px solid #e2e8f0',
-                    fontSize: '0.78rem', boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                    background: 'var(--bg)', borderRadius: 10,
+                    padding: '10px 14px', border: '1px solid var(--border)',
+                    fontSize: '0.78rem', boxShadow: 'var(--shadow)',
                 }}>
-                    <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>🕸️ Legend</div>
+                    <div style={{ fontWeight: 700, color: 'var(--text-h)', marginBottom: 8 }}>
+                        <i className="fa-solid fa-layer-group" style={{ marginRight: 6 }}></i>Legend
+                    </div>
                     {Object.entries(NODE_COLORS).map(([type, color]) => (
-                        <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                        <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                             <div style={{ width: 10, height: 10, borderRadius: '50%', background: color }} />
-                            <span style={{ color: '#475569' }}>{NODE_LABELS[type]}</span>
+                            <span style={{ color: 'var(--text)' }}>{NODE_LABELS[type]}</span>
                         </div>
                     ))}
-                    <div style={{ marginTop: 8, color: '#94a3b8', fontSize: '0.7rem' }}>Click a node for details</div>
+                    <div style={{ marginTop: 10, color: 'var(--text)', fontSize: '0.7rem', opacity: 0.8 }}>
+                        <i className="fa-solid fa-info-circle" style={{ marginRight: 4 }}></i>Click a node for details
+                    </div>
                 </div>
 
                 <ForceGraphComp
@@ -87,7 +90,7 @@ export default function KnowledgeGraphView({ caseId, headers }) {
                     linkLabel="label"
                     linkDirectionalArrowLength={4}
                     linkDirectionalArrowRelPos={1}
-                    linkColor={() => '#cbd5e1'}
+                    linkColor={() => 'var(--text)'}
                     onNodeClick={handleNodeClick}
                     nodeCanvasObjectMode={() => 'after'}
                     nodeCanvasObject={(node, ctx, globalScale) => {
@@ -99,7 +102,7 @@ export default function KnowledgeGraphView({ caseId, headers }) {
                         ctx.fillStyle = '#1e293b';
                         ctx.fillText(label, node.x, node.y + (node.val || 5) / 1.5 + 2);
                     }}
-                    backgroundColor="#f8fafc"
+                    backgroundColor="var(--code-bg)"
                 />
             </div>
 
@@ -107,44 +110,47 @@ export default function KnowledgeGraphView({ caseId, headers }) {
             {selected && (
                 <div style={{
                     width: 260,
-                    background: '#fff',
-                    borderLeft: '1px solid #e2e8f0',
+                    background: 'var(--bg)',
+                    borderLeft: '1px solid var(--border)',
                     padding: 20,
                     overflowY: 'auto',
                 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <h4 style={{ margin: '0 0 12px', fontSize: '0.95rem', fontWeight: 700, color: '#1e293b' }}>
+                        <h4 style={{ margin: '0 0 12px', fontSize: '1rem', fontWeight: 700, color: 'var(--text-h)' }}>
                             Node Details
                         </h4>
                         <button
                             onClick={() => setSelected(null)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 18, lineHeight: 1 }}
-                        >×</button>
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', fontSize: 18, lineHeight: 1 }}
+                        >
+                            <i className="fa-solid fa-xmark"></i>
+                        </button>
                     </div>
 
                     <div style={{
                         display: 'inline-block',
-                        padding: '3px 10px',
+                        padding: '4px 10px',
                         borderRadius: 20,
-                        background: (NODE_COLORS[selected.type] || '#94a3b8') + '22',
-                        color: NODE_COLORS[selected.type] || '#64748b',
+                        background: 'var(--code-bg)',
+                        border: `1px solid ${NODE_COLORS[selected.type] || 'var(--border)'}`,
+                        color: NODE_COLORS[selected.type] || 'var(--text)',
                         fontWeight: 700,
                         fontSize: '0.72rem',
                         textTransform: 'uppercase',
                         letterSpacing: '0.05em',
-                        marginBottom: 12,
+                        marginBottom: 16,
                     }}>
                         {NODE_LABELS[selected.type] || selected.type}
                     </div>
 
-                    <p style={{ fontSize: '0.9rem', fontWeight: 600, color: '#1e293b', margin: '0 0 12px' }}>
+                    <p style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-h)', margin: '0 0 16px' }}>
                         {selected.label}
                     </p>
 
                     {selected.details && Object.entries(selected.details).map(([k, v]) => v && (
-                        <div key={k} style={{ marginBottom: 8, fontSize: '0.82rem' }}>
-                            <div style={{ color: '#94a3b8', textTransform: 'capitalize', marginBottom: 2 }}>{k}</div>
-                            <div style={{ color: '#475569', fontWeight: 500, wordBreak: 'break-all' }}>{v}</div>
+                        <div key={k} style={{ marginBottom: 12, fontSize: '0.85rem' }}>
+                            <div style={{ color: 'var(--text)', textTransform: 'capitalize', marginBottom: 2, opacity: 0.8 }}>{k}</div>
+                            <div style={{ color: 'var(--text-h)', fontWeight: 500, wordBreak: 'break-all' }}>{v}</div>
                         </div>
                     ))}
                 </div>

@@ -6,10 +6,10 @@ import CDRAnalysisView from './CDRAnalysisView';
 import InsightsView from './InsightsView';
 
 const TABS = [
-    { id: 'timeline', label: '📅 Timeline', icon: '📅' },
-    { id: 'graph', label: '🕸️ Knowledge Graph', icon: '🕸️' },
-    { id: 'cdr', label: '📞 CDR Analysis', icon: '📞' },
-    { id: 'insights', label: '🧠 AI Insights', icon: '🧠' },
+    { id: 'timeline', label: 'Timeline', icon: 'fa-regular fa-calendar-days' },
+    { id: 'graph', label: 'Knowledge Graph', icon: 'fa-solid fa-project-diagram' },
+    { id: 'cdr', label: 'CDR Analysis', icon: 'fa-solid fa-phone-flip' },
+    { id: 'insights', label: 'AI Insights', icon: 'fa-solid fa-brain' },
 ];
 
 export default function AnalysisPage() {
@@ -33,7 +33,10 @@ export default function AnalysisPage() {
                 }
                 setLoading(false);
             })
-            .catch(() => setLoading(false));
+            .catch((e) => {
+                console.error(e);
+                setLoading(false);
+            });
     }, []);
 
     const handleCaseChange = (id) => {
@@ -55,7 +58,9 @@ export default function AnalysisPage() {
             <div className={styles.header}>
                 <div>
                     <h1 className={styles.title}>
-                        <span className={styles.titleIcon}>📊</span>
+                        <span className={styles.titleIcon}>
+                            <i className="fa-solid fa-chart-pie"></i>
+                        </span>
                         Case Analytics & Visualization
                     </h1>
                     <p className={styles.subtitle}>
@@ -66,7 +71,10 @@ export default function AnalysisPage() {
 
             {/* Case Selector */}
             <div className={styles.selectorCard}>
-                <label className={styles.selectorLabel}>Select Case</label>
+                <label className={styles.selectorLabel}>
+                    <i className="fa-solid fa-folder-open" style={{ marginRight: 6 }}></i>
+                    Select Case
+                </label>
                 <div className={styles.selectorRow}>
                     <select
                         className={styles.caseSelect}
@@ -106,6 +114,7 @@ export default function AnalysisPage() {
                         className={`${styles.tabBtn} ${activeTab === tab.id ? styles.tabActive : ''}`}
                         onClick={() => setActiveTab(tab.id)}
                     >
+                        <i className={tab.icon}></i>
                         {tab.label}
                     </button>
                 ))}
@@ -119,7 +128,10 @@ export default function AnalysisPage() {
                         <p>Loading case data...</p>
                     </div>
                 ) : !selectedCaseId ? (
-                    <div className={styles.emptyState}>No cases found. Register a complaint to begin.</div>
+                    <div className={styles.emptyState}>
+                        <i className="fa-regular fa-folder-open" style={{ fontSize: '2rem' }}></i>
+                        No cases found. Register a complaint to begin.
+                    </div>
                 ) : (
                     <>
                         {activeTab === 'timeline' && <TimelineView caseId={selectedCaseId} headers={headers} />}

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 
 const PAGE_ICONS = {
-    index: '📋',
-    entities: '👥',
-    timeline: '📅',
-    leads: '🔍',
-    contradictions: '⚠️',
-    log: '📜',
+    index: 'fa-solid fa-list',
+    entities: 'fa-solid fa-users',
+    timeline: 'fa-regular fa-calendar-days',
+    leads: 'fa-solid fa-magnifying-glass',
+    contradictions: 'fa-solid fa-triangle-exclamation',
+    log: 'fa-solid fa-scroll',
 };
 
 const PAGE_ORDER = ['index', 'entities', 'leads', 'contradictions', 'timeline', 'log'];
@@ -23,7 +23,6 @@ function sortPages(pages) {
 }
 
 function MarkdownRenderer({ content }) {
-    // Very simple markdown → React (headings, bold, bullets, tables, code)
     const lines = content.split('\n');
     const elements = [];
     let i = 0;
@@ -33,43 +32,43 @@ function MarkdownRenderer({ content }) {
 
         if (line.startsWith('## ')) {
             elements.push(
-                <h4 key={i} style={{ margin: '16px 0 6px', fontSize: '0.9rem', fontWeight: 700, color: '#1e293b', borderBottom: '1px solid #f1f5f9', paddingBottom: 4 }}>
+                <h4 key={i} style={{ margin: '18px 0 8px', fontSize: '1rem', fontWeight: 700, color: 'var(--text-h)', borderBottom: '1px solid var(--border)', paddingBottom: 6 }}>
                     {renderInline(line.slice(3))}
                 </h4>
             );
         } else if (line.startsWith('# ')) {
             elements.push(
-                <h3 key={i} style={{ margin: '0 0 12px', fontSize: '1rem', fontWeight: 700, color: '#1e293b' }}>
+                <h3 key={i} style={{ margin: '0 0 16px', fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-h)' }}>
                     {renderInline(line.slice(2))}
                 </h3>
             );
         } else if (line.startsWith('- [ ] ') || line.startsWith('- [x] ')) {
             const checked = line.startsWith('- [x]');
             elements.push(
-                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
-                    <span style={{ marginTop: 2, fontSize: '1rem' }}>{checked ? '✅' : '⬜'}</span>
-                    <span style={{ fontSize: '0.85rem', color: checked ? '#64748b' : '#1e293b', textDecoration: checked ? 'line-through' : 'none' }}>
+                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, margin: '6px 0' }}>
+                    <i className={checked ? 'fa-solid fa-square-check' : 'fa-regular fa-square'} style={{ marginTop: 3, fontSize: '1.1rem', color: checked ? 'var(--text)' : 'var(--text)' }}></i>
+                    <span style={{ fontSize: '0.9rem', color: checked ? 'var(--text)' : 'var(--text-h)', textDecoration: checked ? 'line-through' : 'none', opacity: checked ? 0.6 : 1 }}>
                         {renderInline(line.slice(6))}
                     </span>
                 </div>
             );
         } else if (line.startsWith('- ')) {
             elements.push(
-                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
-                    <span style={{ color: '#6366f1', marginTop: 1 }}>•</span>
-                    <span style={{ fontSize: '0.85rem', color: '#475569', lineHeight: 1.5 }}>{renderInline(line.slice(2))}</span>
+                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 6 }}>
+                    <i className="fa-solid fa-circle" style={{ color: 'var(--accent)', marginTop: 6, fontSize: '0.4rem' }}></i>
+                    <span style={{ fontSize: '0.9rem', color: 'var(--text)', lineHeight: 1.6 }}>{renderInline(line.slice(2))}</span>
                 </div>
             );
         } else if (line.startsWith('|')) {
             // Table
             elements.push(
-                <div key={i} style={{ overflowX: 'auto', marginBottom: 12 }}>
-                    <table style={{ borderCollapse: 'collapse', fontSize: '0.82rem', width: '100%' }}>
+                <div key={i} style={{ overflowX: 'auto', margin: '16px 0', borderRadius: 6, border: '1px solid var(--border)' }}>
+                    <table style={{ borderCollapse: 'collapse', fontSize: '0.85rem', width: '100%', background: 'var(--code-bg)' }}>
                         <tbody>
                             {lines.slice(i).filter((l, li) => l.startsWith('|') && li === 0 || (l.startsWith('|') && !l.match(/^\|[-| ]+\|$/))).slice(0, 20).map((row, ri) => (
-                                <tr key={ri} style={{ background: ri === 0 ? '#f8fafc' : ri % 2 ? '#fafafa' : '#fff' }}>
+                                <tr key={ri} style={{ borderBottom: '1px solid var(--border)', background: ri === 0 ? 'var(--bg)' : 'transparent' }}>
                                     {row.split('|').filter((_, ci) => ci > 0 && ci < row.split('|').length - 1).map((cell, ci) => (
-                                        <td key={ci} style={{ padding: '6px 12px', border: '1px solid #e2e8f0', fontWeight: ri === 0 ? 600 : 400, color: '#475569' }}>
+                                        <td key={ci} style={{ padding: '10px 14px', borderRight: '1px solid var(--border)', fontWeight: ri === 0 ? 600 : 400, color: ri === 0 ? 'var(--text-h)' : 'var(--text)' }}>
                                             {renderInline(cell.trim())}
                                         </td>
                                     ))}
@@ -79,14 +78,13 @@ function MarkdownRenderer({ content }) {
                     </table>
                 </div>
             );
-            // Skip table rows
             while (i < lines.length && lines[i].startsWith('|')) i++;
             continue;
         } else if (line.trim() === '') {
-            // Skip empty
+            // skip
         } else {
             elements.push(
-                <p key={i} style={{ margin: '0 0 8px', fontSize: '0.85rem', color: '#475569', lineHeight: 1.6 }}>
+                <p key={i} style={{ margin: '0 0 10px', fontSize: '0.9rem', color: 'var(--text)', lineHeight: 1.7 }}>
                     {renderInline(line)}
                 </p>
             );
@@ -98,16 +96,18 @@ function MarkdownRenderer({ content }) {
 }
 
 function renderInline(text) {
-    // Bold + links
     const parts = text.split(/(\*\*[^*]+\*\*|\[.*?\]\(.*?\)|⚠️|✅|⬜)/g);
     return parts.map((part, i) => {
         if (part.startsWith('**') && part.endsWith('**')) {
-            return <strong key={i} style={{ color: '#1e293b' }}>{part.slice(2, -2)}</strong>;
+            return <strong key={i} style={{ color: 'var(--text-h)' }}>{part.slice(2, -2)}</strong>;
         }
         if (part.match(/^\[.*?\]\(.*?\)$/)) {
             const label = part.match(/\[(.*?)\]/)[1];
-            return <span key={i} style={{ color: '#6366f1', fontWeight: 600 }}>{label}</span>;
+            return <span key={i} style={{ color: 'var(--accent)', fontWeight: 600 }}>{label}</span>;
         }
+        if (part === '⚠️') return <i key={i} className="fa-solid fa-triangle-exclamation" style={{ color: '#f59e0b', marginRight: 6 }}></i>;
+        if (part === '✅') return <i key={i} className="fa-solid fa-check" style={{ color: '#10b981', marginRight: 6 }}></i>;
+        if (part === '⬜') return <i key={i} className="fa-solid fa-minus" style={{ color: 'var(--text)', marginRight: 6 }}></i>;
         return part;
     });
 }
@@ -123,7 +123,6 @@ export default function InsightsView({ caseId, headers }) {
     const [ingestType, setIngestType] = useState('FIR');
     const [ingesting, setIngesting] = useState(false);
     const [ingestResult, setIngestResult] = useState(null);
-    const [showIngest, setShowIngest] = useState(false);
 
     const fetchWiki = () => {
         setLoading(true);
@@ -174,6 +173,7 @@ export default function InsightsView({ caseId, headers }) {
             });
             const data = await res.json();
             setIngestResult(data);
+            setIngestText('');
             fetchWiki(); // Refresh wiki
         } catch {
             setIngestResult({ success: false });
@@ -182,8 +182,8 @@ export default function InsightsView({ caseId, headers }) {
     };
 
     if (loading) return (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300, color: '#94a3b8', flexDirection: 'column', gap: 12 }}>
-            <div style={{ width: 32, height: 32, border: '3px solid #e2e8f0', borderTopColor: '#6366f1', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300, color: 'var(--text)', flexDirection: 'column', gap: 12 }}>
+            <div style={{ width: 32, height: 32, border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
             Loading case intelligence wiki...
         </div>
     );
@@ -193,103 +193,112 @@ export default function InsightsView({ caseId, headers }) {
     const currentPageContent = pages.find(p => p.page_slug === activePage)?.content_md || '';
 
     return (
-        <div style={{ display: 'flex', height: 600, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', height: 640, overflow: 'hidden' }}>
 
             {/* Left: Wiki Navigation */}
-            <div style={{ width: 200, background: '#f8fafc', borderRight: '1px solid #e2e8f0', padding: '16px 0', overflowY: 'auto', flexShrink: 0 }}>
-                <div style={{ padding: '0 14px 10px', fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    🧠 Wiki Pages
+            <div style={{ width: 220, background: 'var(--code-bg)', borderRight: '1px solid var(--border)', padding: '20px 0', overflowY: 'auto', flexShrink: 0 }}>
+                <div style={{ padding: '0 18px 12px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    <i className="fa-solid fa-folder-tree" style={{ marginRight: 8 }}></i>Wiki Pages
                 </div>
                 {pages.map(p => (
                     <button
                         key={p.page_slug}
                         onClick={() => setActivePage(p.page_slug)}
                         style={{
-                            display: 'block', width: '100%', textAlign: 'left',
-                            padding: '9px 14px', border: 'none', cursor: 'pointer',
-                            background: activePage === p.page_slug ? '#fff' : 'transparent',
-                            borderRight: activePage === p.page_slug ? '3px solid #6366f1' : '3px solid transparent',
-                            color: activePage === p.page_slug ? '#4f46e5' : '#475569',
-                            fontWeight: activePage === p.page_slug ? 700 : 400,
-                            fontSize: '0.82rem',
+                            display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                            padding: '12px 18px', border: 'none', cursor: 'pointer',
+                            background: activePage === p.page_slug ? 'var(--accent-bg)' : 'transparent',
+                            borderRight: activePage === p.page_slug ? '3px solid var(--accent)' : '3px solid transparent',
+                            color: activePage === p.page_slug ? 'var(--accent)' : 'var(--text)',
+                            fontWeight: activePage === p.page_slug ? 600 : 400,
+                            fontSize: '0.9rem',
                             transition: 'all 0.15s',
                         }}
                     >
-                        {PAGE_ICONS[p.page_slug] || '📄'} {p.page_slug}
+                        <i className={PAGE_ICONS[p.page_slug] || 'fa-solid fa-file-lines'} style={{ width: 16, textAlign: 'center' }}></i>
+                        <span style={{ textTransform: 'capitalize' }}>{p.page_slug}</span>
                     </button>
                 ))}
                 {pages.length === 0 && (
-                    <div style={{ padding: '12px 14px', fontSize: '0.78rem', color: '#94a3b8' }}>
-                        No wiki pages yet.<br />Ingest a document to start building the knowledge base.
+                    <div style={{ padding: '16px 18px', fontSize: '0.8rem', color: 'var(--text)', opacity: 0.7 }}>
+                        No wiki pages yet.<br /><br />Ingest a document to start building the knowledge base.
                     </div>
                 )}
 
                 {/* Lint / Health check */}
                 {lint && lint.missingPages?.length > 0 && (
-                    <div style={{ margin: '16px 10px 0', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 12px', fontSize: '0.75rem', color: '#92400e' }}>
-                        <div style={{ fontWeight: 700, marginBottom: 4 }}>⚠️ Health Check</div>
-                        {lint.suggestions.map((s, i) => <div key={i} style={{ marginBottom: 2 }}>• {s}</div>)}
+                    <div style={{ margin: '20px 14px 0', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: 8, padding: '12px 14px', fontSize: '0.8rem', color: '#b45309' }}>
+                        <div style={{ fontWeight: 700, marginBottom: 8 }}>
+                            <i className="fa-solid fa-heart-pulse" style={{ marginRight: 6 }}></i>Health Check
+                        </div>
+                        {lint.suggestions.map((s, i) => <div key={i} style={{ marginBottom: 4 }}>• {s}</div>)}
                     </div>
                 )}
             </div>
 
             {/* Centre: Wiki Page Viewer */}
-            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
                 {/* Karpathy attribution banner */}
                 <div style={{
-                    background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
-                    padding: '10px 20px',
-                    display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
+                    background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.1), rgba(124, 58, 237, 0.05))',
+                    padding: '12px 24px', borderBottom: '1px solid var(--border)',
+                    display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0,
                 }}>
-                    <span style={{ fontSize: '1rem' }}>🧬</span>
+                    <i className="fa-solid fa-dna" style={{ fontSize: '1.4rem', color: 'var(--accent)' }}></i>
                     <div>
-                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'rgba(255,255,255,0.9)', letterSpacing: '0.05em' }}>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-h)', letterSpacing: '0.05em' }}>
                             LLM WIKI — Karpathy Docs-to-Knowledge-Graph Pattern
                         </div>
-                        <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.6)' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text)', marginTop: 2 }}>
                             Knowledge compiled once & kept current · Not re-derived on every query
                         </div>
                     </div>
                     <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                        <span style={{ background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: 20, fontSize: '0.68rem', color: '#fff' }}>
-                            {pages.length} wiki pages
+                        <span style={{ background: 'var(--code-bg)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: 20, fontSize: '0.75rem', color: 'var(--text)', fontWeight: 600 }}>
+                            <i className="fa-solid fa-file-invoice" style={{ marginRight: 6 }}></i>{pages.length} wiki pages
                         </span>
                     </div>
                 </div>
 
                 {/* Wiki page content */}
-                <div style={{ flex: 1, padding: 20, overflowY: 'auto' }}>
+                <div style={{ flex: 1, padding: '24px 32px', overflowY: 'auto' }}>
                     {currentPageContent
                         ? <MarkdownRenderer content={currentPageContent} />
-                        : <div style={{ color: '#94a3b8', textAlign: 'center', paddingTop: 40 }}>Select a wiki page</div>
+                        : <div style={{ color: 'var(--text)', textAlign: 'center', paddingTop: 60, opacity: 0.6 }}>
+                            <i className="fa-solid fa-file-circle-question" style={{ fontSize: '2rem', display: 'block', marginBottom: 12 }}></i>
+                            Select a wiki page
+                        </div>
                     }
                 </div>
 
                 {/* AI Query Bar */}
-                <div style={{ borderTop: '1px solid #e2e8f0', padding: '14px 20px', flexShrink: 0, background: '#fff' }}>
-                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        🔮 Query the Wiki
+                <div style={{ borderTop: '1px solid var(--border)', padding: '16px 24px', flexShrink: 0, background: 'var(--code-bg)' }}>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        <i className="fa-solid fa-wand-magic-sparkles" style={{ marginRight: 8 }}></i>Query the Wiki
                     </div>
                     {queryResult && (
                         <div style={{
-                            background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8,
-                            padding: '12px 14px', marginBottom: 12, fontSize: '0.83rem', color: '#14532d',
+                            background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: 10,
+                            padding: '16px', marginBottom: 16, fontSize: '0.9rem', color: 'var(--text-h)',
                             lineHeight: 1.6,
                         }}>
-                            <div style={{ fontWeight: 700, marginBottom: 6, color: '#166534' }}>
-                                AI Response <span style={{ fontWeight: 400, color: '#4ade80', fontSize: '0.72rem' }}>
-                                    (from {queryResult.wikiPagesConsulted} wiki pages)
+                            <div style={{ fontWeight: 700, marginBottom: 8, color: '#10b981', display: 'flex', alignItems: 'center' }}>
+                                <i className="fa-solid fa-robot" style={{ marginRight: 8, fontSize: '1.1rem' }}></i>
+                                AI Response
+                                <span style={{ fontWeight: 500, color: 'var(--text)', fontSize: '0.8rem', marginLeft: 8 }}>
+                                    (synthesized from {queryResult.wikiPagesConsulted} wiki pages)
                                 </span>
                             </div>
-                            {queryResult.answer}
+                            <p style={{ margin: 0 }}>{queryResult.answer}</p>
                             {queryResult.sourcedFrom?.length > 0 && (
-                                <div style={{ marginTop: 8, fontSize: '0.72rem', color: '#86efac' }}>
+                                <div style={{ marginTop: 12, fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>
+                                    <i className="fa-solid fa-book-open" style={{ marginRight: 6 }}></i>
                                     Sources: {queryResult.sourcedFrom.map(s => `[${s}]`).join(' ')}
                                 </div>
                             )}
                         </div>
                     )}
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 10 }}>
                         <input
                             type="text"
                             placeholder='e.g. "Who are the key suspects?" or "Any contradictions in statements?"'
@@ -297,46 +306,48 @@ export default function InsightsView({ caseId, headers }) {
                             onChange={e => setQuery(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleQuery()}
                             style={{
-                                flex: 1, padding: '9px 14px', border: '1.5px solid #e2e8f0',
-                                borderRadius: 8, fontSize: '0.85rem', outline: 'none',
+                                flex: 1, padding: '12px 16px', border: '1.5px solid var(--border)',
+                                borderRadius: 8, fontSize: '0.9rem', outline: 'none',
+                                background: 'var(--bg)', color: 'var(--text-h)'
                             }}
                         />
                         <button
                             onClick={handleQuery}
                             disabled={querying || !query.trim()}
                             style={{
-                                padding: '9px 20px', background: querying ? '#e2e8f0' : '#6366f1',
-                                color: '#fff', border: 'none', borderRadius: 8,
-                                fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
-                                transition: 'background 0.2s',
+                                padding: '0 24px', background: querying ? 'var(--border)' : 'var(--accent)',
+                                color: querying ? 'var(--text)' : '#fff', border: 'none', borderRadius: 8,
+                                fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer',
+                                transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 8
                             }}
                         >
-                            {querying ? '...' : 'Ask AI'}
+                            {querying ? <i className="fa-solid fa-circle-notch fa-spin"></i> : <i className="fa-solid fa-paper-plane"></i>}
+                            {querying ? 'Thinking...' : 'Ask AI'}
                         </button>
                     </div>
                 </div>
             </div>
 
             {/* Right: Ingest Panel */}
-            <div style={{ width: 280, borderLeft: '1px solid #e2e8f0', background: '#fff', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-                <div style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9' }}>
-                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
-                        📥 Ingest Document
+            <div style={{ width: 300, borderLeft: '1px solid var(--border)', background: 'var(--code-bg)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+                <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-h)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+                        <i className="fa-solid fa-inbox" style={{ marginRight: 8 }}></i>Ingest Document
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', lineHeight: 1.5 }}>
-                        Paste document text. The wiki engine will extract entities, events, and update knowledge pages automatically.
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text)', lineHeight: 1.5, opacity: 0.9 }}>
+                        Paste case documents here. The wiki engine will extract entities, events, and update knowledge pages.
                     </div>
                 </div>
 
-                <div style={{ flex: 1, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ flex: 1, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
                     <div>
-                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>
-                            Document Type
+                        <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-h)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                            <i className="fa-solid fa-file-lines"></i> Document Type
                         </label>
                         <select
                             value={ingestType}
                             onChange={e => setIngestType(e.target.value)}
-                            style={{ width: '100%', padding: '7px 10px', border: '1.5px solid #e2e8f0', borderRadius: 7, fontSize: '0.82rem', outline: 'none' }}
+                            style={{ width: '100%', padding: '10px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: '0.9rem', outline: 'none', background: 'var(--bg)', color: 'var(--text-h)' }}
                         >
                             {['FIR', 'Complaint', 'Witness Statement', 'Accused Statement', 'Seizure Memo', 'Arrest Memo', 'CDR Report', 'Forensic Report', 'Court Order'].map(t => (
                                 <option key={t} value={t}>{t}</option>
@@ -345,37 +356,38 @@ export default function InsightsView({ caseId, headers }) {
                     </div>
 
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>
-                            Document Text
+                        <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-h)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                            <i className="fa-solid fa-align-left"></i> Document Text
                         </label>
                         <textarea
                             value={ingestText}
                             onChange={e => setIngestText(e.target.value)}
                             placeholder="Paste the full text of the document here..."
                             style={{
-                                flex: 1, minHeight: 160,
-                                padding: '8px 10px', border: '1.5px solid #e2e8f0',
-                                borderRadius: 7, fontSize: '0.8rem', resize: 'vertical',
-                                outline: 'none', lineHeight: 1.5, color: '#1e293b',
+                                flex: 1, minHeight: 180,
+                                padding: '12px', border: '1.5px solid var(--border)',
+                                borderRadius: 8, fontSize: '0.85rem', resize: 'vertical',
+                                outline: 'none', lineHeight: 1.6, color: 'var(--text-h)',
+                                background: 'var(--bg)'
                             }}
                         />
                     </div>
 
                     {ingestResult && (
                         <div style={{
-                            background: ingestResult.success ? '#f0fdf4' : '#fef2f2',
-                            border: `1px solid ${ingestResult.success ? '#86efac' : '#fca5a5'}`,
-                            borderRadius: 8, padding: '10px 12px', fontSize: '0.78rem',
-                            color: ingestResult.success ? '#166534' : '#991b1b',
+                            background: ingestResult.success ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                            border: `1px solid ${ingestResult.success ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`,
+                            borderRadius: 8, padding: '12px 14px', fontSize: '0.85rem',
+                            color: ingestResult.success ? '#10b981' : '#ef4444',
                         }}>
                             {ingestResult.success ? (
                                 <>
-                                    ✅ Ingested successfully<br />
-                                    <span style={{ color: '#4ade80' }}>
-                                        {ingestResult.extracted?.entities?.length || 0} entities · {ingestResult.extracted?.events?.length || 0} events · {ingestResult.extracted?.contradictions?.length || 0} contradictions
-                                    </span>
+                                    <div style={{ fontWeight: 700, marginBottom: 4 }}><i className="fa-solid fa-circle-check" style={{ marginRight: 6 }}></i>Ingested successfully</div>
+                                    <div style={{ color: 'var(--text)', fontSize: '0.8rem', lineHeight: 1.5 }}>
+                                        Extracted {ingestResult.extracted?.entities?.length || 0} entities, {ingestResult.extracted?.events?.length || 0} events, {ingestResult.extracted?.contradictions?.length || 0} contradictions.
+                                    </div>
                                 </>
-                            ) : '❌ Ingest failed. Try again.'}
+                            ) : <><i className="fa-solid fa-circle-xmark" style={{ marginRight: 6 }}></i>Ingest failed. Try again.</>}
                         </div>
                     )}
 
@@ -383,13 +395,14 @@ export default function InsightsView({ caseId, headers }) {
                         onClick={handleIngest}
                         disabled={ingesting || !ingestText.trim()}
                         style={{
-                            padding: '10px', background: ingesting ? '#e2e8f0' : 'linear-gradient(135deg, #4f46e5, #7c3aed)',
-                            color: '#fff', border: 'none', borderRadius: 8,
-                            fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
-                            transition: 'opacity 0.2s',
+                            padding: '14px', background: ingesting ? 'var(--border)' : 'var(--accent)',
+                            color: ingesting ? 'var(--text)' : '#fff', border: 'none', borderRadius: 8,
+                            fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer',
+                            transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10
                         }}
                     >
-                        {ingesting ? '⏳ Processing...' : '📥 Ingest & Update Wiki'}
+                        {ingesting ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-upload"></i>}
+                        {ingesting ? 'Processing...' : 'Ingest & Update Wiki'}
                     </button>
                 </div>
             </div>
