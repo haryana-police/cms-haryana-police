@@ -62,7 +62,7 @@ export default function AppShell() {
     { key: '/analysis', icon: <LineChartOutlined />, label: 'Analysis' },
     { key: '/search', icon: <SearchOutlined />, label: 'Smart Search' },
     { key: '/crime-map', icon: <EnvironmentOutlined />, label: 'Crime Map' },
-    { key: '/gd', icon: <BookOutlined />, label: 'Smart GD' },
+    { key: '/gd', icon: <FileTextOutlined />, label: 'Smart GD' },
   ];
 
   return (
