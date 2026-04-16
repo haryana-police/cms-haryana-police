@@ -23,3 +23,27 @@ dist-ssr
 *.sln
 *.sw?
 data.db*
+
+# Environment variables (sensitive)
+.env
+.env.*
+
+# OCR Tesseract binary data files
+*.traineddata
+
+# Uploaded files (runtime generated)
+uploads/
+
+# Debug & temporary files
+debug_pdf.txt
+*.txt
+
+# Test scripts
+test.js
+test2.js
+test3.js
+test_models.js
+test_ocr.js
+test_upload.js
+test_vision.js
+test.png
