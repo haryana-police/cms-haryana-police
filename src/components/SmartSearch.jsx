@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Input, Button, AutoComplete, Tooltip, message, Upload, Dropdown, Space, Modal, Steps, Typography, Card } from 'antd';
-import { 
-  AudioOutlined, 
-  AudioMutedOutlined, 
-  CameraOutlined, 
+import {
+  AudioOutlined,
+  AudioMutedOutlined,
+  CameraOutlined,
   SearchOutlined,
   LoadingOutlined,
   DeleteOutlined,
@@ -17,17 +17,18 @@ import {
 } from '@ant-design/icons';
 import Tesseract from 'tesseract.js';
 import * as pdfjsLib from 'pdfjs-dist';
+// Import worker as a URL — Vite resolves this from local node_modules (no CDN needed)
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { useAuth } from '../hooks/useAuth';
 
 const { Text, Title } = Typography;
 
-// Configure PDF.js worker using CDN to avoid bundling issues
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// PDF.js worker will be configured inside the component useEffect to prevent startup crashes
 
 
 const { Search } = Input;
 
-export default function SmartSearch({ onSearch, initialValue = "" }) {
+export default function SmartSearch({ onSearch, onValueChange, initialValue = "" }) {
   const { token } = useAuth();
   const [value, setValue] = useState(initialValue);
   const [options, setOptions] = useState([]);
@@ -37,8 +38,18 @@ export default function SmartSearch({ onSearch, initialValue = "" }) {
   const [showHelp, setShowHelp] = useState(false);
   const recognitionRef = useRef(null);
 
-  // Initialize Speech Recognition
+  // Initialize Speech Recognition and PDF Worker
   useEffect(() => {
+    // Configure PDF.js worker using local file (avoids CDN dependency & version mismatch)
+    try {
+      if (pdfjsLib && pdfjsLib.GlobalWorkerOptions) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+        console.log('[PDF] Worker configured:', pdfWorkerUrl);
+      }
+    } catch (err) {
+      console.warn('PDF Worker configuration failed:', err);
+    }
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       recognitionRef.current = new SpeechRecognition();
@@ -57,7 +68,7 @@ export default function SmartSearch({ onSearch, initialValue = "" }) {
             interimTranscript += event.results[i][0].transcript;
           }
         }
-        
+
         const newText = finalTranscript || interimTranscript;
         if (newText) {
           setValue(newText);
@@ -93,7 +104,7 @@ export default function SmartSearch({ onSearch, initialValue = "" }) {
         message.warning('Voice search is not supported in this browser.');
         return;
       }
-      
+
       // Dynamically set language from state
       recognitionRef.current.lang = voiceLang;
       recognitionRef.current.start();
@@ -104,7 +115,7 @@ export default function SmartSearch({ onSearch, initialValue = "" }) {
     setVoiceLang(lang);
     sessionStorage.setItem('voiceSearchLang', lang);
     message.success(`Voice search language set to ${lang === 'hi-IN' ? 'Hindi' : 'English'}`);
-    
+
     // If currently listening, we need to restart with new language
     if (isListening) {
       recognitionRef.current?.stop();
@@ -164,10 +175,10 @@ export default function SmartSearch({ onSearch, initialValue = "" }) {
 
     // --- PDF handling ---
     if (file.type === 'application/pdf') {
-      message.loading({ content: 'Loading PDF, please wait...', key: 'ocr', duration: 0 });
+      message.loading({ content: 'PDF load ho raha hai, please wait... / पीडीएफ लोड हो रही है...', key: 'ocr', duration: 0 });
       try {
         const arrayBuffer = await file.arrayBuffer();
-        const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const pdfDoc = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
         const totalPages = pdfDoc.numPages;
         const allText = [];
 
@@ -180,14 +191,19 @@ export default function SmartSearch({ onSearch, initialValue = "" }) {
 
         const combined = allText.join('\n\n');
         if (!combined.trim()) {
-          message.warning({ content: 'No readable text found in the PDF.', key: 'ocr', duration: 5 });
+          message.warning({ content: 'PDF mein koi text nahi mila. / पीडीएफ में कोई लेख नहीं मिला।', key: 'ocr', duration: 5 });
         } else {
           setValue(combined);
-          message.success({ content: `PDF processed successfully!`, key: 'ocr', duration: 4 });
+          if (onValueChange) onValueChange(combined);
+          message.success({ content: `PDF successfully process hua! (${totalPages} page${totalPages > 1 ? 's' : ''})`, key: 'ocr', duration: 4 });
         }
       } catch (err) {
         console.error('PDF OCR Error:', err);
-        message.error({ content: 'Failed to process the PDF.', key: 'ocr', duration: 6 });
+        if (err.message && err.message.includes('worker')) {
+          message.error({ content: 'PDF Worker error. Browser refresh karein aur dobara try karein.', key: 'ocr', duration: 6 });
+        } else {
+          message.error({ content: `PDF process nahi ho saka: ${err.message || 'Unknown error'}`, key: 'ocr', duration: 6 });
+        }
       } finally {
         setIsOcrLoading(false);
       }
@@ -234,7 +250,10 @@ export default function SmartSearch({ onSearch, initialValue = "" }) {
           onSearch={handleSearchSuggestions}
           onSelect={(val) => { setValue(val); onSearch(val); }}
           value={value}
-          onChange={setValue}
+          onChange={(val) => {
+            setValue(val);
+            if (onValueChange) onValueChange(val);
+          }}
           style={{ flexGrow: 1 }}
         >
           <Search
@@ -252,15 +271,40 @@ export default function SmartSearch({ onSearch, initialValue = "" }) {
         </AutoComplete>
 
         <Space size="middle">
+          <Tooltip title="Scan Image or PDF to Search / फोटो या पीडीएफ स्कैन करके खोजें">
+            <Upload
+              accept="image/*,.pdf"
+              showUploadList={false}
+              beforeUpload={handleOcr}
+            >
+              <Button
+                shape="circle"
+                size="large"
+                icon={<CameraOutlined style={{ fontSize: '22px' }} />}
+                loading={isOcrLoading}
+                style={{
+                  height: '50px',
+                  width: '50px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#1890ff',
+                  borderColor: '#1890ff',
+                  boxShadow: '0 4px 10px rgba(0,0,0,0.05)'
+                }}
+              />
+            </Upload>
+          </Tooltip>
+
           <Tooltip title={isListening ? "सुनना बंद करें (Stop Listening)" : "आवाज़ से खोजें (Voice Search)"}>
-            <Button 
-              shape="circle" 
+            <Button
+              shape="circle"
               size="large"
               type="primary"
               icon={isListening ? <AudioMutedOutlined /> : <AudioOutlined />}
               onClick={toggleListening}
               danger={isListening}
-              style={{ 
+              style={{
                 height: '50px',
                 width: '50px',
                 backgroundColor: isListening ? '#ff4d4f' : '#1890ff',
@@ -296,15 +340,15 @@ export default function SmartSearch({ onSearch, initialValue = "" }) {
           </Dropdown>
 
           <Tooltip title="Help Guide / सहायता">
-            <Button 
-              shape="circle" 
-              size="large" 
-              icon={<QuestionCircleOutlined style={{ color: '#1890ff', fontSize: '22px' }} />} 
+            <Button
+              shape="circle"
+              size="large"
+              icon={<QuestionCircleOutlined style={{ color: '#1890ff', fontSize: '22px' }} />}
               onClick={() => setShowHelp(true)}
-              style={{ 
-                height: '50px', 
-                width: '50px', 
-                background: '#fff', 
+              style={{
+                height: '50px',
+                width: '50px',
+                background: '#fff',
                 border: '2px solid #1890ff',
                 display: 'flex',
                 alignItems: 'center',

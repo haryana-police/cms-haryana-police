@@ -12,6 +12,9 @@ const JWT_SECRET = 'local-dev-secret-haryana-police-123';
 app.use(cors());
 app.use(express.json());
 
+// Dummy interval to keep the event loop alive in certain environments
+setInterval(() => {}, 60000);
+
 // Helper middleware to verify token
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -53,14 +56,21 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
  * Advanced Smart Search
  */
 app.get('/api/search', authenticateToken, async (req, res) => {
-  const { q, location, type, dateAfter } = req.query;
-  if (!q) return res.status(400).json({ error: 'Query parameter "q" is required' });
+  const { q, district, caseType, dateAfter } = req.query;
+  
+  // Require at least one part of the search to be present
+  const hasQuery = q && q.trim().length > 0;
+  const hasFilters = district || caseType || dateAfter;
+
+  if (!hasQuery && !hasFilters) {
+    return res.status(400).json({ error: 'Search query or at least one filter is required' });
+  }
 
   try {
-    const results = await smartSearch(q, { location, type, dateAfter });
+    const results = await smartSearch(q, { district, caseType, dateAfter });
     res.json({
       query: q,
-      detected_language: detectLanguage(q),
+      detected_language: q && q.trim() ? detectLanguage(q) : null,
       results: results,
       count: results.length
     });

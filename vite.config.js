@@ -10,4 +10,18 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  optimizeDeps: {
+    // Exclude pdfjs-dist from pre-bundling — it ships its own worker
+    exclude: ['pdfjs-dist'],
+  },
+  worker: {
+    format: 'es',
+  },
+  server: {
+    headers: {
+      // Allow SharedArrayBuffer for PDF processing
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
+  },
 })
