@@ -1,9 +1,11 @@
 .app-layout {
   min-height: 100vh;
+  background-color: #0b0f19 !important;
+  background-image: none !important;
 }
 
 .app-sider {
-  background-color: #0A1628 !important;
+  background-color: #0b0f19 !important;
 }
 
 .logo-container {
@@ -11,7 +13,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #152A4A;
+  background-color: #0b0f19;
+  border-bottom: 1px solid #1f2937;
 }
 
 .logo-text {
@@ -21,11 +24,12 @@
 }
 
 .app-header {
-  background-color: #0A1628 !important;
+  background-color: #0b0f19 !important;
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 0 16px !important;
+  border-bottom: 1px solid #1f2937;
 }
 
 .header-left {
@@ -52,7 +56,8 @@
 .app-content {
   margin: 24px;
   padding: 24px;
-  background: #1f1f1f;
+  background-color: transparent !important;
+  background-image: none !important;
   border-radius: 8px;
   min-height: 280px;
   overflow-y: auto;

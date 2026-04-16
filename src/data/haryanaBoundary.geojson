@@ -1,0 +1,23 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Haryana"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [74.45, 27.65],
+            [77.55, 27.65],
+            [77.55, 30.9],
+            [74.45, 30.9],
+            [74.45, 27.65]
+          ]
+        ]
+      }
+    }
+  ]
+}

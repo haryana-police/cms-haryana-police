@@ -1,0 +1,163 @@
+{
+  "translation": {
+    "title": "स्मार्ट जीडी — जनरल डायरी",
+    "subtitle": "स्वचालित सिग्नल डिटेक्शन और प्रिवेंटिव पुलिसिंग फ़ीड के साथ केंद्रीकृत, इंटेलिजेंस-संचालित जनरल डायरी।",
+    "stats": {
+      "totalGdEntries": "कुल जीडी प्रविष्टियाँ",
+      "flaggedSuspicious": "संदिग्ध चिन्हित",
+      "highPriority": "उच्च प्राथमिकता",
+      "todaysEntries": "आज की प्रविष्टियाँ"
+    },
+    "form": {
+      "newEntry": "नई स्मार्ट जीडी प्रविष्टि",
+      "gdNumber": "जीडी नंबर",
+      "gdNumberPlaceholder": "सहेजते समय ऑटो-जेनरेटेड",
+      "date": "दिनांक",
+      "time": "समय",
+      "officerName": "अधिकारी का नाम",
+      "officerNamePlaceholder": "रिपोर्टिंग अधिकारी का नाम",
+      "officerRank": "अधिकारी का पद",
+      "officerRankPlaceholder": "पद चुनें",
+      "district": "जिला",
+      "districtPlaceholder": "जिला चुनें",
+      "station": "पुलिस स्टेशन",
+      "stationPlaceholder": "स्टेशन चुनें",
+      "beat": "बीट क्षेत्र",
+      "beatPlaceholder": "बीट चुनें",
+      "entryCategory": "प्रविष्टि श्रेणी",
+      "categoryPlaceholder": "श्रेणी चुनें",
+      "dutyType": "ड्यूटी प्रकार",
+      "dutyPlaceholder": "ड्यूटी चुनें",
+      "personName": "व्यक्ति का नाम",
+      "fatherName": "पिता / अभिभावक का नाम",
+      "mobileNumber": "मोबाइल नंबर",
+      "mobileNumberPlaceholder": "10-अंकीय मोबाइल",
+      "vehicleNumber": "वाहन नंबर",
+      "vehiclePlaceholder": "HR-26-XX-1234",
+      "location": "स्थान / लोकेशन",
+      "locationPlaceholder": "विस्तृत स्थान, पता",
+      "linkComplaint": "शिकायत आईडी लिंक",
+      "linkFir": "एफआईआर आईडी लिंक",
+      "summaryEn": "विस्तृत सारांश (अंग्रेजी)",
+      "summaryEnPlaceholder": "घटना का वर्णन करें। एआई इसे स्वचालित रूप से हिंदी में अनुवाद करेगा।",
+      "summaryHi": "हिंदी सारांश (पूर्वावलोकन)",
+      "summaryHiPlaceholder": "ऑटो-अनुवाद के लिए इसे खाली छोड़ दें, या मैनुअल हिंदी प्रविष्टि प्रदान करें।",
+      "remarks": "टिप्पणियाँ (आंतरिक)",
+      "priority": "प्राथमिकता",
+      "priorityPlaceholder": "प्राथमिकता",
+      "manualFlag": "मैनुअल फ्लैग ओवरराइड",
+      "overrideReason": "ओवरराइड कारण",
+      "submit": "स्मार्ट जीडी जमा करें",
+      "submitting": "सेव कर रहा है और बुद्धिमत्ता जांच हो रही है...",
+      "cctnsReady": "सीसीटीएनएस मानक"
+    },
+    "feed": {
+      "title": "प्रिवेंटिव फ़ीड",
+      "refresh": "रिफ्रेश",
+      "subtitle": "प्रिवेंटिव पुलिसिंग के लिए जीडी रिकॉर्ड से निकाले गए संदिग्ध संकेत।",
+      "noPatterns": "हाल ही में कोई संदिग्ध पैटर्न नहीं मिला है।",
+      "score": "स्कोर",
+      "person": "व्यक्ति",
+      "highRisk": "उच्च जोखिम",
+      "mediumRisk": "मध्यम जोखिम"
+    },
+    "search": {
+      "title": "जीडी खोजें और फ़िल्टर करें",
+      "activeFilter": "सक्रिय फ़िल्टर",
+      "global": "वैश्विक खोज",
+      "globalPlaceholder": "पाठ, जीडी नंबर, नाम खोजें...",
+      "gdNo": "जीडी नंबर",
+      "placePlaceholder": "स्थान",
+      "flag": "इंटेलिजेंस फ्लैग",
+      "flaggedOnly": "केवल चिन्हित",
+      "clearOnly": "केवल सामान्य",
+      "dateRange": "तिथि सीमा",
+      "searchBtn": "खोजें",
+      "resetBtn": "रीसेट"
+    },
+    "table": {
+      "title": "जीडी प्रविष्टियाँ",
+      "gdNo": "जीडी नंबर",
+      "dateTime": "दिनांक / समय",
+      "typePriority": "श्रेणी / प्राथमिकता",
+      "personContact": "व्यक्ति / संपर्क",
+      "place": "स्थान",
+      "linkages": "लिंक",
+      "intel": "बुद्धिमत्ता",
+      "actions": "कार्य",
+      "flagged": "चिन्हित",
+      "clear": "सामान्य"
+    },
+    "drawer": {
+      "viewMode": "जीडी प्रविष्टि देखें",
+      "editMode": "जीडी प्रविष्टि संपादित करें",
+      "basicInfo": "मूल जानकारी",
+      "personVehicle": "व्यक्ति / वाहन",
+      "locationLinkages": "स्थान और लिंक",
+      "summaryRemarks": "सारांश और टिप्पणियाँ",
+      "metadata": "मेटाडेटा",
+      "created": "बनाया गया",
+      "lastUpdated": "अंतिम अद्यतन",
+      "saveChanges": "परिवर्तन सहेजें",
+      "editBtn": "संपादित करें"
+    },
+    "map": {
+      "areaMap": "क्षेत्र हॉटस्पॉट मानचित्र",
+      "districtFilter": "जिला",
+      "resetView": "दृश्य रीसेट करें",
+      "showHeatmap": "हीटमैप दिखाएँ",
+      "showMarkers": "मार्कर दिखाएँ",
+      "noData": "कोई हॉटस्पॉट डेटा उपलब्ध नहीं है",
+      "riskScore": "जोखिम स्कोर",
+      "signals": "संकेत",
+      "predictions": "पूर्वानुमान",
+      "beatClusters": "बीट क्लस्टर",
+      "haryanaBoundary": "हरियाणा सीमा",
+      "timeline": "टाइमलाइन",
+      "play": "चलाएँ",
+      "pause": "रोकें",
+      "confidence": "विश्वसनीयता",
+      "likelyTimeBand": "संभावित समय अवधि",
+      "predictedRisk": "अनुमानित जोखिम"
+    },
+    "enums": {
+      "rank": {
+        "CONSTABLE": "कांस्टेबल",
+        "HEAD_CONSTABLE": "हेड कांस्टेबल",
+        "ASI": "एएसआई",
+        "SI": "एसआई",
+        "INSPECTOR": "इंस्पेक्टर",
+        "SHO": "एसएचओ"
+      },
+      "category": {
+        "ARRIVAL": "आगमन",
+        "DEPARTURE": "प्रस्थान",
+        "ARREST": "गिरफ्तारी",
+        "SEIZURE": "जब्ती",
+        "INFORMATION": "जानकारी",
+        "PATROL": "गश्त"
+      },
+      "duty": {
+        "PATROL": "गश्त",
+        "INVESTIGATION": "जांच",
+        "EMERGENCY": "आपातकालीन"
+      },
+      "priority": {
+        "LOW": "निम्न",
+        "NORMAL": "सामान्य",
+        "HIGH": "उच्च"
+      }
+    },
+    "validation": {
+      "required": "आवश्यक है",
+      "invalidMobile": "10-अंकीय मोबाइल"
+    },
+    "messages": {
+      "successCreate": "जीडी प्रविष्टि बनाई गई - कोई खतरा नहीं",
+      "successUpdate": "प्रविष्टि सफलतापूर्वक अपडेट की गई",
+      "errorCreate": "प्रविष्टि बनाने में त्रुटि",
+      "errorUpdate": "प्रविष्टि अपडेट करने में विफल",
+      "flagWarning": "⚠ इंटेलिजेंस अलरट ट्रिगर!"
+    }
+  }
+}

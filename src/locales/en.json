@@ -1,0 +1,163 @@
+{
+  "translation": {
+    "title": "Smart GD — General Diary",
+    "subtitle": "Centralized, intelligence-driven General Diary with automated signal detection and Preventive Policing feed.",
+    "stats": {
+      "totalGdEntries": "Total GD Entries",
+      "flaggedSuspicious": "Flagged Suspicious",
+      "highPriority": "High Priority",
+      "todaysEntries": "Today's Entries"
+    },
+    "form": {
+      "newEntry": "New Smart GD Entry",
+      "gdNumber": "GD Number",
+      "gdNumberPlaceholder": "Auto-generated on save",
+      "date": "Date",
+      "time": "Time",
+      "officerName": "Officer Name",
+      "officerNamePlaceholder": "Reporting Officer Name",
+      "officerRank": "Officer Rank",
+      "officerRankPlaceholder": "Select Rank",
+      "district": "District",
+      "districtPlaceholder": "Select district",
+      "station": "Police Station",
+      "stationPlaceholder": "Select station",
+      "beat": "Beat Area",
+      "beatPlaceholder": "Select beat",
+      "entryCategory": "Entry Category",
+      "categoryPlaceholder": "Select category",
+      "dutyType": "Duty Type",
+      "dutyPlaceholder": "Select duty",
+      "personName": "Person Name",
+      "fatherName": "Father's Name",
+      "mobileNumber": "Mobile Number",
+      "mobileNumberPlaceholder": "10-digit mobile",
+      "vehicleNumber": "Vehicle No.",
+      "vehiclePlaceholder": "HR-26-XX-1234",
+      "location": "Place / Location",
+      "locationPlaceholder": "Detailed location, landmark, address",
+      "linkComplaint": "Link Complaint ID",
+      "linkFir": "Link FIR ID",
+      "summaryEn": "Detailed Summary (English)",
+      "summaryEnPlaceholder": "Describe the incident. AI will automatically translate to Hindi on save.",
+      "summaryHi": "Hindi Summary Preview (Optional Override)",
+      "summaryHiPlaceholder": "Leave empty for auto-translation, or provide manual Hindi entry.",
+      "remarks": "Remarks (Internal)",
+      "priority": "Priority",
+      "priorityPlaceholder": "Priority",
+      "manualFlag": "Manual Flag Override",
+      "overrideReason": "Override Reason",
+      "submit": "Submit Smart GD Entry",
+      "submitting": "Saving & Running Intelligence Check...",
+      "cctnsReady": "CCTNS Standard Ready"
+    },
+    "feed": {
+      "title": "Preventive Feed",
+      "refresh": "Refresh",
+      "subtitle": "Real-time suspicious signals auto-extracted from GD records for Preventive Policing.",
+      "noPatterns": "No suspicious patterns detected recently.",
+      "score": "Score",
+      "person": "Person",
+      "highRisk": "HIGH RISK",
+      "mediumRisk": "MEDIUM RISK"
+    },
+    "search": {
+      "title": "Search & Filter GD Entries",
+      "activeFilter": "Active filter",
+      "global": "Global Search",
+      "globalPlaceholder": "Search text, GD no, name...",
+      "gdNo": "Exact GD No.",
+      "placePlaceholder": "Location",
+      "flag": "Intelligence Flag",
+      "flaggedOnly": "Flagged Only",
+      "clearOnly": "Clear Only",
+      "dateRange": "Date Range",
+      "searchBtn": "Search",
+      "resetBtn": "Reset"
+    },
+    "table": {
+      "title": "GD Entries",
+      "gdNo": "GD No.",
+      "dateTime": "Date / Time",
+      "typePriority": "Type / Priority",
+      "personContact": "Person / Contact",
+      "place": "Place",
+      "linkages": "Linkages",
+      "intel": "Intelligence",
+      "actions": "Actions",
+      "flagged": "FLAGGED",
+      "clear": "Clear"
+    },
+    "drawer": {
+      "viewMode": "View GD Entry",
+      "editMode": "Edit GD Entry",
+      "basicInfo": "Basic Info",
+      "personVehicle": "Person / Vehicle",
+      "locationLinkages": "Location & Linkages",
+      "summaryRemarks": "Summary & Remarks",
+      "metadata": "Metadata",
+      "created": "Created",
+      "lastUpdated": "Last Updated",
+      "saveChanges": "Save Changes",
+      "editBtn": "Edit"
+    },
+    "map": {
+      "areaMap": "Area Hotspot Map",
+      "districtFilter": "District",
+      "resetView": "Reset View",
+      "showHeatmap": "Show Heatmap",
+      "showMarkers": "Show Markers",
+      "noData": "No hotspot data available",
+      "riskScore": "Risk Score",
+      "signals": "Signals",
+      "predictions": "Predictions",
+      "beatClusters": "Beat Clusters",
+      "haryanaBoundary": "Haryana Boundary",
+      "timeline": "Timeline",
+      "play": "Play",
+      "pause": "Pause",
+      "confidence": "Confidence",
+      "likelyTimeBand": "Likely Time Band",
+      "predictedRisk": "Predicted Risk"
+    },
+    "enums": {
+      "rank": {
+        "CONSTABLE": "CONSTABLE",
+        "HEAD_CONSTABLE": "HEAD CONSTABLE",
+        "ASI": "ASI",
+        "SI": "SI",
+        "INSPECTOR": "INSPECTOR",
+        "SHO": "SHO"
+      },
+      "category": {
+        "ARRIVAL": "Arrival",
+        "DEPARTURE": "Departure",
+        "ARREST": "Arrest",
+        "SEIZURE": "Seizure",
+        "INFORMATION": "Information",
+        "PATROL": "Patrol"
+      },
+      "duty": {
+        "PATROL": "Patrol",
+        "INVESTIGATION": "Investigation",
+        "EMERGENCY": "Emergency"
+      },
+      "priority": {
+        "LOW": "Low",
+        "NORMAL": "Normal",
+        "HIGH": "High"
+      }
+    },
+    "validation": {
+      "required": "Required",
+      "invalidMobile": "10-digit number"
+    },
+    "messages": {
+      "successCreate": "GD Entry created — No threats detected",
+      "successUpdate": "Entry updated successfully",
+      "errorCreate": "Error creating entry",
+      "errorUpdate": "Failed to update entry",
+      "flagWarning": "⚠ Intelligence Flag Triggered!"
+    }
+  }
+}

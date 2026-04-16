@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Layout, Menu, Button, Avatar, Dropdown, Typography, Grid } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { useTranslation } from 'react-i18next';
 import {
   FileTextOutlined,
   FileDoneOutlined,
@@ -65,6 +66,13 @@ export default function AppShell() {
     { key: '/gd', icon: <BookOutlined />, label: 'Smart GD' },
   ];
 
+  const { i18n } = useTranslation();
+
+  const toggleLanguage = () => {
+    const nextLang = i18n.language === 'en' ? 'hi' : 'en';
+    i18n.changeLanguage(nextLang);
+  };
+
   return (
     <Layout className="app-layout">
       {/* Sidebar for Desktop */}
@@ -103,11 +111,18 @@ export default function AppShell() {
             {!screens.md && <Title level={4} style={{ margin: 0, color: '#fff' }}>HP CMS</Title>}
           </div>
           <div className="header-right">
+            <Button 
+              type="primary" 
+              onClick={toggleLanguage} 
+              style={{ marginRight: 16 }}
+            >
+              {i18n.language === 'hi' ? 'English' : 'हिंदी'}
+            </Button>
             {screens.md && (
               <div className="user-info">
                 <Text style={{ color: '#fff' }}>{profile?.full_name}</Text>
-                <Text type="secondary" style={{ fontSize: '12px', display: 'block', color: '#rgba(255,255,255,0.65)' }}>
-                  {profile?.role.toUpperCase()}
+                <Text type="secondary" style={{ fontSize: '12px', display: 'block', color: 'rgba(255,255,255,0.65)' }}>
+                  {profile?.role?.toUpperCase()}
                 </Text>
               </div>
             )}

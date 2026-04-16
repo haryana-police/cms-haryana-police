@@ -3,7 +3,8 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
     'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
     'Noto Color Emoji';
-  background-color: #141414;
+  background-color: #0b0f19 !important;
+  background-image: none !important;
   color: rgba(255, 255, 255, 0.85);
 }
 
@@ -13,6 +14,7 @@ h1, h2, h3, h4, h5, h6 {
 
 * {
   box-sizing: border-box;
+  background-image: none !important; /* Force remove any posters/decorative elements */
 }
 
 /* Custom utility classes */

@@ -7,82 +7,144 @@ datasource db {
   url      = "file:../data.db"
 }
 
-model profiles {
-  id           String   @id
-  username     String   @unique
-  password     String
-  role         String
-  full_name    String
-  badge_number String?
-  rank         String?
-  station_id   String?
-  status       String?  @default("active")
-  created_at   DateTime? @default(now())
-}
-
-
-model SmartGDEntry {
-  id              Int      @id @default(autoincrement())
-  gdNumber        String   @unique
-  gdDate          DateTime
-  gdTime          String
-  policeStationId Int
-  beatId          Int?
-  entryType       String
-  priority        String
-  personName      String?
-  fatherName      String?
-  mobileNo        String?
-  vehicleNo       String?
-  placeText       String
-  latitude        Float?
-  longitude       Float?
-  summary         String
-  remarks         String?
-  linkedComplaintId Int?
-  linkedFirId     Int?
-  preventiveFlag  Boolean  @default(false)
-  preventiveReason String?
-  attachmentUrl   String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-}
-
-model PreventiveHotspot {
-  id          Int      @id @default(autoincrement())
-  areaName    String
-  policeStationId Int
-  beatId      Int?
-  sourceType  String
-  sourceCount Int
-  riskScore   Float
-  hotspotType String
-  status      String
+// ── Auth / Profiles ──────────────────────────────────────────
+model Profile {
+  id          String   @id @default(uuid())
+  username    String   @unique
+  password    String
+  role        String
+  fullName    String
+  badgeNumber String?
+  rank        String?
+  stationId   String?
+  status      String   @default("active")
   createdAt   DateTime @default(now())
+
+  @@map("profiles")
+}
+
+// ── Smart GD ─────────────────────────────────────────────────
+model GdEntry {
+  id                 String   @id @default(uuid())
+  gdNumber           String   @unique
+  gdDate             DateTime
+  gdTime             String
+  district           String   @default("Panchkula")
+  policeStation      String
+  beatArea           String?
+  officerName        String   @default("System Officer") // DEFAULT so migration doesn't fail existing rows
+  officerRank        String   @default("CONSTABLE")
+  entryCategory      String   @default("INFORMATION")
+  dutyType           String   @default("PATROL")
+  priority           String   @default("NORMAL")
+  personName         String?
+  fatherName         String?
+  mobileNumber       String?
+  vehicleNumber      String?
+  location           String
+  complaintId        String?
+  firId              String?
+  summaryEn          String   @map("summary")
+  summaryHi          String?  @map("hindi_summary")
+  remarksEn          String?  @map("remarks")
+  remarksHi          String?  @map("hindi_remarks")
+  manualOverrideFlag Boolean  @default(false)
+  overrideReason     String?
+  attachmentUrl      String?
+  intelligenceFlag   Boolean  @default(false)
+  intelligenceReason String?
+  confidenceScore    Float    @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("gd_entries")
+}
+
+// ── Preventive Policing ──────────────────────────────────────
+model PreventiveHotspot {
+  id           String   @id @default(uuid())
+  area         String
+  source       String
+  totalSignals Int      @default(0)
+  riskScore    Float    @default(0)
+  type         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("preventive_hotspots")
 }
 
 model PreventivePattern {
-  id          Int      @id @default(autoincrement())
-  patternName String
+  id          String   @id @default(uuid())
   patternType String
-  summary     String
-  confidence  Float
+  description String
+  area        String?
+  linkedValue String?
+  count       Int      @default(0)
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("preventive_patterns")
 }
 
 model PreventiveSuggestion {
-  id          Int      @id @default(autoincrement())
-  hotspotId   Int?
-  suggestionText String
-  priority    String
-  actionStatus String
-  createdAt   DateTime @default(now())
+  id        String   @id @default(uuid())
+  area      String
+  action    String
+  priority  String   @default("MEDIUM")
+  status    String   @default("PENDING")
+  source    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("preventive_suggestions")
 }
 
-model PreventiveAction {
-  id          Int      @id @default(autoincrement())
-  suggestionId Int
-  actionNote  String
-  actionDate  DateTime
-  status      String
+model RepeatOffenderSignal {
+  id             String   @id @default(uuid())
+  personName     String?
+  fatherName     String?
+  mobileNumber   String?
+  vehicleNumber  String?
+  linkedArea     String?
+  frequency      Int
+  confidenceScore Float
+  signalType     String
+  summary        String
+  status         String   @default("ACTIVE")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("repeat_offender_signals")
+}
+
+model ShoAlert {
+  id          String   @id @default(uuid())
+  alertType   String
+  severity    String
+  title       String
+  description String
+  linkedArea  String?
+  status      String   @default("OPEN")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("sho_alerts")
+}
+
+model CrimePrediction {
+  id             String   @id @default(uuid())
+  district       String?
+  policeStation  String?
+  beatArea       String?
+  areaName       String?
+  predictedRisk  Float
+  confidence     Float
+  likelyTimeBand String?
+  reason         String
+  status         String   @default("ACTIVE")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("crime_predictions")
 }

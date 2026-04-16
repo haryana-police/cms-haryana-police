@@ -1,0 +1,26 @@
+export const haryanaDistrictCenters = {
+  Panchkula: { lat: 30.6942, lng: 76.8606 },
+  Panipat: { lat: 29.3909, lng: 76.9635 },
+  Karnal: { lat: 29.6857, lng: 76.9905 },
+  Kaithal: { lat: 29.8014, lng: 76.3996 },
+  Kurukshetra: { lat: 29.9695, lng: 76.8783 },
+  Ambala: { lat: 30.3782, lng: 76.7767 },
+  Yamunanagar: { lat: 30.1290, lng: 77.2674 },
+  Hisar: { lat: 29.1492, lng: 75.7217 },
+  Rohtak: { lat: 28.8955, lng: 76.6066 },
+  Sonipat: { lat: 28.9931, lng: 77.0151 },
+  Jind: { lat: 29.3154, lng: 76.3153 },
+  Sirsa: { lat: 29.5336, lng: 75.0171 },
+  Gurugram: { lat: 28.4595, lng: 77.0266 },
+  Faridabad: { lat: 28.4089, lng: 77.3178 },
+  Rewari: { lat: 28.1990, lng: 76.6189 },
+  Jhajjar: { lat: 28.6063, lng: 76.6565 },
+  Bhiwani: { lat: 28.7930, lng: 76.1397 },
+  Fatehabad: { lat: 29.5131, lng: 75.4550 },
+  Palwal: { lat: 28.1447, lng: 77.3255 },
+  Nuh: { lat: 28.1024, lng: 77.0011 },
+  Mahendragarh: { lat: 28.2738, lng: 76.1480 },
+  "Charkhi Dadri": { lat: 28.5921, lng: 76.2711 },
+  // Default fallback for state center
+  HaryanaCenter: { lat: 29.0588, lng: 76.0856 }
+};
