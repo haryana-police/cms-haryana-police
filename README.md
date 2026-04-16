@@ -25,7 +25,7 @@ For development, we use `concurrently` to run the frontend and backend together 
    *This command spins up the Vite frontend and Express backend. It will also automatically generate the SQLite `data.db` file and table schemas if they do not exist.*
 
 ### Accessing the System
-- **React App:** `http://localhost:5173`
+- **React App:** `http://localhost:5180`
 - **Backend API:** `http://localhost:3000`
 
 **Test User:** Use the "Quick Login Options" dynamically visible on the login screen, or type:

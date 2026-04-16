@@ -25,4 +25,19 @@ Welcome, Artificial Intelligence Coder! You are assisting a developer on the Har
 - Focus on premium aesthetics using the Ant Design components. Avoid plain HTML tables or generic inputs.
 - Keep the interface simple and easy for non-technical users.
 
+## 5. Standard Templates & Drafting Formats
+
+### Status of Trial
+Whenever "Status of Trial" is mentioned or requested for a reply/affidavit, use the following standardized formats:
+
+**Format A: Charges Framed**
+> FIR NO [FIR_NO] PS [POLICE_STATION] ([NAME])
+>
+> The current status of the trial is that the Ld. Trial Court, [LOCATION], has framed charges against the accused, including [ACCUSED_NAME], under sections [SECTIONS] of the IPC on [DATE]. The case is now at the stage of [STAGE (e.g., Prosecution Evidence)], with a total of [TOTAL_WITNESSES] witnesses listed for the case; [COUNT] key prosecution witnesses, [WITNESS_NAMES], have been examined as of the report date, and the next date of hearing in the case is fixed for [NEXT_DATE].
+
+**Format B: Charges Not Yet Framed**
+> FIR NO [FIR_NO] PS [POLICE_STATION] ([NAME])
+>
+> The current status of the trial for the petitioners ([PETITIONER_NAMES]) is that charges have not been framed by the Ld. JMIC/Court, [LOCATION], and the case is fixed for arguments on charge, with the next date of hearing set for [NEXT_DATE]. [Include co-accused details if applicable, e.g., "Separately, the case against the co-accused [NAME]... is pending before the Ld. Justice Juvenile Board..."].
+
 Thank you for helping us build the Haryana Police Smart CMS!

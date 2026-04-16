@@ -5,6 +5,7 @@ import { ProtectedRoute } from './components/Auth/ProtectedRoute';
 import AppShell from './components/Layout/AppShell';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import HcReplyModule from './pages/hc-reply/index.jsx';
 
 // Module Placeholders
 const Placeholder = ({ title }) => (
@@ -27,7 +28,7 @@ export default function App() {
               <Route path="/complaints" element={<Placeholder title="M1: Complaints" />} />
               <Route path="/fir" element={<Placeholder title="M2: FIRs" />} />
               <Route path="/investigation" element={<Placeholder title="M3: Investigation Guide" />} />
-              <Route path="/hc-reply" element={<Placeholder title="M4: HC Reply" />} />
+              <Route path="/hc-reply/*" element={<HcReplyModule />} />
               <Route path="/analysis" element={<Placeholder title="M5: Case Analysis" />} />
               <Route path="/search" element={<Placeholder title="M6: Smart Search" />} />
               <Route path="/crime-map" element={<Placeholder title="M7: Preventive Policing" />} />

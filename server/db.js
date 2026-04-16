@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { initHcReplyDb } from './db/hcReplySchema.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -54,5 +55,7 @@ if (count === 0) {
   transaction(users);
   console.log('Seed users created.');
 }
+
+initHcReplyDb(db);
 
 export default db;
