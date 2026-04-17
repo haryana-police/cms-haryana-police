@@ -7,7 +7,15 @@ import Tesseract from 'tesseract.js';
 import { createRequire } from 'module';
 import fs from 'fs';
 import path from 'path';
+import dns from 'dns';
 import db from './db.js';
+import FormData from 'form-data';
+import nodeFetch from 'node-fetch';
+
+// ─── Override DNS to use Google DNS (8.8.8.8) — bypasses ISP DNS blocks ──────
+dns.setDefaultResultOrder('ipv4first');
+dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+
 
 const require = createRequire(import.meta.url);
 const pdfParseModule = require('pdf-parse');
@@ -54,12 +62,16 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: {
-    fileSize: 20 * 1024 * 1024, // 20MB per file
-    fieldSize: 50 * 1024 * 1024 // 50MB for fields (like base64 imageFallbacks)
+    fileSize: 20 * 1024 * 1024,   // 20MB per file
+    fieldSize: 100 * 1024 * 1024  // 100MB for fields (base64 canvas)
   },
   fileFilter: (req, file, cb) => {
     const allowed = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'application/pdf'];
-    cb(null, allowed.includes(file.mimetype));
+    if (file.mimetype.startsWith('audio/') || file.mimetype.startsWith('video/') || allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(null, false);
+    }
   }
 });
 
@@ -67,9 +79,17 @@ const app = express();
 const PORT = 5000;
 const JWT_SECRET = 'local-dev-secret-haryana-police-123';
 
-app.use(cors());
+// ─── Ensure uploads/ directory exists ────────────────────────────────────────
+if (!fs.existsSync('uploads')) fs.mkdirSync('uploads', { recursive: true });
+
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use('/kb-files', express.static(path.join(process.cwd(), 'user_knowledge_base')));
+
 
 // ─── Auth Middleware ──────────────────────────────────────────────────────────
 const authenticateToken = (req, res, next) => {
@@ -122,6 +142,33 @@ async function callGroqAPI(messages, jsonMode = false, model = "llama-3.3-70b-ve
   }
   const data = await response.json();
   return data.choices[0].message.content;
+}
+
+// ─── Groq Whisper Audio Transcription Helper ─────────────────────────────────
+async function callGroqWhisper(filePath) {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error("GROQ_API_KEY not found in .env");
+
+  const formData = new FormData();
+  formData.append("file", fs.createReadStream(filePath));
+  formData.append("model", "whisper-large-v3");
+
+  const response = await nodeFetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      ...formData.getHeaders()
+    },
+    body: formData
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    console.error("Groq Whisper API Error:", err);
+    throw new Error("Failed to transcribe audio");
+  }
+  const data = await response.json();
+  return data.text;
 }
 
 // ─── OCR Helper: Extract text from image file ─────────────────────────────────
@@ -280,6 +327,14 @@ async function processFile(file, imageFallback = null) {
       confidence = result.confidence;
       method = 'image-ocr';
       console.log(`   ✅ Image OCR: ${extractedText.length} chars (conf: ${confidence}%)`);
+    } else if (mimetype.startsWith('audio/') || mimetype.startsWith('video/')) {
+      // ── Audio/Video Transcription ───────────────────────
+      console.log(`🎤 Running transcription on audio: "${originalname}"`);
+      const text = await callGroqWhisper(filePath);
+      extractedText = text;
+      confidence = 100;
+      method = 'audio-transcription';
+      console.log(`   ✅ Audio Transcription: ${extractedText.length} chars`);
     }
   } catch (e) {
     console.error(`❌ Error processing file "${originalname}":`, e.message);

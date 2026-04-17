@@ -156,6 +156,7 @@ const FileUploadZone = ({ files, onFilesAdded, onFileRemove }) => {
   const getFileIcon = (type) => {
     if (type === 'application/pdf') return '📄';
     if (type.startsWith('image/')) return '🖼️';
+    if (type.startsWith('audio/') || type.startsWith('video/')) return '🎵';
     return '📎';
   };
 
@@ -178,18 +179,19 @@ const FileUploadZone = ({ files, onFilesAdded, onFileRemove }) => {
           ref={inputRef}
           type="file"
           multiple
-          accept="image/*,application/pdf"
+          accept="image/*,application/pdf,audio/*"
           onChange={handleFileInput}
           style={{ display: 'none' }}
         />
         <div className="upload-icon">📤</div>
         <div className="upload-title">Drop files here or click to upload</div>
         <div className="upload-subtitle">
-          Supports: JPG, PNG, PDF, Handwritten Applications • Max 20MB per file • Multiple files allowed
+          Supports: JPG, PNG, PDF, Audio (MP3/WAV), Handwritten Applications • Max 20MB per file
         </div>
         <div className="upload-formats">
           <span className="format-chip">📸 Photo</span>
           <span className="format-chip">📄 PDF</span>
+          <span className="format-chip">🎵 Audio Note</span>
           <span className="format-chip">✍️ Handwritten</span>
           <span className="format-chip">🖼️ Scanned Doc</span>
         </div>
@@ -207,6 +209,8 @@ const FileUploadZone = ({ files, onFilesAdded, onFileRemove }) => {
               <div className="file-status">
                 {file.type === 'application/pdf' ? (
                   <span className="file-badge pdf">OCR Ready</span>
+                ) : file.type.startsWith('audio/') || file.type.startsWith('video/') ? (
+                  <span className="file-badge image" style={{background: '#8b5cf6', color: 'white'}}>AI Speech</span>
                 ) : (
                   <span className="file-badge image">Vision OCR</span>
                 )}
@@ -680,6 +684,61 @@ export default function Investigation() {
   const [folderSOPs, setFolderSOPs] = useState([]);
   const [folderSOPsLoading, setFolderSOPsLoading] = useState(false);
 
+  // ─── Dictation State ──────────────────────────────────────────────────────
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef(null);
+
+  const toggleDictation = () => {
+    if (isListening) {
+      if (recognitionRef.current) recognitionRef.current.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setErrorMsg(lang === 'hi' ? 'आपका ब्राउज़र वॉयस डिक्टेशन का समर्थन नहीं करता है।' : 'Your browser does not support Voice Dictation.');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = lang === 'hi' ? 'hi-IN' : 'en-IN';
+    recognition.interimResults = true;
+    recognition.continuous = true;
+
+    recognition.onresult = (event) => {
+      let finalTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+         if (event.results[i].isFinal) {
+           finalTranscript += event.results[i][0].transcript + ' ';
+         }
+      }
+      if (finalTranscript) {
+         setComplaintText(prev => (prev ? prev + ' ' : '') + finalTranscript.trim());
+      }
+    };
+
+    recognition.onerror = (event) => {
+      if (event.error !== 'not-allowed') {
+         setErrorMsg('Microphone error: ' + event.error);
+         setIsListening(false);
+      }
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+      setIsListening(true);
+      setErrorMsg('');
+    } catch (e) {
+      console.warn("Speech API error:", e);
+    }
+  };
+
   // Auto-fetch folder SOPs whenever analysisResult arrives
   React.useEffect(() => {
     if (!analysisResult) return;
@@ -736,11 +795,11 @@ export default function Investigation() {
 
   const handleFilesAdded = (newFiles) => {
     const valid = newFiles.filter(f =>
-      f.type.startsWith('image/') || f.type === 'application/pdf'
+      f.type.startsWith('image/') || f.type.startsWith('audio/') || f.type.startsWith('video/') || f.type === 'application/pdf'
     );
     setFiles(prev => [...prev, ...valid]);
     if (valid.length !== newFiles.length) {
-      setErrorMsg('Some files were skipped (only images and PDFs are supported).');
+      setErrorMsg('Some files were skipped (only images, audio, and PDFs are supported).');
     }
   };
 
@@ -756,13 +815,13 @@ export default function Investigation() {
       const totalPages = pdf.numPages;
       console.log('[Frontend] PDF has', totalPages, 'pages');
 
-      // Render first 3 pages and stitch them vertically
-      const maxPages = Math.min(totalPages, 3);
+      // Render first 2 pages and stitch them vertically (JPEG for smaller payload)
+      const maxPages = Math.min(totalPages, 2);
       const canvases = [];
 
       for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
         const page = await pdf.getPage(pageNum);
-        const viewport = page.getViewport({ scale: 3.0 }); // scale 3.0 for better OCR
+        const viewport = page.getViewport({ scale: 1.5 }); // scale 1.5 — good OCR, smaller size
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
         canvas.height = viewport.height;
@@ -784,8 +843,9 @@ export default function Investigation() {
         yOffset += c.height;
       }
 
-      const base64 = stitched.toDataURL('image/png');
-      console.log('[Frontend] Canvas generated, size:', Math.round(base64.length / 1024), 'KB');
+      // Use JPEG at 70% quality — ~4x smaller than PNG, still good for OCR
+      const base64 = stitched.toDataURL('image/jpeg', 0.7);
+      console.log('[Frontend] Canvas generated (JPEG), size:', Math.round(base64.length / 1024), 'KB');
       return base64;
     } catch (e) {
       console.error('[Frontend] PDF canvas error:', e.message);
@@ -1017,13 +1077,46 @@ Generated by Haryana Police CMS – Smart AI Analyzer
               <span>OR TYPE COMPLAINT TEXT</span>
             </div>
 
-            <textarea
-              className="complaint-textarea"
-              placeholder="मुझे कहना है कि... / Enter your complaint text here in Hindi or English..."
-              value={complaintText}
-              onChange={e => setComplaintText(e.target.value)}
-              rows={5}
-            />
+            <div className="textarea-wrapper" style={{ position: 'relative' }}>
+              <textarea
+                className="complaint-textarea"
+                placeholder={lang === 'hi' ? 'मुझे कहना है कि...' : 'Enter your complaint text here in Hindi or English...'}
+                value={complaintText}
+                onChange={e => setComplaintText(e.target.value)}
+                rows={5}
+                style={{ width: '100%', paddingRight: '50px' }}
+              />
+              <button 
+                type="button"
+                className={`dictation-btn ${isListening ? 'listening' : ''}`}
+                onClick={toggleDictation}
+                title={lang === 'hi' ? 'बोलकर बताएं (Voice Dictation)' : 'Speak (Voice Dictation)'}
+                style={{
+                  position: 'absolute',
+                  right: '10px',
+                  bottom: '15px',
+                  background: isListening ? '#f44336' : '#1f2937',
+                  color: isListening ? 'white' : '#60a5fa',
+                  border: `1px solid ${isListening ? '#f44336' : '#374151'}`,
+                  borderRadius: '50%',
+                  width: '40px',
+                  height: '40px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
+                  transition: 'all 0.3s ease',
+                  fontSize: '18px'
+                }}
+              >
+                {isListening ? (
+                  <span className="pulsing-mic" style={{ animation: 'pulse 1.5s infinite' }}>🛑</span>
+                ) : (
+                  <span>🎤</span>
+                )}
+              </button>
+            </div>
 
             {errorMsg && (
               <div className="error-banner">⚠️ {errorMsg}</div>
