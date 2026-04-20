@@ -300,6 +300,8 @@ export default function AnalysisPage() {
                   {selectedCase.io_name && <span><strong>IO:</strong> {selectedCase.io_name}</span>}
               </div>
             )}
+              </div>
+            )}
 
             {selectedCase?.description && (
               <p style={{ margin: 0, paddingTop: 8, borderTop: '1px solid var(--border)', color: 'var(--text)', fontSize: 12, lineHeight: 1.6 }}>
@@ -353,6 +355,7 @@ export default function AnalysisPage() {
             size="middle"
             style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
             tabBarStyle={{ padding: '0 12px', marginBottom: 0, backgroundColor: 'var(--code-bg)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}
+
             items={tabItems.map(item => ({
               ...item,
               children: (
