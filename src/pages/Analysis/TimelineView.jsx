@@ -247,36 +247,42 @@ function DocumentDrawer({ open, event, caseData, onClose }) {
             <Divider style={{ margin: '12px 0' }} />
 
             <div style={{
-                background: 'var(--code-bg)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                padding: '20px 24px',
-                fontFamily: 'Georgia, serif',
-                lineHeight: 1.8,
-                fontSize: 14
+                background: '#fcfcf5',
+                backgroundImage: 'url("https://www.transparenttextures.com/patterns/cream-paper.png")',
+                boxShadow: '0 4px 8px rgba(0,0,0,0.1), inset 0 0 50px rgba(0,0,0,0.03)',
+                border: '1px solid #e0dbce',
+                borderRadius: 2,
+                padding: '40px 30px',
+                fontFamily: '"Courier New", Courier, monospace',
+                lineHeight: 1.6,
+                fontSize: 14,
+                color: '#2b2b2b',
+                minHeight: '600px',
+                transform: 'rotate(-0.5deg)',
+                filter: 'sepia(0.2) contrast(1.05) brightness(0.98)',
             }}>
                 {lines.map((line, i) => {
                     if (line.startsWith('**') && line.endsWith('**') && line.length > 4) {
-                        return <div key={i} style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, fontFamily: 'inherit' }}>{line.replace(/\*\*/g, '')}</div>;
+                        return <div key={i} style={{ fontWeight: 700, fontSize: 16, marginBottom: 12, textTransform: 'uppercase', textDecoration: 'underline' }}>{line.replace(/\*\*/g, '')}</div>;
                     }
                     const boldParts = line.split(/(\*\*[^*]+\*\*)/g);
                     if (boldParts.length > 1) {
                         return (
-                            <div key={i} style={{ marginBottom: 4 }}>
+                            <div key={i} style={{ marginBottom: 6 }}>
                                 {boldParts.map((part, j) => {
                                     if (part.startsWith('**') && part.endsWith('**')) {
-                                        return <strong key={j}>{part.slice(2, -2)}</strong>;
+                                        return <strong key={j} style={{ fontWeight: 800 }}>{part.slice(2, -2)}</strong>;
                                     }
                                     return <span key={j}>{part}</span>;
                                 })}
                             </div>
                         );
                     }
-                    if (line.trim() === '') return <br key={i} />;
+                    if (line.trim() === '') return <div key={i} style={{ height: 16 }}></div>;
                     if (line.startsWith('*') && line.endsWith('*')) {
-                        return <div key={i} style={{ fontStyle: 'italic', color: 'var(--text)', opacity: 0.7, fontSize: 12, marginTop: 12 }}>{line.slice(1, -1)}</div>;
+                        return <div key={i} style={{ fontStyle: 'italic', color: '#4a4a4a', fontSize: 12, marginTop: 24, borderTop: '1px dashed #ccc', paddingTop: 8 }}>{line.slice(1, -1)}</div>;
                     }
-                    return <div key={i} style={{ marginBottom: 4 }}>{line}</div>;
+                    return <div key={i} style={{ marginBottom: 6 }}>{line}</div>;
                 })}
             </div>
 

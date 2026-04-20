@@ -335,9 +335,9 @@ export default function InsightsView({ caseId, headers }) {
                 <FA icon={faInbox} style={{ fontSize: 28, color: dragOver ? 'var(--accent)' : 'var(--text-dim)', marginBottom: 6, display: 'block', margin: '0 auto 6px' }} />
                 <span style={{ fontSize: 12, color: 'var(--text)' }}>Drop file here or <span style={{ color: 'var(--accent-hover)', textDecoration: 'underline' }}>browse</span></span>
                 <br />
-                <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>.pdf · .docx · .txt · .csv</span>
+                <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>.pdf · .docx · .txt · .csv · .xlsx · .mp3 · .wav · .mp4 · .jpg</span>
               </div>
-              <input ref={fileInputRef} type="file" accept=".txt,.pdf,.docx,.doc,.csv,.xlsx" style={{ display: 'none' }}
+              <input ref={fileInputRef} type="file" accept=".txt,.pdf,.docx,.doc,.csv,.xlsx,.mp3,.wav,.mp4,.png,.jpg,.jpeg" style={{ display: 'none' }}
                 onChange={e => handleFileSelect(e.target.files[0])} />
 
               {uploadedFile && (

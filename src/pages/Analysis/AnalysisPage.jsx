@@ -134,7 +134,7 @@ export default function AnalysisPage() {
   const [isFullscreen, setIsFullscreen]     = useState(false);
 
   // "collapsed" = top section hidden, only the mini-bar shows
-  const [headerCollapsed, setHeaderCollapsed] = useState(false);
+  const [headerCollapsed, setHeaderCollapsed] = useState(true);
 
   const headerRef   = useRef(null);
   const selectorRef = useRef(null);
@@ -206,8 +206,8 @@ export default function AnalysisPage() {
     padding: '10px 14px 0',
     display: 'flex', flexDirection: 'column',
   } : {
-    height: 'calc(100vh - 96px)', // 64px header + margins
-    padding: '0 4px 0',
+    height: 'calc(100vh - 32px)', // accounts for .app-content 16px margin on top and bottom
+    padding: '0 4px',
     display: 'flex', flexDirection: 'column',
   };
 
@@ -290,37 +290,14 @@ export default function AnalysisPage() {
               )}
             </div>
 
-            {/* Meta strip */}
+            {/* Meta strip - Clean simple design */}
             {selectedCase && (
-              <div style={{ paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', gap: '7px 24px' }}>
-                <MetaItem
-                  icon={<FA icon={faHashtag} />}
-                  label={selectedCase.case_type === 'fir' ? 'FIR No.' : 'Complaint No.'}
-                  value={selectedCase.case_type === 'fir'
-                    ? (selectedCase.fir_number || selectedCase.id.replace('case-', 'FIR-').toUpperCase())
-                    : (selectedCase.complaint_number || selectedCase.id.replace('case-', 'CMP-').toUpperCase())}
-                  mono accent={selectedCase.case_type === 'fir' ? 'var(--danger)' : 'var(--warning)'}
-                />
-                <MetaItem icon={<FA icon={faBuilding} />} label="Police Station"
-                  value={selectedCase.station_id ? selectedCase.station_id.replace('stn-', 'PS ').replace('hq', 'HQ') : 'PS Sector 14'}
-                />
-                <MetaItem icon={<FA icon={faCalendarDays} />} label="Registered On"
-                  value={selectedCase.registered_at
-                    ? new Date(selectedCase.registered_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-                    : '—'}
-                  accent="var(--success)"
-                />
-                {selectedCase.io_name && (
-                  <MetaItem icon={<FA icon={faUser} />} label="Investigating Officer"
-                    value={`${selectedCase.io_rank ? selectedCase.io_rank + ' ' : ''}${selectedCase.io_name}`}
-                    accent="#a78bfa"
-                  />
-                )}
-                {selectedCase.offense_section && (
-                  <MetaItem icon={<span style={{ fontWeight: 900, fontSize: 15, color: 'var(--warning)' }}>§</span>}
-                    label="Offense Section" value={selectedCase.offense_section} mono accent="var(--warning)"
-                  />
-                )}
+              <div style={{ paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', gap: '12px 24px', fontSize: 13, color: 'var(--text)' }}>
+                  <span><strong>FIR:</strong> {selectedCase.case_type === 'fir' ? (selectedCase.fir_number || selectedCase.id.replace('case-', 'FIR-').toUpperCase()) : (selectedCase.complaint_number || selectedCase.id.replace('case-', 'CMP-').toUpperCase())}</span>
+                  <span><strong>Date:</strong> {selectedCase.registered_at ? new Date(selectedCase.registered_at).toLocaleDateString() : '—'}</span>
+                  {selectedCase.offense_section && <span><strong>U/S:</strong> {selectedCase.offense_section}</span>}
+                  <span><strong>PS:</strong> {selectedCase.station_id ? selectedCase.station_id.replace('stn-', 'PS ').replace('hq', 'HQ') : 'PS 1'}</span>
+                  {selectedCase.io_name && <span><strong>IO:</strong> {selectedCase.io_name}</span>}
               </div>
             )}
 
@@ -376,25 +353,6 @@ export default function AnalysisPage() {
             size="middle"
             style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
             tabBarStyle={{ padding: '0 12px', marginBottom: 0, backgroundColor: 'var(--code-bg)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}
-            tabBarExtraContent={
-              <div style={{ paddingRight: 8, display: 'flex', gap: 7, alignItems: 'center' }}>
-                {/* Quick collapse toggle in tab bar */}
-                <Tooltip title={headerCollapsed ? 'Show case details' : 'Hide case details'}>
-                  <button onClick={() => setHeaderCollapsed(p => !p)} style={{
-                    display: 'flex', alignItems: 'center', gap: 4,
-                    padding: '3px 9px', borderRadius: 5, cursor: 'pointer',
-                    border: '1px solid var(--border)',
-                    background: headerCollapsed ? 'var(--accent-bg)' : 'transparent',
-                    color: headerCollapsed ? 'var(--accent-hover)' : 'var(--text-dim)',
-                    fontSize: 11, fontWeight: 600, transition: 'all 0.15s',
-                  }}>
-                    <FA icon={headerCollapsed ? faChevronDown : faChevronUp} style={{ fontSize: 9 }} />
-                    {headerCollapsed ? 'Case' : 'Hide'}
-                  </button>
-                </Tooltip>
-                <FullscreenBtn isFullscreen={isFullscreen} onToggle={toggleFullscreen} />
-              </div>
-            }
             items={tabItems.map(item => ({
               ...item,
               children: (
