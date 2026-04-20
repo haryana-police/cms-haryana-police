@@ -300,8 +300,6 @@ export default function AnalysisPage() {
                   {selectedCase.io_name && <span><strong>IO:</strong> {selectedCase.io_name}</span>}
               </div>
             )}
-              </div>
-            )}
 
             {selectedCase?.description && (
               <p style={{ margin: 0, paddingTop: 8, borderTop: '1px solid var(--border)', color: 'var(--text)', fontSize: 12, lineHeight: 1.6 }}>
