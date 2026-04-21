@@ -48,6 +48,28 @@
   #social .button-icon {
     filter: invert(1) brightness(2);
   }
+
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover, 
+  input:-webkit-autofill:focus, 
+  input:-webkit-autofill:active{
+      -webkit-box-shadow: 0 0 0 30px #141414 inset !important;
+      -webkit-text-fill-color: #f3f4f6 !important;
+      transition: background-color 5000s ease-in-out 0s;
+  }
+
+  /* Global dark loading message for Ant Design */
+  .ant-message-notice-content {
+    background-color: var(--bg) !important;
+    color: rgba(255, 255, 255, 0.85) !important;
+    border: 1px solid var(--border) !important;
+  }
+  .anticon-loading {
+    color: #1890ff !important;
+  }
+  .ant-message-custom-content {
+    color: rgba(255, 255, 255, 0.85) !important;
+  }
 }
 
 body {

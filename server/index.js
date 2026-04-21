@@ -24,47 +24,70 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// Health Check Route
+app.get('/api', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'HP CMS Backend API is running',
+    version: '1.0.0',
+    endpoints: [
+      'POST /api/login',
+      'GET  /api/auth/me',
+    ]
+  });
+});
+
 // Login Route
 app.post('/api/login', (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Username and password required' });
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password required' });
+    }
+
+    const user = db.prepare('SELECT * FROM profiles WHERE username = ?').get(username);
+    
+    if (!user || user.password !== password) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Generate an access token
+    const token = jwt.sign(
+      { 
+        id: user.id, 
+        username: user.username,
+        role: user.role
+      }, 
+      JWT_SECRET, 
+      { expiresIn: '24h' }
+    );
+
+    // Return user details without password
+    const { password: _, ...userData } = user;
+    
+    res.json({
+      token,
+      user: userData
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
-
-  const user = db.prepare('SELECT * FROM profiles WHERE username = ?').get(username);
-  
-  if (!user || user.password !== password) {
-    return res.status(401).json({ error: 'Invalid credentials' });
-  }
-
-  // Generate an access token
-  const token = jwt.sign(
-    { 
-      id: user.id, 
-      username: user.username,
-      role: user.role
-    }, 
-    JWT_SECRET, 
-    { expiresIn: '24h' }
-  );
-
-  // Return user details without password
-  const { password: _, ...userData } = user;
-  
-  res.json({
-    token,
-    user: userData
-  });
 });
 
 // Get Current User Profile
 app.get('/api/auth/me', authenticateToken, (req, res) => {
-  const user = db.prepare('SELECT * FROM profiles WHERE id = ?').get(req.user.id);
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
+  try {
+    const user = db.prepare('SELECT * FROM profiles WHERE id = ?').get(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const { password: _, ...userData } = user;
+    res.json(userData);
+  } catch (error) {
+    console.error('Auth profile error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
-  const { password: _, ...userData } = user;
-  res.json(userData);
 });
 
 app.listen(PORT, () => {

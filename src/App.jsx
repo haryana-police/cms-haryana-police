@@ -5,6 +5,7 @@ import { ProtectedRoute } from './components/Auth/ProtectedRoute';
 import AppShell from './components/Layout/AppShell';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import Complaints from './pages/Complaints';
 
 // Module Placeholders
 const Placeholder = ({ title }) => (
@@ -24,7 +25,7 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<AppShell />}>
               <Route path="/" element={<Dashboard />} />
-              <Route path="/complaints" element={<Placeholder title="M1: Complaints" />} />
+              <Route path="/complaints" element={<Complaints />} />
               <Route path="/fir" element={<Placeholder title="M2: FIRs" />} />
               <Route path="/investigation" element={<Placeholder title="M3: Investigation Guide" />} />
               <Route path="/hc-reply" element={<Placeholder title="M4: HC Reply" />} />
