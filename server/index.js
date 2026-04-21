@@ -11,6 +11,7 @@ import dns from 'dns';
 import db from './db.js';
 import FormData from 'form-data';
 import nodeFetch from 'node-fetch';
+ 
 
 // ─── Override DNS to use Google DNS (8.8.8.8) — bypasses ISP DNS blocks ──────
 dns.setDefaultResultOrder('ipv4first');
@@ -25,32 +26,11 @@ const pdfParse = typeof pdfParseModule === 'function'
   : (pdfParseModule.default || pdfParseModule);
 
 // ─── Server-side PDF → Image using pdfjs-dist + canvas ───────────────────────
+// NOTE: Disabled on Windows — native canvas crashes process during PDF render.
+// Frontend browser canvas handles OCR for scanned PDFs instead.
 let pdfjsLib = null;
 let NodeCanvasFactory = null;
-try {
-  const { createCanvas } = require('canvas');
-  const pdfjs = require('pdfjs-dist/legacy/build/pdf.mjs');
-  // For legacy build in ESM-compatible way
-  pdfjsLib = pdfjs;
-  // Simple canvas factory for pdfjs
-  NodeCanvasFactory = {
-    create(width, height) {
-      const canvas = createCanvas(width, height);
-      return { canvas, context: canvas.getContext('2d') };
-    },
-    reset(canvasAndCtx, width, height) {
-      canvasAndCtx.canvas.width = width;
-      canvasAndCtx.canvas.height = height;
-    },
-    destroy(canvasAndCtx) {
-      canvasAndCtx.canvas.width = 0;
-      canvasAndCtx.canvas.height = 0;
-    }
-  };
-  console.log('✅ pdfjs-dist + canvas loaded for server-side PDF rendering');
-} catch (e) {
-  console.warn('⚠️  pdfjs+canvas not available for server rendering:', e.message.substring(0, 80));
-}
+console.log('ℹ️  Server-side PDF canvas rendering disabled (Windows compatibility). Frontend canvas OCR active.');
 
 dotenv.config();
 
@@ -89,6 +69,7 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '50mb' }));
 app.use('/kb-files', express.static(path.join(process.cwd(), 'user_knowledge_base')));
+app.use('/cases', express.static(path.join(process.cwd(), 'cases')));
 
 
 // ─── Auth Middleware ──────────────────────────────────────────────────────────
@@ -658,6 +639,23 @@ const getUserKnowledge = async () => {
   return kbContent;
 };
 
+// ─── List Saved Cases ───────────────────────────────────────────────────────────
+app.get('/api/cases/list', authenticateToken, (req, res) => {
+  try {
+    const listFiles = (dir) => {
+      const dirPath = path.join(process.cwd(), 'cases', dir);
+      if (!fs.existsSync(dirPath)) return [];
+      return fs.readdirSync(dirPath).filter(f => f.endsWith('.pdf') || f.endsWith('.txt'));
+    };
+    res.json({
+      complaints: listFiles('complaints'),
+      firs: listFiles('firs')
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── 1. Smart Multi-File Analysis Endpoint ────────────────────────────────────
 app.post('/api/ai/analyze-complaint', authenticateToken, upload.array('files', 10), async (req, res) => {
   try {
@@ -677,6 +675,27 @@ app.post('/api/ai/analyze-complaint', authenticateToken, upload.array('files', 1
       }
     } catch (e) {
       console.log('No image fallbacks provided');
+    }
+
+    // Process existing server file natively
+    if (req.body.existing_file) {
+      const filePath = path.join(process.cwd(), req.body.existing_file);
+      if (fs.existsSync(filePath)) {
+        console.log(`Processing existing case file: ${filePath}`);
+        // Create mock file object that processFile expects
+        const mockFile = {
+          path: filePath,
+          mimetype: filePath.endsWith('.pdf') ? 'application/pdf' : 'text/plain',
+          originalname: path.basename(filePath)
+        };
+        const result = await processFile(mockFile, null);
+        fileResults.push(result);
+        if (result.extractedText && result.extractedText.length > 10) {
+          allExtractedTexts.push(`[System Case - ${result.filename}]:\n${result.extractedText}`);
+        }
+      } else {
+        console.warn(`Requested existing file not found: ${filePath}`);
+      }
     }
 
     // Process uploaded files

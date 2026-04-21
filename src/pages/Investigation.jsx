@@ -105,19 +105,6 @@ const LawDetailDrawer = ({ visible, onClose, sectionCode, token, lang = 'en' }) 
             <div className="law-drawer-subtitle">{sectionCode}</div>
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            {detailEn && (
-              <div className="drawer-lang-toggle">
-                <button
-                  className={`dlang-btn ${drawerLang === 'en' ? 'active' : ''}`}
-                  onClick={() => setDrawerLang('en')}
-                >EN</button>
-                <button
-                  className={`dlang-btn ${drawerLang === 'hi' ? 'active' : ''}`}
-                  onClick={fetchHindiDetail}
-                  disabled={loading}
-                >हिंदी</button>
-              </div>
-            )}
             <button className="drawer-close-btn" onClick={onClose}>✕</button>
           </div>
         </div>
@@ -179,21 +166,18 @@ const FileUploadZone = ({ files, onFilesAdded, onFileRemove }) => {
           ref={inputRef}
           type="file"
           multiple
-          accept="image/*,application/pdf,audio/*"
+          accept="image/*,application/pdf"
           onChange={handleFileInput}
           style={{ display: 'none' }}
         />
         <div className="upload-icon">📤</div>
-        <div className="upload-title">Drop files here or click to upload</div>
+        <div className="upload-title">Click to Upload Complaint or FIR</div>
         <div className="upload-subtitle">
-          Supports: JPG, PNG, PDF, Audio (MP3/WAV), Handwritten Applications • Max 20MB per file
+          Supports: Scanned Images (JPG/PNG) & PDF files
         </div>
         <div className="upload-formats">
-          <span className="format-chip">📸 Photo</span>
-          <span className="format-chip">📄 PDF</span>
-          <span className="format-chip">🎵 Audio Note</span>
-          <span className="format-chip">✍️ Handwritten</span>
-          <span className="format-chip">🖼️ Scanned Doc</span>
+          <span className="format-chip">📄 Upload FIR</span>
+          <span className="format-chip">🖼️ Upload Complaint</span>
         </div>
       </div>
 
@@ -668,10 +652,62 @@ const EvidenceItem = ({ text, index }) => {
 // ─── Main Investigation Component ─────────────────────────────────────────────
 export default function Investigation() {
   const { token, user } = useAuth();
+
   const [activeView, setActiveView] = useState('analyzer');
   const [files, setFiles] = useState([]);
   const [complaintText, setComplaintText] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  // System Cases integration
+  const [systemCases, setSystemCases] = useState({ complaints: [], firs: [] });
+  const [activeList, setActiveList] = useState(null); // 'complaints' | 'firs' | null
+  const [selectedCaseFile, setSelectedCaseFile] = useState(null);
+
+  React.useEffect(() => {
+    const fetchCases = async () => {
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        const resp = await fetch(`${apiUrl}/cases/list`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          setSystemCases(data);
+        }
+      } catch (e) {
+        console.error("Failed to load system cases", e);
+      }
+    };
+    if (token) fetchCases();
+  }, [token]);
+
+  const handleCaseSelect = async (fileName, type) => {
+    setSelectedCaseFile(fileName); // Just store name for display
+    setComplaintText(''); 
+    setActiveList(null); 
+    setErrorMsg('');
+    setAnalyzeProgress(`⬇️ Downloading ${fileName}...`);
+    setIsAnalyzing(true);
+    setAnalysisResult(null);
+
+    try {
+      const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api$/, '');
+      const resp = await fetch(`${baseUrl}/cases/${type}/${encodeURIComponent(fileName)}`);
+      
+      if (!resp.ok) throw new Error('File download failed');
+
+      const blob = await resp.blob();
+      const mockFile = new File([blob], fileName, { type: 'application/pdf' });
+      
+      handleAnalyze(null, [mockFile]); 
+    } catch (err) {
+      console.error('File fetch error:', err);
+      setErrorMsg(`❌ Error loading file: ${err.message}`);
+      setIsAnalyzing(false);
+      setAnalyzeProgress('');
+    }
+  };
+
   const [analysisResult, setAnalysisResult] = useState(null);
   const [analyzeProgress, setAnalyzeProgress] = useState('');
   const [lawDrawer, setLawDrawer] = useState({ visible: false, code: '' });
@@ -854,9 +890,11 @@ export default function Investigation() {
   };
 
 
-  const handleAnalyze = async () => {
-    if (files.length === 0 && !complaintText.trim()) {
-      setErrorMsg('Please upload at least one file or enter complaint text.');
+  const handleAnalyze = async (event = null, overrideFiles = null) => {
+    const rawFilesToUse = overrideFiles || files;
+
+    if (rawFilesToUse.length === 0 && !complaintText.trim()) {
+      setErrorMsg('Please select a system case or upload manually.');
       return;
     }
 
@@ -868,33 +906,23 @@ export default function Investigation() {
 
     try {
       // ── Step 1: Pre-process each file ────────────────────────────────────
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+      for (let i = 0; i < rawFilesToUse.length; i++) {
+        const file = rawFilesToUse[i];
         formData.append('files', file);
 
         if (file.type === 'application/pdf') {
-          setAnalyzeProgress(`📄 Converting PDF "${file.name}" to image for OCR... (${i+1}/${files.length})`);
+          setAnalyzeProgress(`📄 Converting PDF "${file.name}" to image for OCR...`);
           const canvasBase64 = await convertPdfToCanvas(file);
-          if (canvasBase64) {
-            imageFallbacks[i] = canvasBase64;
-            const sizeKB = Math.round(canvasBase64.length / 1024);
-            console.log(`PDF canvas ready: ${sizeKB}KB for "${file.name}"`);
-            setAnalyzeProgress(`✅ PDF "${file.name}" ready for OCR (${sizeKB}KB canvas)`);
-          } else {
-            setAnalyzeProgress(`⚠️ PDF canvas failed for "${file.name}" — will try direct text extraction`);
-          }
-          // Small delay so user can see the progress
+          if (canvasBase64) imageFallbacks[i] = canvasBase64;
           await new Promise(r => setTimeout(r, 400));
         } else {
-          setAnalyzeProgress(`🖼️ Queuing image "${file.name}" for OCR... (${i+1}/${files.length})`);
-          await new Promise(r => setTimeout(r, 200));
+          setAnalyzeProgress(`🖼️ Queuing image "${file.name}" for OCR...`);
         }
       }
 
       // ── Step 2: Attach fallbacks and text ────────────────────────────────
       if (Object.keys(imageFallbacks).length > 0) {
         formData.append('imageFallbacks', JSON.stringify(imageFallbacks));
-        console.log(`Sending ${Object.keys(imageFallbacks).length} PDF canvas(es) to server`);
       }
       formData.append('text', complaintText);
 
@@ -1013,24 +1041,7 @@ Generated by Haryana Police CMS – Smart AI Analyzer
           </div>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* ── Language Toggle ── */}
-          <div className="lang-toggle-wrapper">
-            <button
-              id="lang-en-btn"
-              className={`lang-toggle-btn ${lang === 'en' ? 'active' : ''}`}
-              onClick={() => handleLangToggle('en')}
-            >
-              🇬🇧 English
-            </button>
-            <button
-              id="lang-hi-btn"
-              className={`lang-toggle-btn ${lang === 'hi' ? 'active' : ''}`}
-              onClick={() => handleLangToggle('hi')}
-              disabled={isTranslating}
-            >
-              {isTranslating ? <><span className="btn-spinner" style={{width:'12px',height:'12px',marginRight:'4px'}} /> अनुवाद...</> : '🇮🇳 हिंदी'}
-            </button>
-          </div>
+          {/* Language Toggle Removed */}
           {analysisResult && activeView === 'analyzer' && (
             <button className="export-btn" onClick={handleExportReport}>
               📥 {lang === 'hi' ? 'रिपोर्ट डाउनलोड' : 'Export Report'}
@@ -1060,63 +1071,68 @@ Generated by Haryana Police CMS – Smart AI Analyzer
       {/* Smart Analyzer */}
       {activeView === 'analyzer' && (
         <div className="analyzer-container">
-          {/* Upload Panel */}
+
+          {/* System Fetch Panel */}
           <div className="upload-panel">
             <div className="panel-title">
-              <span>📎 Upload Documents</span>
-              <span className="panel-hint">OCR reads photos, PDFs & handwriting</span>
+              <span>⚖️ Guide IO for Pending Cases</span>
+              <span className="panel-hint">Select a pending Complaint or FIR from the system to analyze</span>
             </div>
             
-            <FileUploadZone
-              files={files}
-              onFilesAdded={handleFilesAdded}
-              onFileRemove={handleFileRemove}
-            />
-
-            <div className="divider">
-              <span>OR TYPE COMPLAINT TEXT</span>
-            </div>
-
-            <div className="textarea-wrapper" style={{ position: 'relative' }}>
-              <textarea
-                className="complaint-textarea"
-                placeholder={lang === 'hi' ? 'मुझे कहना है कि...' : 'Enter your complaint text here in Hindi or English...'}
-                value={complaintText}
-                onChange={e => setComplaintText(e.target.value)}
-                rows={5}
-                style={{ width: '100%', paddingRight: '50px' }}
-              />
-              <button 
-                type="button"
-                className={`dictation-btn ${isListening ? 'listening' : ''}`}
-                onClick={toggleDictation}
-                title={lang === 'hi' ? 'बोलकर बताएं (Voice Dictation)' : 'Speak (Voice Dictation)'}
-                style={{
-                  position: 'absolute',
-                  right: '10px',
-                  bottom: '15px',
-                  background: isListening ? '#f44336' : '#1f2937',
-                  color: isListening ? 'white' : '#60a5fa',
-                  border: `1px solid ${isListening ? '#f44336' : '#374151'}`,
-                  borderRadius: '50%',
-                  width: '40px',
-                  height: '40px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
-                  transition: 'all 0.3s ease',
-                  fontSize: '18px'
-                }}
-              >
-                {isListening ? (
-                  <span className="pulsing-mic" style={{ animation: 'pulse 1.5s infinite' }}>🛑</span>
-                ) : (
-                  <span>🎤</span>
+            <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
+              <div style={{ flex: 1, position: 'relative' }}>
+                <button 
+                  onClick={() => setActiveList(activeList === 'complaints' ? null : 'complaints')}
+                  style={{
+                    width: '100%', padding: '15px', background: '#2563eb', 
+                    color: 'white', border: 'none', borderRadius: '8px', 
+                    cursor: 'pointer', fontSize: '16px', fontWeight: 'bold'
+                  }}
+                >
+                  📄 Complaint {systemCases.complaints.length > 0 && `(${systemCases.complaints.length})`}
+                </button>
+                {activeList === 'complaints' && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1f2937', border: '1px solid #374151', borderRadius: '8px', marginTop: '5px', zIndex: 10, maxHeight: '200px', overflowY: 'auto' }}>
+                    {systemCases.complaints.length === 0 ? <div style={{ padding: '10px' }}>No complaints found.</div> : null}
+                    {systemCases.complaints.map(file => (
+                      <div key={file} onClick={() => handleCaseSelect(file, 'complaints')} style={{ padding: '12px', cursor: 'pointer', borderBottom: '1px solid #374151' }}>
+                        📄 {file}
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </button>
+              </div>
+
+              <div style={{ flex: 1, position: 'relative' }}>
+                <button 
+                  onClick={() => setActiveList(activeList === 'firs' ? null : 'firs')}
+                  style={{
+                    width: '100%', padding: '15px', background: '#dc2626', 
+                    color: 'white', border: 'none', borderRadius: '8px', 
+                    cursor: 'pointer', fontSize: '16px', fontWeight: 'bold'
+                  }}
+                >
+                  🚨 FIR {systemCases.firs.length > 0 && `(${systemCases.firs.length})`}
+                </button>
+                {activeList === 'firs' && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1f2937', border: '1px solid #374151', borderRadius: '8px', marginTop: '5px', zIndex: 10, maxHeight: '200px', overflowY: 'auto' }}>
+                    {systemCases.firs.length === 0 ? <div style={{ padding: '10px' }}>No FIRs found.</div> : null}
+                    {systemCases.firs.map(file => (
+                      <div key={file} onClick={() => handleCaseSelect(file, 'firs')} style={{ padding: '12px', cursor: 'pointer', borderBottom: '1px solid #374151' }}>
+                        🚨 {file}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
+
+            {selectedCaseFile && (
+              <div style={{ marginBottom: '20px', padding: '15px', background: '#111827', border: '1px solid #374151', borderRadius: '8px' }}>
+                <div style={{ fontSize: '12px', color: '#10b981', marginBottom: '5px', fontWeight: 'bold' }}>SELECTED FOR ANALYSIS:</div>
+                <div style={{ color: 'white', fontSize: '15px' }}>{selectedCaseFile}</div>
+              </div>
+            )}
 
             {errorMsg && (
               <div className="error-banner">⚠️ {errorMsg}</div>
@@ -1125,7 +1141,7 @@ Generated by Haryana Police CMS – Smart AI Analyzer
             <button
               className={`analyze-btn ${isAnalyzing ? 'loading' : ''}`}
               onClick={handleAnalyze}
-              disabled={isAnalyzing}
+              disabled={isAnalyzing || (!selectedCaseFile && !complaintText.trim())}
             >
               {isAnalyzing ? (
                 <><span className="btn-spinner" /> Processing...</>
@@ -1163,16 +1179,10 @@ Generated by Haryana Police CMS – Smart AI Analyzer
             {!analysisResult && !isAnalyzing && (
               <div className="results-empty">
                 <div className="empty-icon">🔎</div>
-                <div className="empty-title">Upload a Document to Analyze</div>
+                <div className="empty-title">Select a Complaint or FIR to Analyze</div>
                 <div className="empty-subtitle">
-                  AI will extract text using OCR and provide:<br />
+                  AI will analyze the selected case and provide:<br />
                   ⚖️ BNS/BNSS Sections • 📋 SOP Steps • 🏛️ SC & HC Judgments • ⏰ Deadlines • 🔍 Evidence Checklist
-                </div>
-                <div className="supported-types">
-                  <div className="supported-item">📸 <strong>Photo JPG/PNG</strong> – Crime scene, victim photo, documents</div>
-                  <div className="supported-item">📄 <strong>PDF</strong> – Digital or scanned PDFs (text + scanned both)</div>
-                  <div className="supported-item">✍️ <strong>Handwritten</strong> – Application, complaint letter in Hindi/English</div>
-                  <div className="supported-item">📝 <strong>Text</strong> – Type or paste complaint directly</div>
                 </div>
               </div>
             )}
