@@ -1,4 +1,4 @@
-import 'dotenv/config';
+﻿import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
@@ -15,7 +15,7 @@ import nodeFetch from 'node-fetch';
 import analysisRouter from './routes/analysis.js';
  
 
-// ─── Override DNS to use Google DNS (8.8.8.8) — bypasses ISP DNS blocks ──────
+// â”€â”€â”€ Override DNS to use Google DNS (8.8.8.8) â€” bypasses ISP DNS blocks â”€â”€â”€â”€â”€â”€
 dns.setDefaultResultOrder('ipv4first');
 dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
 
@@ -27,16 +27,16 @@ const pdfParse = typeof pdfParseModule === 'function'
   ? pdfParseModule
   : (pdfParseModule.default || pdfParseModule);
 
-// ─── Server-side PDF → Image using pdfjs-dist + canvas ───────────────────────
-// NOTE: Disabled on Windows — native canvas crashes process during PDF render.
+// â”€â”€â”€ Server-side PDF â†’ Image using pdfjs-dist + canvas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// NOTE: Disabled on Windows â€” native canvas crashes process during PDF render.
 // Frontend browser canvas handles OCR for scanned PDFs instead.
 let pdfjsLib = null;
 let NodeCanvasFactory = null;
-console.log('ℹ️  Server-side PDF canvas rendering disabled (Windows compatibility). Frontend canvas OCR active.');
+console.log('â„¹ï¸  Server-side PDF canvas rendering disabled (Windows compatibility). Frontend canvas OCR active.');
 
 dotenv.config();
 
-// ─── Multer Config: Accept up to 10 files ───────────────────────────────────
+// â”€â”€â”€ Multer Config: Accept up to 10 files â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads/'),
   filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
@@ -61,7 +61,7 @@ const app = express();
 const PORT = 5000;
 const JWT_SECRET = 'local-dev-secret-haryana-police-123';
 
-// ─── Ensure uploads/ directory exists ────────────────────────────────────────
+// â”€â”€â”€ Ensure uploads/ directory exists â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 if (!fs.existsSync('uploads')) fs.mkdirSync('uploads', { recursive: true });
 
 app.use(cors({
@@ -74,7 +74,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/kb-files', express.static(path.join(process.cwd(), 'user_knowledge_base')));
 app.use('/cases', express.static(path.join(process.cwd(), 'cases')));
 
-// ─── Auth Middleware ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Auth Middleware â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -107,7 +107,7 @@ app.post('/api/login', (req, res) => {
   }
 });
 
-// ── Get Current User ───────────────────────────────────────────────────────────
+// â”€â”€ Get Current User â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get('/api/auth/me', authenticateToken, (req, res) => {
   try {
     const user = db.prepare('SELECT * FROM profiles WHERE id = ?').get(req.user.id);
@@ -120,7 +120,7 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
   }
 });
 
-// ─── Groq API Helper ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Groq API Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function callGroqAPI(messages, jsonMode = false, model = "llama-3.3-70b-versatile") {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("GROQ_API_KEY not found in .env");
@@ -143,7 +143,7 @@ async function callGroqAPI(messages, jsonMode = false, model = "llama-3.3-70b-ve
   return data.choices[0].message.content;
 }
 
-// ─── Groq Whisper Audio Transcription Helper ─────────────────────────────────
+// â”€â”€â”€ Groq Whisper Audio Transcription Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function callGroqWhisper(filePath) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("GROQ_API_KEY not found in .env");
@@ -170,7 +170,7 @@ async function callGroqWhisper(filePath) {
   return data.text;
 }
 
-// ─── OCR Helper: Extract text from image file ─────────────────────────────────
+// â”€â”€â”€ OCR Helper: Extract text from image file â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function extractTextFromImage(filePath, lang = 'eng+hin') {
   try {
     const { data: { text, confidence } } = await Tesseract.recognize(filePath, lang, {
@@ -184,7 +184,7 @@ async function extractTextFromImage(filePath, lang = 'eng+hin') {
   }
 }
 
-// ─── OCR Helper: Extract text from base64 image (for scanned PDFs) ───────────
+// â”€â”€â”€ OCR Helper: Extract text from base64 image (for scanned PDFs) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function extractTextFromBase64(base64Data) {
   const tmpPath = `uploads/tmp_${Date.now()}.png`;
   try {
@@ -200,7 +200,7 @@ async function extractTextFromBase64(base64Data) {
   }
 }
 
-// ─── Process a single uploaded file and return extracted text ─────────────────
+// â”€â”€â”€ Process a single uploaded file and return extracted text â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function processFile(file, imageFallback = null) {
   const { path: filePath, mimetype, originalname } = file;
   let extractedText = '';
@@ -209,9 +209,9 @@ async function processFile(file, imageFallback = null) {
 
   try {
     if (mimetype === 'application/pdf') {
-      console.log(`📄 Processing PDF: "${originalname}"`);
+      console.log(`ðŸ“„ Processing PDF: "${originalname}"`);
 
-      // ── Strategy 1: Direct text extraction (works for digital PDFs) ──────
+      // â”€â”€ Strategy 1: Direct text extraction (works for digital PDFs) â”€â”€â”€â”€â”€â”€
       let pdfTextDirect = '';
       try {
         const dataBuffer = fs.readFileSync(filePath);
@@ -224,13 +224,13 @@ async function processFile(file, imageFallback = null) {
       }
 
       if (pdfTextDirect.length > 30) {
-        // Good digital PDF — text extracted directly
+        // Good digital PDF â€” text extracted directly
         extractedText = pdfTextDirect;
         method = 'pdf-text';
         confidence = 100;
-        console.log(`   ✅ Digital PDF text extracted: ${extractedText.length} chars`);
+        console.log(`   âœ… Digital PDF text extracted: ${extractedText.length} chars`);
       } else {
-        // ── Strategy 2: Canvas image OCR (works for scanned/image PDFs) ────
+        // â”€â”€ Strategy 2: Canvas image OCR (works for scanned/image PDFs) â”€â”€â”€â”€
         console.log(`   Strategy 1 insufficient (${pdfTextDirect.length} chars). Trying OCR...`);
         if (imageFallback) {
           const result = await extractTextFromBase64(imageFallback);
@@ -238,14 +238,14 @@ async function processFile(file, imageFallback = null) {
             extractedText = result.text.trim();
             confidence = result.confidence;
             method = 'pdf-ocr-canvas';
-            console.log(`   ✅ Canvas OCR extracted: ${extractedText.length} chars (conf: ${confidence}%)`);
+            console.log(`   âœ… Canvas OCR extracted: ${extractedText.length} chars (conf: ${confidence}%)`);
           } else {
             extractedText = pdfTextDirect || '[PDF scanned - OCR returned empty result. Upload as JPG for better results.]';
             method = 'pdf-ocr-empty';
-            console.log(`   ⚠️  OCR returned empty. Using fallback message.`);
+            console.log(`   âš ï¸  OCR returned empty. Using fallback message.`);
           }
         } else if (pdfjsLib && NodeCanvasFactory) {
-          // ── Strategy 3: Server-side PDF canvas mapping (for scanned PDFs when frontend fails) ────
+          // â”€â”€ Strategy 3: Server-side PDF canvas mapping (for scanned PDFs when frontend fails) â”€â”€â”€â”€
           console.log(`   Strategy 3 (Server OCR): Frontend fallback missing. Running server-side PDF-to-image OCR...`);
           try {
             const dataBuffer = fs.readFileSync(filePath);
@@ -286,57 +286,57 @@ async function processFile(file, imageFallback = null) {
               extractedText = result.text.trim();
               confidence = result.confidence;
               method = 'pdf-ocr-server';
-              console.log(`   ✅ Server Canvas OCR: ${extractedText.length} chars (conf: ${confidence}%)`);
+              console.log(`   âœ… Server Canvas OCR: ${extractedText.length} chars (conf: ${confidence}%)`);
             } else {
               throw new Error("Server OCR returned empty text");
             }
           } catch (serverOcrErr) {
-            console.log(`   ⚠️ Server side OCR failed: ${serverOcrErr.message}. Falling back...`);
+            console.log(`   âš ï¸ Server side OCR failed: ${serverOcrErr.message}. Falling back...`);
             if (pdfTextDirect.length > 0) {
               extractedText = pdfTextDirect;
               method = 'pdf-text-partial';
               confidence = 50;
-              console.log(`   ⚠️  Using partial PDF text: ${extractedText.length} chars`);
+              console.log(`   âš ï¸  Using partial PDF text: ${extractedText.length} chars`);
             } else {
               extractedText = '[Scanned PDF detected. No canvas fallback provided. Please re-upload as a JPG image for OCR analysis.]';
               method = 'pdf-no-fallback';
-              console.log(`   ❌ No fallback and no text. PDF is purely scanned.`);
+              console.log(`   âŒ No fallback and no text. PDF is purely scanned.`);
             }
           }
         } else {
-          // ── Strategy 4: Fallback to partial text ────────────
+          // â”€â”€ Strategy 4: Fallback to partial text â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           if (pdfTextDirect.length > 0) {
             extractedText = pdfTextDirect;
             method = 'pdf-text-partial';
             confidence = 50;
-            console.log(`   ⚠️  Using partial PDF text: ${extractedText.length} chars`);
+            console.log(`   âš ï¸  Using partial PDF text: ${extractedText.length} chars`);
           } else {
             extractedText = '[Scanned PDF detected. No canvas fallback provided. Please re-upload as a JPG image for OCR analysis.]';
             method = 'pdf-no-fallback';
-            console.log(`   ❌ No fallback and no text. PDF is purely scanned.`);
+            console.log(`   âŒ No fallback and no text. PDF is purely scanned.`);
           }
         }
       }
 
     } else if (mimetype.startsWith('image/')) {
-      // ── Images: JPG, PNG, Handwritten docs, Photos ───────────────────────
-      console.log(`🖼️  Running OCR on image: "${originalname}"`);
+      // â”€â”€ Images: JPG, PNG, Handwritten docs, Photos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      console.log(`ðŸ–¼ï¸  Running OCR on image: "${originalname}"`);
       const result = await extractTextFromImage(filePath);
       extractedText = result.text;
       confidence = result.confidence;
       method = 'image-ocr';
-      console.log(`   ✅ Image OCR: ${extractedText.length} chars (conf: ${confidence}%)`);
+      console.log(`   âœ… Image OCR: ${extractedText.length} chars (conf: ${confidence}%)`);
     } else if (mimetype.startsWith('audio/') || mimetype.startsWith('video/')) {
-      // ── Audio/Video Transcription ───────────────────────
-      console.log(`🎤 Running transcription on audio: "${originalname}"`);
+      // â”€â”€ Audio/Video Transcription â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      console.log(`ðŸŽ¤ Running transcription on audio: "${originalname}"`);
       const text = await callGroqWhisper(filePath);
       extractedText = text;
       confidence = 100;
       method = 'audio-transcription';
-      console.log(`   ✅ Audio Transcription: ${extractedText.length} chars`);
+      console.log(`   âœ… Audio Transcription: ${extractedText.length} chars`);
     }
   } catch (e) {
-    console.error(`❌ Error processing file "${originalname}":`, e.message);
+    console.error(`âŒ Error processing file "${originalname}":`, e.message);
     console.error(e.stack);
     extractedText = `[Error reading file: ${e.message}]`;
     method = 'error';
@@ -356,7 +356,7 @@ async function processFile(file, imageFallback = null) {
   };
 }
 
-// ─── BNS Conversion Reference Table (used inside prompt) ─────────────────────
+// â”€â”€â”€ BNS Conversion Reference Table (used inside prompt) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const BNS_REFERENCE = `
 MANDATORY BNS CONVERSION TABLE (Use ONLY these - NEVER use IPC numbers in "code" field):
 | Old IPC | New BNS | Crime |
@@ -412,11 +412,11 @@ BNSS (New CrPC) KEY SECTIONS:
 | CrPC 46 | BNSS 43 | Arrest procedure |
 `;
 
-// ─── AI Prompt for Deep Analysis ──────────────────────────────────────────────
+// â”€â”€â”€ AI Prompt for Deep Analysis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ANALYSIS_SYSTEM_PROMPT = `You are an expert AI Legal Advisor for Haryana Police, India. 
 
 =========================================================
-⚠️ ABSOLUTE MANDATORY RULE - READ CAREFULLY:
+âš ï¸ ABSOLUTE MANDATORY RULE - READ CAREFULLY:
 =========================================================
 India passed 3 new laws effective from July 1, 2024:
 1. BNS = Bharatiya Nyaya Sanhita (REPLACES IPC completely)
@@ -424,15 +424,15 @@ India passed 3 new laws effective from July 1, 2024:
 3. BSA = Bharatiya Sakshya Adhiniyam (REPLACES Indian Evidence Act)
 
 YOU MUST:
-✅ Use BNS section numbers in the "code" field (e.g., "BNS 85", "BNS 303", "BNS 64")
-✅ Put the old IPC number ONLY in "old_code" field as reference
-✅ BNS sections are DIFFERENT numbers than IPC - use the mapping table below
+âœ… Use BNS section numbers in the "code" field (e.g., "BNS 85", "BNS 303", "BNS 64")
+âœ… Put the old IPC number ONLY in "old_code" field as reference
+âœ… BNS sections are DIFFERENT numbers than IPC - use the mapping table below
 
 YOU MUST NEVER:
-❌ DO NOT write "IPC 498A" in the "code" field - write "BNS 85" instead
-❌ DO NOT write "IPC 302" in the "code" field - write "BNS 101" instead  
-❌ DO NOT write "IPC 420" in the "code" field - write "BNS 318" instead
-❌ DO NOT suggest any IPC, CrPC, or IEA sections as primary recommendations
+âŒ DO NOT write "IPC 498A" in the "code" field - write "BNS 85" instead
+âŒ DO NOT write "IPC 302" in the "code" field - write "BNS 101" instead  
+âŒ DO NOT write "IPC 420" in the "code" field - write "BNS 318" instead
+âŒ DO NOT suggest any IPC, CrPC, or IEA sections as primary recommendations
 =========================================================
 
 ${BNS_REFERENCE}
@@ -545,7 +545,7 @@ FINAL STRICT RULES:
 7. Evidence checklist must be crime-specific and actionable.`;
 
 
-// ─── Recursive File Reader Helper ─────────────────────────────────────────
+// â”€â”€â”€ Recursive File Reader Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const getAllFiles = (dirPath, arrayOfFiles) => {
   const files = fs.readdirSync(dirPath);
   arrayOfFiles = arrayOfFiles || [];
@@ -559,7 +559,7 @@ const getAllFiles = (dirPath, arrayOfFiles) => {
   return arrayOfFiles;
 };
 
-// ─── SOP → Crime Type Mapping Table ───────────────────────────────────────
+// â”€â”€â”€ SOP â†’ Crime Type Mapping Table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const SOP_CRIME_MAP = [
   {
     keywords: ['rape', 'sexual assault', 'bns 63', 'bns 64', 'bns 66', 'bns 70', 'bns 65', 'bns 71', 'pocso', 'gang rape', 'sexual offence'],
@@ -603,7 +603,7 @@ const SOP_CRIME_MAP = [
   }
 ];
 
-// ─── Load Relevant SOPs based on detected crime context ───────────────────
+// â”€â”€â”€ Load Relevant SOPs based on detected crime context â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const getRelevantSOPs = async (crimeContext = '') => {
   const kbPath = path.join(process.cwd(), 'user_knowledge_base');
   let sopContent = '';
@@ -618,9 +618,9 @@ const getRelevantSOPs = async (crimeContext = '') => {
           const dataBuffer = fs.readFileSync(filePath);
           const pdfData = await pdfParse(dataBuffer);
           sopContent += `\n\n=== OFFICIAL HARYANA POLICE SOP: ${sop.label} ===\n${pdfData.text}\n${'='.repeat(60)}\n`;
-          console.log(`✅ SOP Loaded for AI: ${sop.label}`);
+          console.log(`âœ… SOP Loaded for AI: ${sop.label}`);
         } catch (e) {
-          console.error(`❌ Error loading SOP [${sop.label}]:`, e.message);
+          console.error(`âŒ Error loading SOP [${sop.label}]:`, e.message);
         }
       }
     }
@@ -628,7 +628,7 @@ const getRelevantSOPs = async (crimeContext = '') => {
   return sopContent;
 };
 
-// ─── Load User Knowledge Base ──────────────────────────────────────────
+// â”€â”€â”€ Load User Knowledge Base â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const getUserKnowledge = async () => {
   const kbPath = path.join(process.cwd(), 'user_knowledge_base');
   let kbContent = '';
@@ -657,7 +657,7 @@ const getUserKnowledge = async () => {
   return kbContent;
 };
 
-// ─── List Saved Cases ───────────────────────────────────────────────────────────
+// â”€â”€â”€ List Saved Cases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get('/api/cases/list', authenticateToken, (req, res) => {
   try {
     const listFiles = (dir) => {
@@ -674,7 +674,7 @@ app.get('/api/cases/list', authenticateToken, (req, res) => {
   }
 });
 
-// ─── 1. Smart Multi-File Analysis Endpoint ────────────────────────────────────
+// â”€â”€â”€ 1. Smart Multi-File Analysis Endpoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post('/api/ai/analyze-complaint', authenticateToken, upload.array('files', 10), async (req, res) => {
   try {
     let allExtractedTexts = [];
@@ -739,11 +739,11 @@ app.post('/api/ai/analyze-complaint', authenticateToken, upload.array('files', 1
       return res.status(400).json({ error: 'No readable content found. Please upload a clearer image or type the complaint text.' });
     }
 
-    // ─── Cap combined text to avoid token overflow ─────────────────────────────
+    // â”€â”€â”€ Cap combined text to avoid token overflow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const MAX_COMPLAINT_CHARS = 3000;
     let combinedText = allExtractedTexts.join('\n\n---\n\n');
     if (combinedText.length > MAX_COMPLAINT_CHARS) {
-      console.log(`⚠️  Complaint text too long (${combinedText.length} chars), capping at ${MAX_COMPLAINT_CHARS}...`);
+      console.log(`âš ï¸  Complaint text too long (${combinedText.length} chars), capping at ${MAX_COMPLAINT_CHARS}...`);
       combinedText = combinedText.substring(0, MAX_COMPLAINT_CHARS) + '\n[...text truncated for analysis...]';
     }
     console.log("COMBINED TEXT FOR AI:\n", combinedText.substring(0, 300) + '...');
@@ -758,9 +758,9 @@ Now analyze this complaint/document and return JSON:
 ${combinedText}
 `.trim();
 
-    // ─── Load Knowledge: Crime-specific SOPs + General KB ────────────────
-    // const customKnowledge = await getUserKnowledge();          // ← DISABLED: Loading all PDFs exceeds context limits
-    const relevantSOP = await getRelevantSOPs(combinedText);  // ← Smart SOP by crime type
+    // â”€â”€â”€ Load Knowledge: Crime-specific SOPs + General KB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // const customKnowledge = await getUserKnowledge();          // â† DISABLED: Loading all PDFs exceeds context limits
+    const relevantSOP = await getRelevantSOPs(combinedText);  // â† Smart SOP by crime type
 
     const sopInjection = relevantSOP
       ? `\n\n=== HARYANA POLICE OFFICIAL SOPs (MANDATORY - USE THESE STEPS DIRECTLY) ===\n${relevantSOP}\n`
@@ -770,8 +770,8 @@ ${combinedText}
       + sopInjection;
       // + (customKnowledge ? `\n\n=== CUSTOM KNOWLEDGE BASE ===\n${customKnowledge}\n=============================\n` : '');
 
-    if (relevantSOP) console.log('✅ Crime-specific SOP injected into AI prompt');
-    else console.log('ℹ️  No specific SOP matched - using general knowledge');
+    if (relevantSOP) console.log('âœ… Crime-specific SOP injected into AI prompt');
+    else console.log('â„¹ï¸  No specific SOP matched - using general knowledge');
 
     const aiResponse = await callGroqAPI([
       { role: "system", content: finalSystemPrompt },
@@ -784,7 +784,7 @@ ${combinedText}
       return res.status(400).json({ error: parsedJson.error });
     }
 
-    // ─── Failsafe: Auto-correct any IPC sections AI returned by mistake ──────
+    // â”€â”€â”€ Failsafe: Auto-correct any IPC sections AI returned by mistake â”€â”€â”€â”€â”€â”€
     const IPC_TO_BNS_MAP = {
       '302': 'BNS 101', '304': 'BNS 105', '304A': 'BNS 106', '307': 'BNS 109',
       '308': 'BNS 110', '319': 'BNS 114', '320': 'BNS 115', '323': 'BNS 115(2)',
@@ -816,7 +816,7 @@ ${combinedText}
           const ipcNum = ipcMatch[1].toUpperCase();
           const correctBNS = IPC_TO_BNS_MAP[ipcNum];
           if (correctBNS) {
-            console.log(`⚠️  Auto-corrected: "${codeStr}" → "${correctBNS}"`);
+            console.log(`âš ï¸  Auto-corrected: "${codeStr}" â†’ "${correctBNS}"`);
             return {
               ...sec,
               old_code: sec.old_code || `IPC ${ipcNum}`,
@@ -829,7 +829,7 @@ ${combinedText}
           const ipcNum = codeStr.replace(/^IPC\s*/i, '').trim().toUpperCase();
           const correctBNS = IPC_TO_BNS_MAP[ipcNum];
           if (correctBNS) {
-            console.log(`⚠️  Auto-corrected numeric: "${codeStr}" → "${correctBNS}"`);
+            console.log(`âš ï¸  Auto-corrected numeric: "${codeStr}" â†’ "${correctBNS}"`);
             return { ...sec, old_code: sec.old_code || `IPC ${ipcNum}`, code: correctBNS };
           }
         }
@@ -860,7 +860,7 @@ ${combinedText}
 });
 
 
-// ─── 2. Chat Assistant ────────────────────────────────────────────────────────
+// â”€â”€â”€ 2. Chat Assistant â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post('/api/ai/chat', authenticateToken, async (req, res) => {
   try {
     const { history, currentMessage } = req.body;
@@ -888,7 +888,7 @@ You are expert in Indian criminal law post July 2024:
   }
 });
 
-// ─── 3. Law Detail Lookup ─────────────────────────────────────────────────────
+// â”€â”€â”€ 3. Law Detail Lookup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post('/api/ai/law-detail', authenticateToken, async (req, res) => {
   try {
     const { sectionCode } = req.body;
@@ -917,7 +917,7 @@ Use clean markdown formatting. Be comprehensive but concise.`
   }
 });
 
-// ─── 3b. Law Detail in Hindi ──────────────────────────────────────────────────
+// â”€â”€â”€ 3b. Law Detail in Hindi â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post('/api/ai/law-detail-hindi', authenticateToken, async (req, res) => {
   try {
     const { sectionCode, englishText } = req.body;
@@ -933,7 +933,7 @@ Translate the following legal reference to clear, simple Hindi.
 RULES:
 - Keep section codes EXACTLY as-is (BNS 85, BNSS 173, etc.)
 - Keep English case names (e.g., "D.K. Basu vs State") as-is
-- Use: धारा, सज़ा, एफआईआर, गिरफ्तारी, जांच अधिकारी, न्यायालय etc.
+- Use: à¤§à¤¾à¤°à¤¾, à¤¸à¤œà¤¼à¤¾, à¤à¤«à¤†à¤ˆà¤†à¤°, à¤—à¤¿à¤°à¤«à¥à¤¤à¤¾à¤°à¥€, à¤œà¤¾à¤‚à¤š à¤…à¤§à¤¿à¤•à¤¾à¤°à¥€, à¤¨à¥à¤¯à¤¾à¤¯à¤¾à¤²à¤¯ etc.
 - Use clean markdown (same structure as input)
 - Be clear and practical for a police officer`
         },
@@ -944,14 +944,14 @@ RULES:
           role: 'system',
           content: `You are an expert Indian Legal Encyclopedia in Hindi for Police officers.
 For the given section, provide in HINDI:
-1. **आधिकारिक शीर्षक** (Official Title)
-2. **पूरी परिभाषा** (Full Definition in simple Hindi)
-3. **सज़ा** (Punishment)
-4. **मुख्य केस लॉ** (1-2 key judgments - case names in English)
-5. **जांच अधिकारी का कर्तव्य** (IO's duty)
+1. **à¤†à¤§à¤¿à¤•à¤¾à¤°à¤¿à¤• à¤¶à¥€à¤°à¥à¤·à¤•** (Official Title)
+2. **à¤ªà¥‚à¤°à¥€ à¤ªà¤°à¤¿à¤­à¤¾à¤·à¤¾** (Full Definition in simple Hindi)
+3. **à¤¸à¤œà¤¼à¤¾** (Punishment)
+4. **à¤®à¥à¤–à¥à¤¯ à¤•à¥‡à¤¸ à¤²à¥‰** (1-2 key judgments - case names in English)
+5. **à¤œà¤¾à¤‚à¤š à¤…à¤§à¤¿à¤•à¤¾à¤°à¥€ à¤•à¤¾ à¤•à¤°à¥à¤¤à¤µà¥à¤¯** (IO's duty)
 Keep section codes as-is. Use clean markdown.`
         },
-        { role: 'user', content: `हिंदी में समझाएं: ${sectionCode}` }
+        { role: 'user', content: `à¤¹à¤¿à¤‚à¤¦à¥€ à¤®à¥‡à¤‚ à¤¸à¤®à¤à¤¾à¤à¤‚: ${sectionCode}` }
       ];
 
     const reply = await callGroqAPI(messages, false);
@@ -962,7 +962,7 @@ Keep section codes as-is. Use clean markdown.`
   }
 });
 
-// ─── 4. HC Judgment Search ────────────────────────────────────────────────────
+// â”€â”€â”€ 4. HC Judgment Search â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post('/api/ai/hc-judgment', authenticateToken, async (req, res) => {
   try {
     const { query, crimeType } = req.body;
@@ -986,7 +986,7 @@ Return JSON: {"judgments": [{"case_name": "...", "court": "Punjab & Haryana HC",
   }
 });
 
-// ─── 5. Generate Analysis Report (Text Summary) ──────────────────────────────
+// â”€â”€â”€ 5. Generate Analysis Report (Text Summary) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post('/api/ai/generate-report', authenticateToken, async (req, res) => {
   try {
     const { analysisData, officerName, stationName } = req.body;
@@ -1014,7 +1014,7 @@ Analysis Data: ${JSON.stringify(analysisData, null, 2)}`
   }
 });
 
-// ─── 6. Hindi Translation Endpoint ───────────────────────────────────────────
+// â”€â”€â”€ 6. Hindi Translation Endpoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post('/api/ai/translate-hindi', authenticateToken, async (req, res) => {
   try {
     const { analysisData } = req.body;
@@ -1029,7 +1029,7 @@ STRICT RULES:
 3. Keep case_name of judgments in English (they are court record names)
 4. Translate: title, description, action, guideline, relevance, task, punishment, case_summary, crime_type, io_warnings, evidence_checklist, sop actions
 5. Use simple, clear Hindi that a police officer can understand
-6. For legal terms: use Hindi equivalents e.g. "सज़ा", "धारा", "एफआईआर", "गिरफ्तारी", "जांच"`;
+6. For legal terms: use Hindi equivalents e.g. "à¤¸à¤œà¤¼à¤¾", "à¤§à¤¾à¤°à¤¾", "à¤à¤«à¤†à¤ˆà¤†à¤°", "à¤—à¤¿à¤°à¤«à¥à¤¤à¤¾à¤°à¥€", "à¤œà¤¾à¤‚à¤š"`;
 
     const userMsg = `Translate this police case analysis to Hindi. Keep all BNS/BNSS codes as-is:
 ${JSON.stringify(analysisData, null, 2)}`;
@@ -1047,7 +1047,7 @@ ${JSON.stringify(analysisData, null, 2)}`;
   }
 });
 
-// ─── 6b. Search User Knowledge Base ──────────────────────────────────────────
+// â”€â”€â”€ 6b. Search User Knowledge Base â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post('/api/ai/search-kb', authenticateToken, async (req, res) => {
   try {
     const { query } = req.body;
@@ -1082,7 +1082,7 @@ Answer in a clear, concise format.`
   }
 });
 
-// ─── 7. Serve User Knowledge Base for Law Library ────────────────────────────
+// â”€â”€â”€ 7. Serve User Knowledge Base for Law Library â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get('/api/kb', authenticateToken, async (req, res) => {
   try {
     const kbPath = path.join(process.cwd(), 'user_knowledge_base');
@@ -1130,7 +1130,7 @@ app.get('/api/kb', authenticateToken, async (req, res) => {
   }
 });
 
-// ─── 8. SOP for Case — Return matched SOPs from folder with full detail ───────
+// â”€â”€â”€ 8. SOP for Case â€” Return matched SOPs from folder with full detail â”€â”€â”€â”€â”€â”€â”€
 app.post('/api/sop/for-case', authenticateToken, async (req, res) => {
   try {
     const { crimeContext, crimeType } = req.body;
@@ -1168,9 +1168,9 @@ app.post('/api/sop/for-case', authenticateToken, async (req, res) => {
           fullText: rawText.substring(0, 15000) // first 15k chars for AI context
         });
 
-        console.log(`✅ SOP matched & parsed: ${sop.label} (${paragraphs.length} paragraphs)`);
+        console.log(`âœ… SOP matched & parsed: ${sop.label} (${paragraphs.length} paragraphs)`);
       } catch (parseErr) {
-        console.error(`❌ SOP parse error [${sop.label}]:`, parseErr.message);
+        console.error(`âŒ SOP parse error [${sop.label}]:`, parseErr.message);
         matchedSOPs.push({
           label: sop.label,
           file: sop.file,
@@ -1200,10 +1200,10 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message || 'An unexpected server error occurred' });
 });
 
-// ── Analysis Router (protected) ────────────────────────────────────────────────
+// â”€â”€ Analysis Router (protected) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.use('/api/analysis', authenticateToken, analysisRouter);
 
-// ── Health check ───────────────────────────────────────────────────────────────
+// â”€â”€ Health check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get('/api/health', (req, res) => res.json({
   status: 'ok',
   gemini: !!process.env.GEMINI_API_KEY,
@@ -1212,8 +1212,8 @@ app.get('/api/health', (req, res) => res.json({
 }));
 
 app.listen(PORT, () => {
-  console.log(`✅ Backend API running on http://localhost:${PORT}`);
-  console.log(`📁 Uploads directory ready`);
-  console.log(`   Gemini AI: ${process.env.GEMINI_API_KEY ? '✅ Connected' : '⚠️  Not configured'}`);
-  console.log(`   Groq LLM:  ${process.env.GROQ_API_KEY ? '✅ Connected' : '⚠️  Not configured'}`);
+  console.log(`âœ… Backend API running on http://localhost:${PORT}`);
+  console.log(`ðŸ“ Uploads directory ready`);
+  console.log(`   Gemini AI: ${process.env.GEMINI_API_KEY ? 'âœ… Connected' : 'âš ï¸  Not configured'}`);
+  console.log(`   Groq LLM:  ${process.env.GROQ_API_KEY ? 'âœ… Connected' : 'âš ï¸  Not configured'}`);
 });

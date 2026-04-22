@@ -8,6 +8,9 @@ import Dashboard from './pages/Dashboard';
 import Complaints from './pages/Complaints';
 import Investigation from './pages/Investigation';
 import AnalysisPage from './pages/Analysis/AnalysisPage';
+import FIRListPage from './pages/FIR/FIRListPage';
+import FIRForm from './pages/FIR/FIRForm';
+import FIRDetail from './pages/FIR/FIRDetail';
 
 // Module Placeholders
 const Placeholder = ({ title }) => (
@@ -28,7 +31,9 @@ export default function App() {
             <Route element={<AppShell />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/complaints" element={<Complaints />} />
-              <Route path="/fir" element={<Placeholder title="M2: FIRs" />} />
+              <Route path="/fir" element={<FIRListPage />} />
+              <Route path="/fir/new" element={<FIRForm />} />
+              <Route path="/fir/:id" element={<FIRDetail />} />
               <Route path="/investigation" element={<Investigation />} />
               <Route path="/hc-reply" element={<Placeholder title="M4: HC Reply" />} />
               <Route path="/analysis" element={<AnalysisPage />} />
