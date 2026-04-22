@@ -86,92 +86,40 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-<<<<<<< HEAD
 // Health Check Route
 app.get('/api', (req, res) => {
-  res.json({
-    status: 'ok',
-    message: 'HP CMS Backend API is running',
-    version: '1.0.0',
-    endpoints: [
-      'POST /api/login',
-      'GET  /api/auth/me',
-    ]
-  });
+  res.json({ status: 'ok', message: 'HP CMS Backend API is running', version: '1.0.0' });
 });
 
 // Login Route
 app.post('/api/login', (req, res) => {
   try {
     const { username, password } = req.body;
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Username and password required' });
-    }
-
+    if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
     const user = db.prepare('SELECT * FROM profiles WHERE username = ?').get(username);
-    
-    if (!user || user.password !== password) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    // Generate an access token
-    const token = jwt.sign(
-      { 
-        id: user.id, 
-        username: user.username,
-        role: user.role
-      }, 
-      JWT_SECRET, 
-      { expiresIn: '24h' }
-    );
-
-    // Return user details without password
+    if (!user || user.password !== password) return res.status(401).json({ error: 'Invalid credentials' });
+    const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
     const { password: _, ...userData } = user;
-    
-    res.json({
-      token,
-      user: userData
-    });
+    res.json({ token, user: userData });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-=======
-// ─── Login ────────────────────────────────────────────────────────────────────
-app.post('/api/login', (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
-  const user = db.prepare('SELECT * FROM profiles WHERE username = ?').get(username);
-  if (!user || user.password !== password) return res.status(401).json({ error: 'Invalid credentials' });
-  const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
-  const { password: _, ...userData } = user;
-  res.json({ token, user: userData });
->>>>>>> origin/main
 });
 
 // ── Get Current User ───────────────────────────────────────────────────────────
 app.get('/api/auth/me', authenticateToken, (req, res) => {
-<<<<<<< HEAD
   try {
     const user = db.prepare('SELECT * FROM profiles WHERE id = ?').get(req.user.id);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    if (!user) return res.status(404).json({ error: 'User not found' });
     const { password: _, ...userData } = user;
     res.json(userData);
   } catch (error) {
     console.error('Auth profile error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-=======
-  const user = db.prepare('SELECT * FROM profiles WHERE id = ?').get(req.user.id);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  const { password: _, ...userData } = user;
-  res.json(userData);
->>>>>>> origin/main
 });
 
-<<<<<<< HEAD
 // ─── Groq API Helper ─────────────────────────────────────────────────────────
 async function callGroqAPI(messages, jsonMode = false, model = "llama-3.3-70b-versatile") {
   const apiKey = process.env.GROQ_API_KEY;
@@ -1252,10 +1200,6 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message || 'An unexpected server error occurred' });
 });
 
-app.listen(PORT, () => {
-  console.log(`✅ Backend API running on http://localhost:${PORT}`);
-  console.log(`📁 Uploads directory ready`);
-=======
 // ── Analysis Router (protected) ────────────────────────────────────────────────
 app.use('/api/analysis', authenticateToken, analysisRouter);
 
@@ -1269,7 +1213,7 @@ app.get('/api/health', (req, res) => res.json({
 
 app.listen(PORT, () => {
   console.log(`✅ Backend API running on http://localhost:${PORT}`);
+  console.log(`📁 Uploads directory ready`);
   console.log(`   Gemini AI: ${process.env.GEMINI_API_KEY ? '✅ Connected' : '⚠️  Not configured'}`);
   console.log(`   Groq LLM:  ${process.env.GROQ_API_KEY ? '✅ Connected' : '⚠️  Not configured'}`);
->>>>>>> origin/main
 });
