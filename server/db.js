@@ -454,7 +454,30 @@ db.exec(`
     description TEXT,
     priority TEXT DEFAULT 'medium',
     confidence REAL DEFAULT 0.7,
-    category TEXT DEFAULT 'other  );
+    category TEXT DEFAULT 'other',
+    sources TEXT,
+    action TEXT,
+    legal_basis TEXT,
+    status TEXT DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (case_id) REFERENCES cases(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS case_contradictions (
+    id TEXT PRIMARY KEY,
+    case_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    severity TEXT DEFAULT 'moderate',
+    category TEXT DEFAULT 'other',
+    description TEXT,
+    document_a TEXT,
+    document_b TEXT,
+    significance TEXT,
+    recommended_action TEXT,
+    status TEXT DEFAULT 'open',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (case_id) REFERENCES cases(id)
+  );
 `);
 
 // â”€â”€â”€ Seed profiles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
