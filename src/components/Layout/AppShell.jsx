@@ -23,6 +23,7 @@ const { useBreakpoint } = Grid;
 
 export default function AppShell() {
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -67,55 +68,86 @@ export default function AppShell() {
 
   return (
     <Layout className="app-layout">
-      {/* Sidebar for Desktop */}
+      {/* Sidebar for Desktop (Auto-hide overlay) */}
       {screens.md && (
-        <Sider 
-          theme="dark" 
-          breakpoint="lg" 
-          collapsedWidth="80"
-          className="app-sider"
+        <div 
+          onMouseEnter={() => setCollapsed(false)}
+          onMouseLeave={() => setCollapsed(true)}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            bottom: 0,
+            zIndex: 1000,
+            width: collapsed ? '15px' : '240px',
+            background: collapsed ? 'transparent' : '#001529',
+            transition: 'all 0.3s cubic-bezier(0.2, 0, 0, 1)'
+          }}
         >
-          <div className="logo-container">
-            <div className="logo-text">HP CMS</div>
-          </div>
-          <Menu 
+          <Sider 
             theme="dark" 
-            mode="inline" 
-            selectedKeys={[location.pathname]} 
-            items={menuItems}
-            onClick={({ key }) => navigate(key)}
-          />
-        </Sider>
+            trigger={null}
+            collapsed={collapsed}
+            collapsedWidth={0}
+            width={240}
+            style={{ 
+              height: '100%', 
+              boxShadow: collapsed ? 'none' : '4px 0 15px rgba(0,0,0,0.3)',
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <div className="logo-container" style={{ padding: '16px 24px', textAlign: 'left', whiteSpace: 'nowrap' }}>
+                <div className="logo-text" style={{ fontSize: 20 }}>HP CMS</div>
+              </div>
+              
+              <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+                <Menu 
+                  theme="dark" 
+                  mode="inline" 
+                  selectedKeys={[location.pathname]} 
+                  items={menuItems}
+                  onClick={({ key }) => navigate(key)}
+                />
+              </div>
+
+              <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)', padding: '16px', display: 'flex', alignItems: 'center', cursor: 'pointer', marginTop: 'auto' }}>
+                <Dropdown menu={userMenu} placement="topRight" trigger={['click']}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
+                    <Avatar style={{ backgroundColor: '#1890ff', flexShrink: 0 }} icon={<UserOutlined />} />
+                    <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                      <div style={{ color: '#fff', fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{profile?.full_name}</div>
+                    </div>
+                  </div>
+                </Dropdown>
+              </div>
+            </div>
+          </Sider>
+        </div>
       )}
 
-      <Layout>
-        {/* Header */}
-        <Header className="app-header">
-          <div className="header-left">
-            {!screens.md && (
+      {/* Main Content Layout needs left margin if it's absolute?
+          Actually, the user says 'remove the top bar as it is taking space unnecessarily' and 'make left panel auto hide'.
+          This means we want maximizing screen space. */}
+      <Layout style={{ paddingLeft: screens.md ? 15 : 0 }}>
+        {/* Header (Mobile Only) */}
+        {!screens.md && (
+          <Header className="app-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px' }}>
+            <div className="header-left" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <Button 
                 type="text" 
-                icon={<MenuOutlined />} 
+                icon={<MenuOutlined style={{ color: '#fff' }} />} 
                 onClick={() => setMobileMenuVisible(!mobileMenuVisible)}
                 className="mobile-menu-btn"
               />
-            )}
-            {!screens.md && <Title level={4} style={{ margin: 0, color: '#fff' }}>HP CMS</Title>}
-          </div>
-          <div className="header-right">
-            {screens.md && (
-              <div className="user-info">
-                <Text style={{ color: '#fff' }}>{profile?.full_name}</Text>
-                <Text type="secondary" style={{ fontSize: '12px', display: 'block', color: '#rgba(255,255,255,0.65)' }}>
-                  {profile?.role.toUpperCase()}
-                </Text>
-              </div>
-            )}
-            <Dropdown menu={userMenu} placement="bottomRight">
-              <Avatar style={{ cursor: 'pointer', backgroundColor: '#1890ff' }} icon={<UserOutlined />} />
-            </Dropdown>
-          </div>
-        </Header>
+              <Title level={4} style={{ margin: 0, color: '#fff' }}>HP CMS</Title>
+            </div>
+            <div className="header-right">
+              <Dropdown menu={userMenu} placement="bottomRight">
+                <Avatar style={{ cursor: 'pointer', backgroundColor: '#1890ff' }} icon={<UserOutlined />} />
+              </Dropdown>
+            </div>
+          </Header>
+        )}
 
         {/* Mobile overlay menu */}
         {!screens.md && mobileMenuVisible && (

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
@@ -11,6 +12,7 @@ import dns from 'dns';
 import db from './db.js';
 import FormData from 'form-data';
 import nodeFetch from 'node-fetch';
+import analysisRouter from './routes/analysis.js';
  
 
 // ─── Override DNS to use Google DNS (8.8.8.8) — bypasses ISP DNS blocks ──────
@@ -68,9 +70,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/kb-files', express.static(path.join(process.cwd(), 'user_knowledge_base')));
 app.use('/cases', express.static(path.join(process.cwd(), 'cases')));
-
 
 // ─── Auth Middleware ──────────────────────────────────────────────────────────
 const authenticateToken = (req, res, next) => {
@@ -95,6 +97,7 @@ app.post('/api/login', (req, res) => {
   res.json({ token, user: userData });
 });
 
+// ── Get Current User ───────────────────────────────────────────────────────────
 app.get('/api/auth/me', authenticateToken, (req, res) => {
   const user = db.prepare('SELECT * FROM profiles WHERE id = ?').get(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
@@ -102,6 +105,7 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
   res.json(userData);
 });
 
+<<<<<<< HEAD
 // ─── Groq API Helper ─────────────────────────────────────────────────────────
 async function callGroqAPI(messages, jsonMode = false, model = "llama-3.3-70b-versatile") {
   const apiKey = process.env.GROQ_API_KEY;
@@ -1185,4 +1189,21 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`✅ Backend API running on http://localhost:${PORT}`);
   console.log(`📁 Uploads directory ready`);
+=======
+// ── Analysis Router (protected) ────────────────────────────────────────────────
+app.use('/api/analysis', authenticateToken, analysisRouter);
+
+// ── Health check ───────────────────────────────────────────────────────────────
+app.get('/api/health', (req, res) => res.json({
+  status: 'ok',
+  gemini: !!process.env.GEMINI_API_KEY,
+  groq: !!process.env.GROQ_API_KEY,
+  timestamp: new Date().toISOString()
+}));
+
+app.listen(PORT, () => {
+  console.log(`✅ Backend API running on http://localhost:${PORT}`);
+  console.log(`   Gemini AI: ${process.env.GEMINI_API_KEY ? '✅ Connected' : '⚠️  Not configured'}`);
+  console.log(`   Groq LLM:  ${process.env.GROQ_API_KEY ? '✅ Connected' : '⚠️  Not configured'}`);
+>>>>>>> origin/main
 });

@@ -23,7 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 data.db*
-
 # Environment variables (sensitive)
 .env
 .env.*

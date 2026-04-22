@@ -1,25 +1,19 @@
+/* global.css — inherits from index.css design system */
+/* Minimal resets only — colours are in index.css */
+
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
-    'Noto Color Emoji';
-  background-color: #141414;
-  color: rgba(255, 255, 255, 0.85);
+  /* background and color are set in :root via index.css */
 }
 
 h1, h2, h3, h4, h5, h6 {
   margin-top: 0;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-/* Custom utility classes */
-.text-center {
-  text-align: center;
-}
-
-.mt-24 {
-  margin-top: 24px;
-}
+/* Utility */
+.text-center { text-align: center; }
+.mt-24 { margin-top: 24px; }

@@ -1,0 +1,85 @@
+/* Analysis Module — Shared component styles */
+/* Uses CSS variables from index.css — no hard-coded colours here */
+
+.container {
+  padding: 20px;
+  font-family: var(--sans);
+  color: var(--text);
+}
+
+/* ── Section titles inside views ────────────────────────────────────────── */
+.sectionTitle {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-h);
+  margin: 0 0 14px 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--heading);
+}
+
+/* ── Generic card inside view ────────────────────────────────────────────── */
+.card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow);
+}
+
+/* ── Loading / empty states ──────────────────────────────────────────────── */
+.loadingState,
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 320px;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  gap: 14px;
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── View container ─────────────────────────────────────────────────────── */
+.viewContainer {
+  padding: 24px;
+}
+
+/* ── Document drawer / panel text ───────────────────────────────────────── */
+.docTitle {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.docMeta {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 4px 0 16px;
+}
+
+.docBody {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--text);
+  white-space: pre-wrap;
+  font-family: var(--mono);
+  background: var(--code-bg);
+  border-radius: 8px;
+  padding: 14px;
+  border: 1px solid var(--border);
+}
