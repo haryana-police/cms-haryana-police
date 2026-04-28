@@ -131,3 +131,20 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* Auto-extracted fields highlight */
+.auto-extracted-field.ant-input,
+.auto-extracted-field.ant-input-textarea {
+  background-color: rgba(24, 144, 255, 0.1) !important;
+  border: 1px solid rgba(24, 144, 255, 0.5) !important;
+}
+
+.auto-extracted-field.ant-select:not(.ant-select-customize-input) .ant-select-selector {
+  background-color: rgba(24, 144, 255, 0.1) !important;
+  border: 1px solid rgba(24, 144, 255, 0.5) !important;
+}
+
+.auto-extracted-field.ant-picker {
+  background-color: rgba(24, 144, 255, 0.1) !important;
+  border: 1px solid rgba(24, 144, 255, 0.5) !important;
+}
