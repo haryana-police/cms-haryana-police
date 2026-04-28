@@ -23,7 +23,7 @@ export const AuthProvider = ({ children }) => {
 
   const fetchProfile = async (currentToken) => {
     try {
-      const res = await fetch('http://localhost:3000/api/auth/me', {
+      const res = await fetch('/api/auth/me', {
         headers: {
           'Authorization': `Bearer ${currentToken}`
         }
@@ -40,7 +40,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const login = async (username, password) => {
-    const res = await fetch('http://localhost:3000/api/login', {
+    const res = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password })

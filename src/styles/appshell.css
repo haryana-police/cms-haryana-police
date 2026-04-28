@@ -1,9 +1,15 @@
+/* AppShell — Haryana Police CMS  •  Dark Theme */
+
 .app-layout {
   min-height: 100vh;
+  background: var(--bg-subtle) !important;
 }
 
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
 .app-sider {
-  background-color: #0A1628 !important;
+  background: #0b1120 !important;
+  box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+  border-right: 1px solid rgba(255,255,255,0.05);
 }
 
 .logo-container {
@@ -11,66 +17,54 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #152A4A;
+  background: #060d18;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 
 .logo-text {
-  color: #fff;
-  font-size: 20px;
-  font-weight: bold;
+  color: #f0f6fc;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  font-family: 'Inter', sans-serif;
 }
 
+/* ── Header ──────────────────────────────────────────────────────────────── */
 .app-header {
-  background-color: #0A1628 !important;
+  background: #0b1120 !important;
+  border-bottom: 1px solid rgba(255,255,255,0.05) !important;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 16px !important;
+  padding: 0 20px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
 
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
+.header-left  { display: flex; align-items: center; gap: 16px; }
+.header-right { display: flex; align-items: center; gap: 16px; }
 
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
+.user-info     { text-align: right; line-height: 1.3; }
+.mobile-menu-btn { color: #f0f6fc !important; }
 
-.user-info {
-  text-align: right;
-  line-height: 1.2;
-}
-
-.mobile-menu-btn {
-  color: #fff !important;
-}
-
+/* ── Main content area ────────────────────────────────────────────────────── */
 .app-content {
-  margin: 24px;
-  padding: 24px;
-  background: #1f1f1f;
-  border-radius: 8px;
+  margin: 16px;
+  padding: 0;
+  background: transparent;
   min-height: 280px;
-  overflow-y: auto;
+  overflow-y: visible;
 }
 
+/* ── Mobile overlay ──────────────────────────────────────────────────────── */
 .mobile-overlay-menu {
   position: absolute;
-  top: 64px;
-  left: 0;
+  top: 64px; left: 0;
   width: 100%;
-  background: #141414;
-  z-index: 10;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  background: #0b1120;
+  z-index: 100;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.6);
 }
 
 @media (max-width: 768px) {
-  .app-content {
-    margin: 12px;
-    padding: 16px;
-  }
+  .app-content { margin: 8px; }
 }
