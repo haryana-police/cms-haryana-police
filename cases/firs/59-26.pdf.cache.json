@@ -1,0 +1,89 @@
+{
+  "case_summary": "A complaint has been filed with the Haryana Police, under the Explosive Act, 1884, and an FIR has been registered. The complainant, Gurmel Singh, has reported an incident that occurred in village Rana Majra, Beat No. 4, PS Sanoli, Panipat.",
+  "crime_type": "Explosives Act Violation",
+  "severity": "HIGH",
+  "sections": [
+    {
+      "code": "BNS 303",
+      "old_code": "IPC 379",
+      "title": "Theft",
+      "description": "Whoever, intending to take dishonestly any property out of the possession of any person without that person's consent, moves that property with the intention of taking it out of India or with the intention of permanently depriving that person of that property, shall be punished with imprisonment of either description for a term which may extend to three years, or with fine, or with both.",
+      "relevance": "Primary",
+      "punishment": "Imprisonment up to 3 years + Fine",
+      "page_number": "Page 13",
+      "file_url": "laws/BNS ACT 2023.pdf"
+    }
+  ],
+  "sop": [
+    {
+      "step": 1,
+      "action": "Register FIR immediately under BNSS Section 173 - this is a cognizable offence",
+      "time_limit": "Within 24 hours",
+      "authority": "SHO",
+      "priority": "CRITICAL",
+      "page_number": "[Page 1]",
+      "file_url": "sop/Regulation No. 14 of 2024.GUIDLINE FOR EXPEDITIOUS  & FAIR INVESTIGATION OF RAPE CASES.pdf"
+    }
+  ],
+  "sc_judgments": [
+    {
+      "case_name": "Lalita Kumari vs Govt. of UP (2013)",
+      "court": "Supreme Court",
+      "year": "2013",
+      "citation": "[2013] 14 S.C.R. 713",
+      "guideline": "FIR must be registered immediately on receipt of cognizable offense",
+      "holding": "The Constitution Bench unanimously held that registration of FIR is mandatory under Section 154 CrPC (now BNSS 173) if the information discloses commission of a cognizable offence.",
+      "key_points": [
+        "FIR cannot be refused on any pretext for cognizable offences",
+        "Preliminary inquiry can only be done in cases like matrimonial disputes, commercial cases, medical negligence, corruption - not in serious crimes",
+        "Officer refusing to register FIR is liable under departmental action and contempt of court",
+        "Victim can approach SP or Magistrate if SHO refuses"
+      ],
+      "io_duty": "Mandatory - Register FIR immediately. No preliminary inquiry for cognizable offences. Non-compliance invites disciplinary action.",
+      "relevance": "Mandatory FIR registration",
+      "page_number": "[Page 1]",
+      "file_url": "judgements/Lalita_Kumari_vs_Govt_of_UP_2013.pdf"
+    }
+  ],
+  "hc_judgments": [],
+  "special_laws": [],
+  "deadlines": [
+    {
+      "task": "Register FIR",
+      "days": 0,
+      "hours": 24,
+      "legal_basis": "BNSS Sec 173",
+      "authority": "SHO",
+      "priority": "CRITICAL"
+    },
+    {
+      "task": "File Charge Sheet",
+      "days": 60,
+      "hours": null,
+      "legal_basis": "BNSS Sec 193",
+      "authority": "IO",
+      "priority": "HIGH"
+    }
+  ],
+  "evidence_checklist": [
+    "Seize any explosives or related materials",
+    "Photograph all visible evidence",
+    "Record witness statements under BNSS Sec 180"
+  ],
+  "io_warnings": [
+    "MANDATORY: Do not refuse FIR - Lalita Kumari SC judgment applies",
+    "MANDATORY: Arrest must follow D.K. Basu SC guidelines"
+  ],
+  "_meta": {
+    "filesProcessed": 1,
+    "fileResults": [
+      {
+        "filename": "59-26.pdf",
+        "method": "pdf-text",
+        "confidence": 100,
+        "textLength": 8782
+      }
+    ],
+    "analysisDate": "2026-04-28T04:37:01.553Z"
+  }
+}

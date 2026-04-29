@@ -16,21 +16,7 @@ const Icon = ({ children, className = '' }) => (
 
 // ─── Priority Badge ────────────────────────────────────────────────────────────
 const PriorityBadge = ({ level }) => {
-  const map = {
-    CRITICAL: { color: '#ff1744', bg: '#ff174415', label: '🚨 CRITICAL' },
-    URGENT: { color: '#ff6d00', bg: '#ff6d0015', label: '⚡ URGENT' },
-    HIGH: { color: '#ff9100', bg: '#ff910015', label: '🔥 HIGH' },
-    MEDIUM: { color: '#ffd600', bg: '#ffd60020', label: '⚠️ MEDIUM' },
-    LOW: { color: '#00c853', bg: '#00c85315', label: '✅ LOW' },
-    PRIMARY: { color: '#d32f2f', bg: '#d32f2f15', label: '⚖️ PRIMARY' },
-    SECONDARY: { color: '#1565c0', bg: '#1565c015', label: '📋 SECONDARY' },
-  };
-  const cfg = map[level?.toUpperCase()] || map.MEDIUM;
-  return (
-    <span className="priority-badge" style={{ color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.color}40` }}>
-      {cfg.label}
-    </span>
-  );
+  return null;
 };
 
 // ─── Law Detail Drawer ────────────────────────────────────────────────────────
@@ -101,7 +87,7 @@ const LawDetailDrawer = ({ visible, onClose, sectionCode, token, lang = 'en' }) 
       <div className="law-drawer" onClick={e => e.stopPropagation()}>
         <div className="law-drawer-header">
           <div>
-            <div className="law-drawer-title">⚖️ Legal Reference</div>
+            <div className="law-drawer-title">Legal Reference</div>
             <div className="law-drawer-subtitle">{sectionCode}</div>
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -141,10 +127,10 @@ const FileUploadZone = ({ files, onFilesAdded, onFileRemove }) => {
   };
 
   const getFileIcon = (type) => {
-    if (type === 'application/pdf') return '📄';
-    if (type.startsWith('image/')) return '🖼️';
-    if (type.startsWith('audio/') || type.startsWith('video/')) return '🎵';
-    return '📎';
+    if (type === 'application/pdf') return '';
+    if (type.startsWith('image/')) return '';
+    if (type.startsWith('audio/') || type.startsWith('video/')) return '';
+    return '';
   };
 
   const formatSize = (bytes) => {
@@ -170,14 +156,14 @@ const FileUploadZone = ({ files, onFilesAdded, onFileRemove }) => {
           onChange={handleFileInput}
           style={{ display: 'none' }}
         />
-        <div className="upload-icon">📤</div>
+        <div className="upload-icon"></div>
         <div className="upload-title">Click to Upload Complaint or FIR</div>
         <div className="upload-subtitle">
           Supports: Scanned Images (JPG/PNG) & PDF files
         </div>
         <div className="upload-formats">
-          <span className="format-chip">📄 Upload FIR</span>
-          <span className="format-chip">🖼️ Upload Complaint</span>
+          <span className="format-chip">Upload FIR</span>
+          <span className="format-chip">Upload Complaint</span>
         </div>
       </div>
 
@@ -260,12 +246,12 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
   const isHindi = lang === 'hi';
 
   const tabs = [
-    { key: 'sections', label: isHindi ? '⚖️ धाराएं' : '⚖️ Sections', count: sections?.length || 0 },
-    { key: 'sop', label: isHindi ? '📋 एसओपी' : '📋 SOP', count: sop?.length || 0 },
-    { key: 'judgments', label: isHindi ? '🏛️ निर्णय' : '🏛️ Judgments', count: (sc_judgments?.length || 0) + (hc_judgments?.length || 0) },
-    { key: 'deadlines', label: isHindi ? '⏰ समय-सीमा' : '⏰ Deadlines', count: deadlines?.length || 0 },
-    { key: 'evidence', label: isHindi ? '🔍 साक्ष्य' : '🔍 Evidence', count: evidence_checklist?.length || 0 },
-    { key: 'special', label: isHindi ? '🛡️ विशेष कानून' : '🛡️ Special Laws', count: special_laws?.length || 0 },
+    { key: 'sections', label: isHindi ? 'धाराएं' : 'Sections', count: sections?.length || 0 },
+    { key: 'sop', label: isHindi ? 'एसओपी' : 'SOP', count: sop?.length || 0 },
+    { key: 'judgments', label: isHindi ? 'निर्णय' : 'Judgments', count: (sc_judgments?.length || 0) + (hc_judgments?.length || 0) },
+    { key: 'deadlines', label: isHindi ? 'समय-सीमा' : 'Deadlines', count: deadlines?.length || 0 },
+    { key: 'evidence', label: isHindi ? 'साक्ष्य' : 'Evidence', count: evidence_checklist?.length || 0 },
+    { key: 'special', label: isHindi ? 'विशेष कानून' : 'Special Laws', count: special_laws?.length || 0 },
   ];
 
   return (
@@ -273,13 +259,13 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
       {/* Case Header */}
       <div className="case-header">
         <div className="case-meta">
-          <div className="case-crime-type">🚔 {crime_type || (isHindi ? 'आपराधिक मामला' : 'Criminal Case')}</div>
+          <div className="case-crime-type">{crime_type || (isHindi ? 'आपराधिक मामला' : 'Criminal Case')}</div>
           <PriorityBadge level={severity || 'HIGH'} />
         </div>
         <div className="case-summary">{case_summary}</div>
         {_meta && (
           <div className="meta-info">
-            📁 {_meta.filesProcessed} file(s) analyzed • 
+            {_meta.filesProcessed} file(s) analyzed • 
             {_meta.fileResults?.map((f, i) => (
               <span key={i} className="meta-file">
                 {' '}{f.filename} ({f.method === 'image-ocr' ? `OCR ${f.confidence}%` : f.method})
@@ -292,9 +278,9 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
       {/* IO Warnings */}
       {io_warnings && io_warnings.length > 0 && (
         <div className="io-warnings">
-          <div className="warnings-title">⚠️ IO Alerts & Mandatory Requirements</div>
+          <div className="warnings-title">IO Alerts & Mandatory Requirements</div>
           {io_warnings.map((w, i) => (
-            <div key={i} className="warning-item">🔔 {w}</div>
+            <div key={i} className="warning-item">{w}</div>
           ))}
         </div>
       )}
@@ -318,7 +304,7 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
         <div className="tab-content">
           {/* BNS Law Badge */}
           <div className="bns-law-notice">
-            ✅ {isHindi
+            {isHindi
               ? <>सभी धाराएं <strong>BNS (भारतीय न्याय संहिता)</strong> के तहत हैं — 1 जुलाई 2024 से लागू नया भारतीय कानून</>
               : <>All sections are under <strong>BNS (Bharatiya Nyaya Sanhita)</strong> — New Indian Law effective July 1, 2024</>
             }
@@ -336,7 +322,7 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
                 <div className="section-header">
                   <div className="section-codes">
                     <span className={`section-code ${isValidNewLaw ? 'bns-valid' : 'bns-invalid'}`}>
-                      {isValidNewLaw ? '✅ ' : '⚠️ '}{sec.code}
+                      {sec.code}
                     </span>
                     {sec.old_code && (
                       <span className="section-old-code">{isHindi ? 'पुरानी IPC:' : 'Old IPC:'} {sec.old_code}</span>
@@ -348,10 +334,24 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
                 <div className="section-desc">{sec.description}</div>
                 {sec.punishment && (
                   <div className="section-punishment">
-                    ⚡ {isHindi ? 'सज़ा:' : 'Punishment:'} <strong>{sec.punishment}</strong>
+                    {isHindi ? 'सज़ा:' : 'Punishment:'} <strong>{sec.punishment}</strong>
                   </div>
                 )}
-                <div className="section-click-hint">👆 {isHindi ? 'पूरी कानूनी जानकारी के लिए क्लिक करें' : 'Click for full legal reference'}</div>
+                <div className="section-click-hint" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>{isHindi ? 'पूरी कानूनी जानकारी के लिए क्लिक करें' : 'Click for full legal reference'}</span>
+                  {sec.file_url && sec.page_number && (
+                    <a
+                      href={`http://localhost:5000/kb-files/${encodeURIComponent(sec.file_url)}${sec.page_number.replace(/\D/g, '') ? `#page=${sec.page_number.replace(/\D/g, '')}` : ''}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="section-pdf-link"
+                      style={{ color: '#1890ff', textDecoration: 'underline', fontSize: '12px' }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {isHindi ? `Law Library में ${sec.page_number} खोलें` : `Open ${sec.page_number} in Law Library`}
+                    </a>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -367,7 +367,7 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
             fontSize: 12, color: '#595959', textTransform: 'uppercase',
             letterSpacing: 1, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6
           }}>
-            🤖 {isHindi ? 'AI द्वारा निर्धारित SOP Steps' : 'AI Generated SOP Steps'}
+            {isHindi ? 'AI द्वारा निर्धारित SOP Steps' : 'AI Generated SOP Steps'}
           </div>
           <div className="sop-timeline">
             {sop?.map((step, i) => (
@@ -379,9 +379,19 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
                     {step.priority && <PriorityBadge level={step.priority} />}
                   </div>
                   {step.time_limit && (
-                    <div className="sop-meta">
-                      <span className="sop-time">⏱️ {isHindi ? 'समय:' : ''} {step.time_limit}</span>
-                      {step.authority && <span className="sop-auth">👮 {step.authority}</span>}
+                    <div className="sop-meta" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                      <span className="sop-time">{isHindi ? 'समय:' : ''} {step.time_limit}</span>
+                      {step.authority && <span className="sop-auth">{step.authority}</span>}
+                      {step.file_url && step.page_number && (
+                        <a
+                          href={`http://localhost:5000/kb-files/${encodeURIComponent(step.file_url)}${step.page_number.replace(/\D/g, '') ? `#page=${step.page_number.replace(/\D/g, '')}` : ''}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: '#1890ff', textDecoration: 'none', marginLeft: 'auto', background: '#1890ff15', padding: '2px 8px', borderRadius: '4px', fontSize: '11px' }}
+                        >
+                          {isHindi ? `PDF का ${step.page_number} खोलें` : `Open PDF ${step.page_number}`}
+                        </a>
+                      )}
                     </div>
                   )}
                 </div>
@@ -397,7 +407,7 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
                 letterSpacing: 1, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8,
                 borderTop: '1px solid #1f1f1f', paddingTop: 20
               }}>
-                📂 {isHindi ? 'आपके Folder के Official SOP Documents' : 'Official SOPs from Your Folder'}
+                {isHindi ? 'आपके Folder के Official SOP Documents' : 'Official SOPs from Your Folder'}
                 <span style={{ background: '#1890ff22', color: '#1890ff', padding: '2px 8px', borderRadius: 10, fontSize: 11 }}>
                   {folderSOPs.length} {isHindi ? 'दस्तावेज़' : 'Documents'}
                 </span>
@@ -415,10 +425,10 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
                   }}>
                     <div>
                       <div style={{ color: '#60a5fa', fontWeight: 600, fontSize: 13, marginBottom: 3 }}>
-                        📋 {sopDoc.label}
+                        {sopDoc.label}
                       </div>
                       <div style={{ color: '#4b5563', fontSize: 11 }}>
-                        📄 {sopDoc.fileName} • {sopDoc.totalPages || '?'} pages
+                        {sopDoc.fileName} • {sopDoc.totalPages || '?'} pages
                         {sopDoc.keywords?.length > 0 && (
                           <span style={{ marginLeft: 8, color: '#374151' }}>
                             • Matched: {sopDoc.keywords.join(', ')}
@@ -436,14 +446,14 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
                         display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap'
                       }}
                     >
-                      🔗 {isHindi ? 'PDF खोलें' : 'Open PDF'}
+                      {isHindi ? 'PDF खोलें' : 'Open PDF'}
                     </a>
                   </div>
 
                   {/* Document Content */}
                   {sopDoc.error ? (
                     <div style={{ padding: '12px 16px', color: '#6b7280', fontSize: 12, fontStyle: 'italic' }}>
-                      ⚠️ {sopDoc.error}
+                      {sopDoc.error}
                     </div>
                   ) : (
                     <FolderSOPContent paragraphs={sopDoc.paragraphs} />
@@ -457,7 +467,7 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
             <div style={{ marginTop: 20, textAlign: 'center', padding: 20 }}>
               <div className="spinner" style={{ margin: '0 auto 10px' }} />
               <div style={{ color: '#595959', fontSize: 13 }}>
-                📂 {isHindi ? 'Folder से Official SOP load हो रही है...' : 'Loading official SOPs from folder...'}
+                {isHindi ? 'Folder से Official SOP load हो रही है...' : 'Loading official SOPs from folder...'}
               </div>
             </div>
           )}
@@ -468,7 +478,7 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
         <div className="tab-content">
           {sc_judgments && sc_judgments.length > 0 && (
             <>
-              <div className="judgment-group-title">🏛️ {isHindi ? 'सर्वोच्च न्यायालय के निर्णय' : 'Supreme Court Judgments'}</div>
+              <div className="judgment-group-title">{isHindi ? 'सर्वोच्च न्यायालय के निर्णय' : 'Supreme Court Judgments'}</div>
               {sc_judgments.map((judg, i) => (
                 <div key={i} className="judgment-card sc">
                   <div className="judgment-header">
@@ -478,19 +488,31 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
                       {judg.year && <span className="year-badge">{judg.year}</span>}
                     </div>
                   </div>
-                  {judg.citation && (
-                    <div className="judgment-citation">📜 {isHindi ? 'उद्धरण:' : 'Citation:'} <strong>{judg.citation}</strong></div>
-                  )}
-                  <div className="judgment-guideline">💡 <strong>{isHindi ? 'मुख्य दिशानिर्देश:' : 'Key Guideline:'}</strong> {judg.guideline}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    {judg.citation && (
+                      <div className="judgment-citation">{isHindi ? 'उद्धरण:' : 'Citation:'} <strong>{judg.citation}</strong></div>
+                    )}
+                    {judg.file_url && judg.page_number && (
+                      <a
+                        href={`http://localhost:5000/kb-files/${encodeURIComponent(judg.file_url)}${judg.page_number.replace(/\D/g, '') ? `#page=${judg.page_number.replace(/\D/g, '')}` : ''}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#1890ff', textDecoration: 'none', fontSize: '12px', background: '#1890ff15', padding: '4px 8px', borderRadius: '4px', border: '1px solid #1890ff44', marginBottom: '8px' }}
+                      >
+                        {isHindi ? `Law Library में ${judg.page_number} देखें` : `View ${judg.page_number} in Library`}
+                      </a>
+                    )}
+                  </div>
+                  <div className="judgment-guideline"><strong>{isHindi ? 'मुख्य दिशानिर्देश:' : 'Key Guideline:'}</strong> {judg.guideline}</div>
                   {judg.holding && (
                     <div className="judgment-holding">
-                      <div className="judgment-section-label">⚖️ {isHindi ? 'न्यायालय का निर्णय:' : 'Court Holding:'}</div>
+                      <div className="judgment-section-label">{isHindi ? 'न्यायालय का निर्णय:' : 'Court Holding:'}</div>
                       <div className="judgment-holding-text">{judg.holding}</div>
                     </div>
                   )}
                   {judg.key_points && judg.key_points.length > 0 && (
                     <div className="judgment-keypoints">
-                      <div className="judgment-section-label">📌 {isHindi ? 'मुख्य बिंदु:' : 'Key Points:'}</div>
+                      <div className="judgment-section-label">{isHindi ? 'मुख्य बिंदु:' : 'Key Points:'}</div>
                       <ul className="judgment-points-list">
                         {judg.key_points.map((pt, j) => (
                           <li key={j} className="judgment-point-item">→ {pt}</li>
@@ -500,10 +522,10 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
                   )}
                   {judg.io_duty && (
                     <div className="judgment-io-duty">
-                      <span>👮 {isHindi ? 'IO का कर्तव्य:' : "IO's Duty:"}</span> {judg.io_duty}
+                      <span>{isHindi ? 'IO का कर्तव्य:' : "IO's Duty:"}</span> {judg.io_duty}
                     </div>
                   )}
-                  {judg.relevance && <div className="judgment-relevance">📌 {judg.relevance}</div>}
+                  {judg.relevance && <div className="judgment-relevance">{judg.relevance}</div>}
                 </div>
               ))}
             </>
@@ -511,7 +533,7 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
 
           {hc_judgments && hc_judgments.length > 0 && (
             <>
-              <div className="judgment-group-title" style={{ marginTop: '20px' }}>⚖️ {isHindi ? 'उच्च न्यायालय के निर्णय' : 'High Court Judgments'}</div>
+              <div className="judgment-group-title" style={{ marginTop: '20px' }}>{isHindi ? 'उच्च न्यायालय के निर्णय' : 'High Court Judgments'}</div>
               {hc_judgments.map((judg, i) => (
                 <div key={i} className="judgment-card hc">
                   <div className="judgment-header">
@@ -521,19 +543,31 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
                       {judg.year && <span className="year-badge">{judg.year}</span>}
                     </div>
                   </div>
-                  {judg.citation && (
-                    <div className="judgment-citation">📜 {isHindi ? 'उद्धरण:' : 'Citation:'} <strong>{judg.citation}</strong></div>
-                  )}
-                  <div className="judgment-guideline">💡 <strong>{isHindi ? 'मुख्य दिशानिर्देश:' : 'Key Guideline:'}</strong> {judg.guideline}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    {judg.citation && (
+                      <div className="judgment-citation">{isHindi ? 'उद्धरण:' : 'Citation:'} <strong>{judg.citation}</strong></div>
+                    )}
+                    {judg.file_url && judg.page_number && (
+                      <a
+                        href={`http://localhost:5000/kb-files/${encodeURIComponent(judg.file_url)}${judg.page_number.replace(/\D/g, '') ? `#page=${judg.page_number.replace(/\D/g, '')}` : ''}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#1890ff', textDecoration: 'none', fontSize: '12px', background: '#1890ff15', padding: '4px 8px', borderRadius: '4px', border: '1px solid #1890ff44', marginBottom: '8px' }}
+                      >
+                        {isHindi ? `Law Library में ${judg.page_number} देखें` : `View ${judg.page_number} in Library`}
+                      </a>
+                    )}
+                  </div>
+                  <div className="judgment-guideline"><strong>{isHindi ? 'मुख्य दिशानिर्देश:' : 'Key Guideline:'}</strong> {judg.guideline}</div>
                   {judg.holding && (
                     <div className="judgment-holding">
-                      <div className="judgment-section-label">⚖️ {isHindi ? 'न्यायालय का निर्णय:' : 'Court Holding:'}</div>
+                      <div className="judgment-section-label">{isHindi ? 'न्यायालय का निर्णय:' : 'Court Holding:'}</div>
                       <div className="judgment-holding-text">{judg.holding}</div>
                     </div>
                   )}
                   {judg.key_points && judg.key_points.length > 0 && (
                     <div className="judgment-keypoints">
-                      <div className="judgment-section-label">📌 {isHindi ? 'मुख्य बिंदु:' : 'Key Points:'}</div>
+                      <div className="judgment-section-label">{isHindi ? 'मुख्य बिंदु:' : 'Key Points:'}</div>
                       <ul className="judgment-points-list">
                         {judg.key_points.map((pt, j) => (
                           <li key={j} className="judgment-point-item">→ {pt}</li>
@@ -543,10 +577,10 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
                   )}
                   {judg.io_duty && (
                     <div className="judgment-io-duty">
-                      <span>👮 {isHindi ? 'IO का कर्तव्य:' : "IO's Duty:"}</span> {judg.io_duty}
+                      <span>{isHindi ? 'IO का कर्तव्य:' : "IO's Duty:"}</span> {judg.io_duty}
                     </div>
                   )}
-                  {judg.relevance && <div className="judgment-relevance">📌 {judg.relevance}</div>}
+                  {judg.relevance && <div className="judgment-relevance">{judg.relevance}</div>}
                 </div>
               ))}
             </>
@@ -558,7 +592,7 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
       {activeTab === 'deadlines' && (
         <div className="tab-content">
           <div className="deadlines-header">
-            📅 {isHindi ? 'आज:' : 'Today:'} {today.toLocaleDateString(isHindi ? 'hi-IN' : 'en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+            {isHindi ? 'आज:' : 'Today:'} {today.toLocaleDateString(isHindi ? 'hi-IN' : 'en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
           </div>
           <div className="deadlines-grid">
             {deadlines?.map((dl, i) => {
@@ -578,9 +612,9 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
                       <span className="deadline-days">{daysLeft} {isHindi ? 'दिन' : 'Days'}</span>
                     )}
                   </div>
-                  <div className="deadline-date">📅 {isHindi ? 'तक:' : 'By:'} {getDeadlineDate(dl.days, dl.hours)}</div>
-                  {dl.legal_basis && <div className="deadline-basis">📜 {dl.legal_basis}</div>}
-                  {dl.authority && <div className="deadline-auth">👮 {dl.authority}</div>}
+                  <div className="deadline-date">{isHindi ? 'तक:' : 'By:'} {getDeadlineDate(dl.days, dl.hours)}</div>
+                  {dl.legal_basis && <div className="deadline-basis">{dl.legal_basis}</div>}
+                  {dl.authority && <div className="deadline-auth">{dl.authority}</div>}
                 </div>
               );
             })}
@@ -603,12 +637,25 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
       {activeTab === 'special' && (
         <div className="tab-content">
           {(!special_laws || special_laws.length === 0) ? (
-            <div className="empty-state">✅ {isHindi ? 'इस मामले पर कोई विशेष कानून लागू नहीं।' : 'No special laws applicable for this case type.'}</div>
+            <div className="empty-state">{isHindi ? 'इस मामले पर कोई विशेष कानून लागू नहीं।' : 'No special laws applicable for this case type.'}</div>
           ) : (
             special_laws.map((law, i) => (
               <div key={i} className="special-law-card">
-                <div className="special-law-header">
-                  <div className="special-law-name">{law.act_name}</div>
+                <div className="special-law-header" style={{ flexWrap: 'wrap', gap: '8px', alignItems: 'flex-start' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div className="special-law-name">{law.act_name}</div>
+                    {law.file_url && law.page_number && (
+                      <a
+                        href={`http://localhost:5000/kb-files/${encodeURIComponent(law.file_url)}${law.page_number.replace(/\D/g, '') ? `#page=${law.page_number.replace(/\D/g, '')}` : ''}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#1890ff', textDecoration: 'none', fontSize: '12px', background: '#1890ff15', padding: '2px 8px', borderRadius: '4px', width: 'fit-content', border: '1px solid #1890ff44' }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {isHindi ? `Law Library में ${law.page_number} खोलें` : `Open ${law.page_number} in Library`}
+                      </a>
+                    )}
+                  </div>
                   {law.priority && <PriorityBadge level={law.priority} />}
                 </div>
                 {law.sections && law.sections.length > 0 && (
@@ -662,6 +709,18 @@ export default function Investigation() {
   const [systemCases, setSystemCases] = useState({ complaints: [], firs: [] });
   const [activeList, setActiveList] = useState(null); // 'complaints' | 'firs' | null
   const [selectedCaseFile, setSelectedCaseFile] = useState(null);
+  const dropdownRef = useRef(null);
+
+  // Close dropdown on outside click
+  React.useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setActiveList(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   React.useEffect(() => {
     const fetchCases = async () => {
@@ -686,7 +745,7 @@ export default function Investigation() {
     setComplaintText(''); 
     setActiveList(null); 
     setErrorMsg('');
-    setAnalyzeProgress(`⬇️ Downloading ${fileName}...`);
+    setAnalyzeProgress(`Downloading ${fileName}...`);
     setIsAnalyzing(true);
     setAnalysisResult(null);
 
@@ -699,10 +758,10 @@ export default function Investigation() {
       const blob = await resp.blob();
       const mockFile = new File([blob], fileName, { type: 'application/pdf' });
       
-      handleAnalyze(null, [mockFile]); 
+      handleAnalyze(null, [mockFile], type, fileName); 
     } catch (err) {
       console.error('File fetch error:', err);
-      setErrorMsg(`❌ Error loading file: ${err.message}`);
+      setErrorMsg(`Error loading file: ${err.message}`);
       setIsAnalyzing(false);
       setAnalyzeProgress('');
     }
@@ -857,7 +916,7 @@ export default function Investigation() {
 
       for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
         const page = await pdf.getPage(pageNum);
-        const viewport = page.getViewport({ scale: 1.5 }); // scale 1.5 — good OCR, smaller size
+        const viewport = page.getViewport({ scale: 2.0 }); // scale 2.0 for much sharper OCR
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
         canvas.height = viewport.height;
@@ -879,8 +938,8 @@ export default function Investigation() {
         yOffset += c.height;
       }
 
-      // Use JPEG at 70% quality — ~4x smaller than PNG, still good for OCR
-      const base64 = stitched.toDataURL('image/jpeg', 0.7);
+      // Use JPEG at 90% quality — sharp enough for Tesseract OCR
+      const base64 = stitched.toDataURL('image/jpeg', 0.9);
       console.log('[Frontend] Canvas generated (JPEG), size:', Math.round(base64.length / 1024), 'KB');
       return base64;
     } catch (e) {
@@ -890,7 +949,7 @@ export default function Investigation() {
   };
 
 
-  const handleAnalyze = async (event = null, overrideFiles = null) => {
+  const handleAnalyze = async (event = null, overrideFiles = null, caseType = null, caseName = null) => {
     const rawFilesToUse = overrideFiles || files;
 
     if (rawFilesToUse.length === 0 && !complaintText.trim()) {
@@ -911,7 +970,7 @@ export default function Investigation() {
         formData.append('files', file);
 
         if (file.type === 'application/pdf') {
-          setAnalyzeProgress(`📄 Converting PDF "${file.name}" to image for OCR...`);
+          setAnalyzeProgress(`Converting PDF "${file.name}" to image for OCR...`);
           const canvasBase64 = await convertPdfToCanvas(file);
           if (canvasBase64) imageFallbacks[i] = canvasBase64;
           await new Promise(r => setTimeout(r, 400));
@@ -925,6 +984,10 @@ export default function Investigation() {
         formData.append('imageFallbacks', JSON.stringify(imageFallbacks));
       }
       formData.append('text', complaintText);
+      if (caseType && caseName) {
+        formData.append('caseType', caseType);
+        formData.append('caseName', caseName);
+      }
 
       // ── Step 3: Send to backend ───────────────────────────────────────────
       setAnalyzeProgress('🤖 AI is reading and analyzing documents...');
@@ -948,7 +1011,7 @@ export default function Investigation() {
 
     } catch (error) {
       console.error('Analysis error:', error);
-      setErrorMsg(`❌ ${error.message || 'Analysis failed. Please try again.'}`);
+      setErrorMsg(`${error.message || 'Analysis failed. Please try again.'}`);
       setAnalyzeProgress('');
     } finally {
       setIsAnalyzing(false);
@@ -1015,7 +1078,7 @@ ${data.evidence_checklist?.map((e, i) => `☐ ${i + 1}. ${e}`).join('\n') || 'N/
 ────────────────────────────────────────────────────────────────────────────────
 IO ALERTS:
 ────────────────────────────────────────────────────────────────────────────────
-${data.io_warnings?.map(w => `⚠️ ${w}`).join('\n') || 'N/A'}
+${data.io_warnings?.map(w => `Warning: ${w}`).join('\n') || 'N/A'}
 
 ================================================================================
 Generated by Haryana Police CMS – Smart AI Analyzer
@@ -1024,9 +1087,9 @@ Generated by Haryana Police CMS – Smart AI Analyzer
   };
 
   const navItems = [
-    { key: 'analyzer', icon: '🔍', label: lang === 'hi' ? 'स्मार्ट विश्लेषक' : 'Smart Analyzer' },
-    { key: 'library', icon: '📖', label: lang === 'hi' ? 'कानून पुस्तकालय' : 'Law Library' },
-    { key: 'chat', icon: '🤖', label: lang === 'hi' ? 'AI सहायक' : 'AI Chat' },
+    { key: 'analyzer', icon: '', label: lang === 'hi' ? 'स्मार्ट विश्लेषक' : 'Smart Analyzer' },
+    { key: 'library', icon: '', label: lang === 'hi' ? 'कानून पुस्तकालय' : 'Law Library' },
+    { key: 'chat', icon: '', label: lang === 'hi' ? 'AI सहायक' : 'AI Chat' },
   ];
 
   return (
@@ -1034,7 +1097,6 @@ Generated by Haryana Police CMS – Smart AI Analyzer
       {/* Header */}
       <div className="inv-header">
         <div className="inv-header-left">
-          <div className="inv-header-icon">🚔</div>
           <div>
             <h1 className="inv-title">{lang === 'hi' ? 'स्मार्ट दस्तावेज़ विश्लेषक' : 'Smart Document Analyzer'}</h1>
             <p className="inv-subtitle">{lang === 'hi' ? 'AI OCR • फोटो / PDF / हस्तलिखित पाठ • कानूनी विश्लेषण' : 'AI-Powered OCR • Photo / PDF / Handwritten Text • Legal Analysis'}</p>
@@ -1075,11 +1137,11 @@ Generated by Haryana Police CMS – Smart AI Analyzer
           {/* System Fetch Panel */}
           <div className="upload-panel">
             <div className="panel-title">
-              <span>⚖️ Guide IO for Pending Cases</span>
+              <span>Guide IO for Pending Cases</span>
               <span className="panel-hint">Select a pending Complaint or FIR from the system to analyze</span>
             </div>
             
-            <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
+            <div ref={dropdownRef} style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
               <div style={{ flex: 1, position: 'relative' }}>
                 <button 
                   onClick={() => setActiveList(activeList === 'complaints' ? null : 'complaints')}
@@ -1089,14 +1151,14 @@ Generated by Haryana Police CMS – Smart AI Analyzer
                     cursor: 'pointer', fontSize: '16px', fontWeight: 'bold'
                   }}
                 >
-                  📄 Complaint {systemCases.complaints.length > 0 && `(${systemCases.complaints.length})`}
+                  Complaint {systemCases.complaints.length > 0 && `(${systemCases.complaints.length})`}
                 </button>
                 {activeList === 'complaints' && (
                   <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1f2937', border: '1px solid #374151', borderRadius: '8px', marginTop: '5px', zIndex: 10, maxHeight: '200px', overflowY: 'auto' }}>
                     {systemCases.complaints.length === 0 ? <div style={{ padding: '10px' }}>No complaints found.</div> : null}
                     {systemCases.complaints.map(file => (
                       <div key={file} onClick={() => handleCaseSelect(file, 'complaints')} style={{ padding: '12px', cursor: 'pointer', borderBottom: '1px solid #374151' }}>
-                        📄 {file}
+                        {file}
                       </div>
                     ))}
                   </div>
@@ -1112,14 +1174,14 @@ Generated by Haryana Police CMS – Smart AI Analyzer
                     cursor: 'pointer', fontSize: '16px', fontWeight: 'bold'
                   }}
                 >
-                  🚨 FIR {systemCases.firs.length > 0 && `(${systemCases.firs.length})`}
+                  FIR {systemCases.firs.length > 0 && `(${systemCases.firs.length})`}
                 </button>
                 {activeList === 'firs' && (
                   <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1f2937', border: '1px solid #374151', borderRadius: '8px', marginTop: '5px', zIndex: 10, maxHeight: '200px', overflowY: 'auto' }}>
                     {systemCases.firs.length === 0 ? <div style={{ padding: '10px' }}>No FIRs found.</div> : null}
                     {systemCases.firs.map(file => (
                       <div key={file} onClick={() => handleCaseSelect(file, 'firs')} style={{ padding: '12px', cursor: 'pointer', borderBottom: '1px solid #374151' }}>
-                        🚨 {file}
+                        {file}
                       </div>
                     ))}
                   </div>
@@ -1135,7 +1197,7 @@ Generated by Haryana Police CMS – Smart AI Analyzer
             )}
 
             {errorMsg && (
-              <div className="error-banner">⚠️ {errorMsg}</div>
+              <div className="error-banner">{errorMsg}</div>
             )}
 
             <button
@@ -1146,29 +1208,29 @@ Generated by Haryana Police CMS – Smart AI Analyzer
               {isAnalyzing ? (
                 <><span className="btn-spinner" /> Processing...</>
               ) : (
-                <>🧠 Analyze with AI</>
+                <>Analyze with AI</>
               )}
             </button>
 
             {/* Process Steps */}
             <div className="process-steps">
               <div className="process-step">
-                <div className="step-icon">📄</div>
+                <div className="step-icon"></div>
                 <div className="step-text">PDF / Photo</div>
               </div>
               <div className="process-arrow">→</div>
               <div className="process-step">
-                <div className="step-icon">🔤</div>
+                <div className="step-icon"></div>
                 <div className="step-text">OCR Text</div>
               </div>
               <div className="process-arrow">→</div>
               <div className="process-step">
-                <div className="step-icon">🤖</div>
+                <div className="step-icon"></div>
                 <div className="step-text">AI Analysis</div>
               </div>
               <div className="process-arrow">→</div>
               <div className="process-step">
-                <div className="step-icon">⚖️</div>
+                <div className="step-icon"></div>
                 <div className="step-text">BNS + SOP</div>
               </div>
             </div>
@@ -1178,11 +1240,11 @@ Generated by Haryana Police CMS – Smart AI Analyzer
           <div className="results-panel">
             {!analysisResult && !isAnalyzing && (
               <div className="results-empty">
-                <div className="empty-icon">🔎</div>
+                <div className="empty-icon"></div>
                 <div className="empty-title">Select a Complaint or FIR to Analyze</div>
                 <div className="empty-subtitle">
                   AI will analyze the selected case and provide:<br />
-                  ⚖️ BNS/BNSS Sections • 📋 SOP Steps • 🏛️ SC & HC Judgments • ⏰ Deadlines • 🔍 Evidence Checklist
+                  BNS/BNSS Sections • SOP Steps • SC & HC Judgments • Deadlines • Evidence Checklist
                 </div>
               </div>
             )}
@@ -1193,10 +1255,10 @@ Generated by Haryana Police CMS – Smart AI Analyzer
                 <div className="analyzing-title">Processing your documents...</div>
                 <div className="analyzing-step">{analyzeProgress}</div>
                 <div className="analyzing-steps">
-                  <div className={`a-step ${analyzeProgress ? 'active' : ''}`}>📄 Preparing files</div>
-                  <div className={`a-step ${analyzeProgress.includes('ready') || analyzeProgress.includes('OCR') ? 'active' : ''}`}>🔤 OCR reading</div>
-                  <div className={`a-step ${analyzeProgress.includes('AI') || analyzeProgress.includes('analyzing') ? 'active' : ''}`}>🤖 AI analyzing</div>
-                  <div className="a-step">📋 BNS Report</div>
+                  <div className={`a-step ${analyzeProgress ? 'active' : ''}`}>Preparing files</div>
+                  <div className={`a-step ${analyzeProgress.includes('ready') || analyzeProgress.includes('OCR') ? 'active' : ''}`}>OCR reading</div>
+                  <div className={`a-step ${analyzeProgress.includes('AI') || analyzeProgress.includes('analyzing') ? 'active' : ''}`}>AI analyzing</div>
+                  <div className="a-step">BNS Report</div>
                 </div>
               </div>
             )}

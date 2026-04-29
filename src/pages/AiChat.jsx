@@ -59,7 +59,7 @@ export default function AiChat() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ 
-          history: chatMessages.slice(-5), 
+          history: chatMessages.slice(-6), 
           currentMessage: chatInput 
         })
       });
@@ -77,7 +77,7 @@ export default function AiChat() {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '24px' }}>
-        <Bot size={28} color="#1890ff" style={{ marginRight: '12px' }} />
+
         <div>
           <Title level={2} style={{ margin: 0 }}>AI Investigation Assistant</Title>
           <Text type="secondary">Your personal 24/7 AI Guide for legal references (BNS/BNSS)</Text>
@@ -89,7 +89,7 @@ export default function AiChat() {
           <div style={{ flex: 1, overflowY: 'auto', background: '#f5f5f5', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
             {chatMessages.length === 0 ? (
               <div style={{ textAlign: 'center', color: '#888', marginTop: '15%' }}>
-                <Bot size={64} style={{ opacity: 0.2 }} />
+
                 <p style={{ marginTop: 16 }}>Hello! I am your AI Assistant. Ask me anything about sections, procedures, or SC judgments.</p>
               </div>
             ) : (

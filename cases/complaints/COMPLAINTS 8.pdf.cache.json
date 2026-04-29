@@ -1,0 +1,108 @@
+{
+  "case_summary": "Smt. Jyoti Dhaka has filed a complaint against Kamai Kumar, Poonam, and Nand Kishore under various sections. Despite the seriousness of the allegations, no action has been taken by the police authorities, including arrests, seizure of electronic evidence, or providing protective measures to the complainant.",
+  "crime_type": "Sexual Offences",
+  "severity": "HIGH",
+  "sections": [
+    {
+      "code": "BNS 63",
+      "old_code": "IPC 376",
+      "title": "Rape",
+      "description": "Rape.",
+      "relevance": "Primary",
+      "punishment": "Imprisonment up to life",
+      "page_number": "Page 5",
+      "file_url": "laws/BNS ACT 2023.pdf"
+    },
+    {
+      "code": "BNS 351",
+      "old_code": "IPC 506",
+      "title": "Criminal Intimidation",
+      "description": "Threatening someone with harm.",
+      "relevance": "Secondary",
+      "punishment": "Imprisonment up to 2 years",
+      "page_number": "Page 2",
+      "file_url": "laws/BNS ACT 2023.pdf"
+    },
+    {
+      "code": "BNS 79",
+      "old_code": "IPC 509",
+      "title": "Word, gesture or act intended to insult the modesty of a woman",
+      "description": "Insulting the modesty of a woman through words, gestures, or acts.",
+      "relevance": "Secondary",
+      "punishment": "Imprisonment up to 1 year",
+      "page_number": "Page 6",
+      "file_url": "laws/BNS ACT 2023.pdf"
+    }
+  ],
+  "sop": [
+    {
+      "step": 1,
+      "action": "Register FIR immediately under BNSS Section 173",
+      "time_limit": "Within 24 hours",
+      "authority": "SHO",
+      "priority": "CRITICAL",
+      "page_number": "Page 2",
+      "file_url": "sop/Regulation No. 14 of 2024.GUIDLINE FOR EXPEDITIOUS  & FAIR INVESTIGATION OF RAPE CASES.pdf"
+    }
+  ],
+  "sc_judgments": [
+    {
+      "case_name": "Lalita Kumari vs Govt. of UP (2014)",
+      "court": "Supreme Court",
+      "year": "2014",
+      "citation": "AIR 2014 SC 187",
+      "guideline": "FIR must be registered immediately on receipt of cognizable offense",
+      "holding": "The Constitution Bench unanimously held that registration of FIR is mandatory under Section 154 CrPC (now BNSS 173) if the information discloses commission of a cognizable offence.",
+      "key_points": [
+        "FIR cannot be refused on any pretext for cognizable offences",
+        "Preliminary inquiry can only be done in cases like matrimonial disputes, commercial cases, medical negligence, corruption - not in serious crimes",
+        "Officer refusing to register FIR is liable under departmental action and contempt of court",
+        "Victim can approach SP or Magistrate if SHO refuses"
+      ],
+      "io_duty": "Mandatory - Register FIR immediately. No preliminary inquiry for cognizable offences. Non-compliance invites disciplinary action.",
+      "relevance": "Mandatory FIR registration",
+      "page_number": "",
+      "file_url": "judgements/Landmark Supreme Court Directives.pdf"
+    }
+  ],
+  "hc_judgments": [],
+  "special_laws": [],
+  "deadlines": [
+    {
+      "task": "Register FIR",
+      "days": 0,
+      "hours": 24,
+      "legal_basis": "BNSS Sec 173",
+      "authority": "SHO",
+      "priority": "CRITICAL"
+    },
+    {
+      "task": "File Charge Sheet",
+      "days": 60,
+      "hours": null,
+      "legal_basis": "BNSS Sec 193",
+      "authority": "IO",
+      "priority": "HIGH"
+    }
+  ],
+  "evidence_checklist": [
+    "Seize mobile phone - extract call records, WhatsApp messages",
+    "Photograph all visible injuries on victim",
+    "Record witness statements under BNSS Sec 180"
+  ],
+  "io_warnings": [
+    "MANDATORY: Do not refuse FIR - Lalita Kumari SC judgment applies"
+  ],
+  "_meta": {
+    "filesProcessed": 1,
+    "fileResults": [
+      {
+        "filename": "COMPLAINTS 8.pdf",
+        "method": "pdf-ocr-canvas",
+        "confidence": 69,
+        "textLength": 1900
+      }
+    ],
+    "analysisDate": "2026-04-27T07:38:19.649Z"
+  }
+}

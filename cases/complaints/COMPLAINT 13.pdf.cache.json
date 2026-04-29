@@ -1,0 +1,81 @@
+{
+  "case_summary": "The complainant, Ashok, was attacked by Tinku (Fauji) with a metal pipe, causing injury to his left hand. Tinku also threatened to kill Ashok and offered a settlement of Rs. 1,00,000. Ashok was coerced into signing a blank paper.",
+  "crime_type": "Voluntary hurt and criminal intimidation",
+  "severity": "HIGH",
+  "sections": [
+    {
+      "code": "BNS 115(2)",
+      "old_code": "IPC 323",
+      "title": "Voluntarily causing hurt",
+      "description": "Whoever, except in the case provided for by section 334, voluntarily causes hurt, shall be punished with imprisonment of either description for a term which may extend to one year, or with fine which may extend to one thousand rupees, or with both.",
+      "relevance": "Primary",
+      "punishment": "Imprisonment up to 1 year + Fine",
+      "page_number": "Page 7",
+      "file_url": "laws/BNS ACT 2023.pdf"
+    },
+    {
+      "code": "BNS 117",
+      "old_code": "IPC 324",
+      "title": "Hurt by dangerous weapon",
+      "description": "Whoever voluntarily causes hurt by means of any instrument for shooting, stabbing or cutting, or any instrument which, used as a weapon of offence, is likely to cause death, shall be punished with imprisonment of either description for a term which may extend to three years, or with fine, or with both.",
+      "relevance": "Primary",
+      "punishment": "Imprisonment up to 3 years + Fine",
+      "page_number": "Page 7",
+      "file_url": "laws/BNS ACT 2023.pdf"
+    },
+    {
+      "code": "BNS 351",
+      "old_code": "IPC 503",
+      "title": "Criminal intimidation",
+      "description": "Whoever, threatens another with injury to his person, reputation or property, or to the person, reputation or property of any one in whom that person is interested, with intent to cause alarm to that person, or to cause that person to do any act which he is not legally bound to do, or to omit to do any act which that person is legally entitled to do, as a means of avoiding the execution of such threat, commits criminal intimidation.",
+      "relevance": "Primary",
+      "punishment": "Imprisonment up to 2 years + Fine",
+      "page_number": "Page 2",
+      "file_url": "laws/BNS ACT 2023.pdf"
+    }
+  ],
+  "sop": [
+    {
+      "step": 1,
+      "action": "Register FIR immediately under BNSS Section 173",
+      "time_limit": "Within 24 hours",
+      "authority": "SHO",
+      "priority": "CRITICAL",
+      "page_number": "",
+      "file_url": ""
+    }
+  ],
+  "sc_judgments": [],
+  "hc_judgments": [],
+  "special_laws": [],
+  "deadlines": [
+    {
+      "task": "Register FIR",
+      "days": 0,
+      "hours": 24,
+      "legal_basis": "BNSS Sec 173",
+      "authority": "SHO",
+      "priority": "CRITICAL"
+    }
+  ],
+  "evidence_checklist": [
+    "Seize the metal pipe used in the attack",
+    "Collect medical records of the complainant's injury",
+    "Record witness statements"
+  ],
+  "io_warnings": [
+    "Ensure that the FIR is registered immediately and thoroughly investigated"
+  ],
+  "_meta": {
+    "filesProcessed": 1,
+    "fileResults": [
+      {
+        "filename": "COMPLAINT 13.pdf",
+        "method": "pdf-ocr-canvas",
+        "confidence": 79,
+        "textLength": 3133
+      }
+    ],
+    "analysisDate": "2026-04-27T08:29:15.593Z"
+  }
+}

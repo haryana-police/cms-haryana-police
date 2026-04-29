@@ -1,0 +1,62 @@
+{
+  "case_summary": "Complainant alleges that she was beaten by accused and her tooth was broken. She claims that she was not provided with proper response or action by the police, specifically by officer Priyanka Man, who allegedly took her thumb impression on blank papers without explanation and threatened her.",
+  "crime_type": "Cruelty and Assault",
+  "severity": "HIGH",
+  "sections": [
+    {
+      "code": "BNS 85",
+      "old_code": "IPC 498A",
+      "title": "Cruelty by Husband or Relatives",
+      "description": "Whoever, being the husband or relative of husband of a woman, subjects such woman to cruelty shall be punished...",
+      "relevance": "Primary",
+      "punishment": "Imprisonment up to 3 years + Fine",
+      "page_number": "Page 6",
+      "file_url": "laws/BNS ACT 2023.pdf"
+    },
+    {
+      "code": "BNS 115(2)",
+      "old_code": "IPC 323",
+      "title": "Voluntarily causing hurt",
+      "description": "Whoever, except in the case provided for by section 334, voluntarily causes hurt, shall be punished...",
+      "relevance": "Secondary",
+      "punishment": "Imprisonment up to 1 year + Fine",
+      "page_number": "Page 7",
+      "file_url": "laws/BNS ACT 2023.pdf"
+    }
+  ],
+  "sop": [],
+  "sc_judgments": [],
+  "hc_judgments": [],
+  "special_laws": [],
+  "deadlines": [
+    {
+      "task": "Register FIR",
+      "days": 0,
+      "hours": 24,
+      "legal_basis": "BNSS Sec 173",
+      "authority": "SHO",
+      "priority": "CRITICAL"
+    }
+  ],
+  "evidence_checklist": [
+    "Seize medical records of the complainant",
+    "Record statement of the complainant and witnesses",
+    "Investigate the allegations of threat and intimidation by the police officer"
+  ],
+  "io_warnings": [
+    "Ensure that the FIR is registered promptly and properly as per BNSS Sec 173",
+    "Be cautious of potential misconduct by police officers and ensure that the investigation is fair and impartial"
+  ],
+  "_meta": {
+    "filesProcessed": 1,
+    "fileResults": [
+      {
+        "filename": "COMPLAINTS 7 (1).pdf",
+        "method": "pdf-ocr-canvas",
+        "confidence": 72,
+        "textLength": 3276
+      }
+    ],
+    "analysisDate": "2026-04-27T07:37:16.630Z"
+  }
+}

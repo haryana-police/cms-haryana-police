@@ -6,6 +6,8 @@ import AppShell from './components/Layout/AppShell';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Investigation from './pages/Investigation';
+import LawLibrary from './pages/LawLibrary';
+import AiChat from './pages/AiChat';
 
 // Module Placeholders
 const Placeholder = ({ title }) => (

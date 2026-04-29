@@ -13,7 +13,9 @@ import {
   DashboardOutlined,
   LogoutOutlined,
   UserOutlined,
-  MenuOutlined
+  MenuOutlined,
+  RobotOutlined,
+  ReadOutlined
 } from '@ant-design/icons';
 import '../../styles/appshell.css';
 

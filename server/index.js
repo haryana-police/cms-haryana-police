@@ -8,14 +8,34 @@ import { createRequire } from 'module';
 import fs from 'fs';
 import path from 'path';
 import dns from 'dns';
+import https from 'https';
 import db from './db.js';
 import FormData from 'form-data';
 import nodeFetch from 'node-fetch';
- 
 
 // ─── Override DNS to use Google DNS (8.8.8.8) — bypasses ISP DNS blocks ──────
 dns.setDefaultResultOrder('ipv4first');
 dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+
+// ─── Custom HTTPS Agent: Direct IP bypass for ENOTFOUND errors ───────────────
+// api.groq.com resolves to these IPs (via 8.8.8.8 DNS — verified)
+// We connect directly to IP + set Host header → completely bypasses DNS
+const GROQ_IPS = ['172.64.149.20', '104.18.38.236'];
+let groqIpIndex = 0;
+
+const groqAgent = new https.Agent({
+  family: 4,
+  keepAlive: true,
+  servername: 'api.groq.com'  // SNI for TLS handshake
+});
+
+// Helper: build Groq URL using direct IP
+const getGroqUrl = (path) => {
+  const ip = GROQ_IPS[groqIpIndex % GROQ_IPS.length];
+  groqIpIndex++;
+  return `https://${ip}${path}`;
+};
+
 
 
 const require = createRequire(import.meta.url);
@@ -32,7 +52,7 @@ let pdfjsLib = null;
 let NodeCanvasFactory = null;
 console.log('ℹ️  Server-side PDF canvas rendering disabled (Windows compatibility). Frontend canvas OCR active.');
 
-dotenv.config();
+dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 // ─── Multer Config: Accept up to 10 files ───────────────────────────────────
 const storage = multer.diskStorage({
@@ -103,23 +123,32 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
 });
 
 // ─── Groq API Helper ─────────────────────────────────────────────────────────
-async function callGroqAPI(messages, jsonMode = false, model = "llama-3.3-70b-versatile") {
+async function callGroqAPI(messages, jsonMode = false, model = "llama-3.1-8b-instant") {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("GROQ_API_KEY not found in .env");
 
   const body = { model, messages };
   if (jsonMode) body.response_format = { type: "json_object" };
 
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  // Use direct IP to bypass DNS resolution failure
+  const url = getGroqUrl('/openai/v1/chat/completions');
+  console.log(`🌐 Groq API call → ${url}`);
+
+  const response = await nodeFetch(url, {
     method: "POST",
-    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body)
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "Host": "api.groq.com"   // Required for TLS SNI + routing
+    },
+    body: JSON.stringify(body),
+    agent: groqAgent
   });
 
   if (!response.ok) {
     const err = await response.text();
     console.error("Groq API Error:", err);
-    throw new Error("Failed to fetch from AI");
+    throw new Error(`Failed to fetch from AI: ${response.status} - ${err}`);
   }
   const data = await response.json();
   return data.choices[0].message.content;
@@ -134,13 +163,18 @@ async function callGroqWhisper(filePath) {
   formData.append("file", fs.createReadStream(filePath));
   formData.append("model", "whisper-large-v3");
 
-  const response = await nodeFetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+  // Use direct IP to bypass DNS resolution failure
+  const url = getGroqUrl('/openai/v1/audio/transcriptions');
+
+  const response = await nodeFetch(url, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
+      "Host": "api.groq.com",  // Required for TLS SNI + routing
       ...formData.getHeaders()
     },
-    body: formData
+    body: formData,
+    agent: groqAgent
   });
 
   if (!response.ok) {
@@ -340,58 +374,43 @@ async function processFile(file, imageFallback = null) {
 
 // ─── BNS Conversion Reference Table (used inside prompt) ─────────────────────
 const BNS_REFERENCE = `
-MANDATORY BNS CONVERSION TABLE (Use ONLY these - NEVER use IPC numbers in "code" field):
-| Old IPC | New BNS | Crime |
-|---------|---------|-------|
-| IPC 302 | BNS 101 | Murder |
-| IPC 304 | BNS 105 | Culpable Homicide not amounting to murder |
-| IPC 304A | BNS 106 | Causing death by negligence |
-| IPC 307 | BNS 109 | Attempt to murder |
-| IPC 308 | BNS 110 | Attempt to commit culpable homicide |
-| IPC 319/320 | BNS 114/115 | Hurt / Grievous Hurt |
-| IPC 323 | BNS 115(2) | Voluntarily causing hurt |
-| IPC 324 | BNS 117 | Hurt by dangerous weapon |
-| IPC 325 | BNS 116 | Voluntarily causing grievous hurt |
-| IPC 326 | BNS 118 | Grievous hurt by dangerous weapon |
-| IPC 354 | BNS 74 | Assault on woman with intent to outrage modesty |
-| IPC 354A | BNS 75 | Sexual harassment |
-| IPC 354B | BNS 76 | Assault to disrobe woman |
-| IPC 354C | BNS 77 | Voyeurism |
-| IPC 354D | BNS 78 | Stalking |
-| IPC 363 | BNS 137 | Kidnapping |
-| IPC 365 | BNS 140 | Kidnapping to cause wrongful confinement |
-| IPC 366 | BNS 141 | Kidnapping/abducting woman to compel marriage |
-| IPC 375/376 | BNS 63/64 | Rape |
-| IPC 376A | BNS 66 | Rape causing death or persistent vegetative state |
-| IPC 376D | BNS 70 | Gang Rape |
-| IPC 377 | BNS 100 | Unnatural offences |
-| IPC 379 | BNS 303 | Theft |
-| IPC 380 | BNS 305 | Theft in dwelling house |
-| IPC 381 | BNS 306 | Theft by clerk/servant |
-| IPC 382 | BNS 304 | Theft after preparation for hurt |
-| IPC 383/384 | BNS 308 | Extortion |
-| IPC 390/392 | BNS 309 | Robbery |
-| IPC 395 | BNS 310 | Dacoity |
-| IPC 396 | BNS 311 | Dacoity with murder |
-| IPC 405/406 | BNS 316 | Criminal Breach of Trust |
-| IPC 415/420 | BNS 318 | Cheating / Fraud |
-| IPC 425/427 | BNS 324 | Mischief |
-| IPC 441/448 | BNS 329 | House trespass |
-| IPC 498A | BNS 85 | Cruelty by husband or relatives |
-| IPC 499/500 | BNS 356 | Defamation |
-| IPC 503/506 | BNS 351 | Criminal intimidation |
-| IPC 509 | BNS 79 | Word/gesture to insult woman |
+MANDATORY IPC TO BNS MAPPING (Use ONLY these BNS numbers - NEVER use IPC numbers in "code" field):
+302->BNS 101, 304->BNS 105, 304A->BNS 106, 307->BNS 109, 308->BNS 110, 319->BNS 114, 320->BNS 115, 323->BNS 115(2), 324->BNS 117, 325->BNS 116, 326->BNS 118, 327->BNS 122, 341->BNS 126, 342->BNS 127, 354->BNS 74, 354A->BNS 75, 354B->BNS 76, 354C->BNS 77, 354D->BNS 78, 363->BNS 137, 364->BNS 139, 365->BNS 140, 366->BNS 141, 375/376->BNS 63/64, 376A->BNS 66, 376AB->BNS 65, 376D->BNS 70, 376DA->BNS 71, 377->BNS 100, 378/379->BNS 303, 380->BNS 305, 381->BNS 306, 382->BNS 304, 383/384->BNS 308, 390/392->BNS 309, 395->BNS 310, 396->BNS 311, 405/406/409->BNS 316, 415/420->BNS 318, 425/426/427->BNS 324, 428/429->BNS 325, 441/448->BNS 329, 447->BNS 333, 452->BNS 330, 494/495->BNS 82, 496->BNS 83, 497->BNS 84, 498A->BNS 85, 499/500->BNS 356, 503/506->BNS 351, 504->BNS 352, 509->BNS 79, 34->BNS 3(5), 120B->BNS 61, 107->BNS 45, 109->BNS 48.
 
 BNSS (New CrPC) KEY SECTIONS:
-| Old CrPC | New BNSS | Purpose |
-|----------|----------|---------|
-| CrPC 154 | BNSS 173 | FIR Registration |
-| CrPC 161 | BNSS 180 | Witness Statement by Police |
-| CrPC 164 | BNSS 183 | Statement before Magistrate |
-| CrPC 167 | BNSS 187 | Remand |
-| CrPC 173 | BNSS 193 | Police Report / Charge Sheet |
-| CrPC 41 | BNSS 35 | Arrest without warrant |
-| CrPC 46 | BNSS 43 | Arrest procedure |
+CrPC 154 -> BNSS 173 (FIR Registration)
+CrPC 161 -> BNSS 180 (Witness Statement)
+CrPC 164 -> BNSS 183 (Statement before Magistrate)
+CrPC 167 -> BNSS 187 (Remand)
+CrPC 173 -> BNSS 193 (Charge Sheet)
+CrPC 41 -> BNSS 35 (Arrest)
+`;
+
+const SPECIAL_LAWS_REFERENCE = `
+AVAILABLE SPECIAL LAWS IN KNOWLEDGE BASE:
+- IT Act 2000
+- NDPS Act 1985
+- POCSO Act 2012
+- Domestic Violence Act 2005 (PWDVA)
+- SC/ST (Prevention of Atrocities) Act
+- Dowry Prohibition Act 1961
+- Arms Act 1959
+- Motor Vehicle Act 1988
+- Prevention of Money Laundering Act 2002
+- Haryana Police Act 2007
+- Haryana Gauvansh Sanrakshan Act 2015
+- Immoral Traffic Prevention Act 1956
+- Juvenile Justice Act 2015
+- UAPA 1967
+- Prevention of Corruption Act 1988
+- Essential Commodities Act 1955
+- Haryana Excise Act 1914
+- Benami Transactions Act 1988
+- National Security Act 1980
+- Child Marriage Prohibition Act 2006
+- Public Gambling Act 1867
+
+YOU MUST NOT SUGGEST ANY SPECIAL LAW THAT IS NOT IN THIS LIST. If a crime does not fall under these, DO NOT hallucinate a special law. Leave the special_laws array empty [].
 `;
 
 // ─── AI Prompt for Deep Analysis ──────────────────────────────────────────────
@@ -419,6 +438,8 @@ YOU MUST NEVER:
 
 ${BNS_REFERENCE}
 
+${SPECIAL_LAWS_REFERENCE}
+
 Your task: Analyze the complaint/document and return EXACTLY this JSON structure:
 
 {
@@ -432,7 +453,9 @@ Your task: Analyze the complaint/document and return EXACTLY this JSON structure
       "title": "Cruelty by Husband or Relatives",
       "description": "Whoever, being the husband or relative of husband of a woman, subjects such woman to cruelty shall be punished...",
       "relevance": "Primary",
-      "punishment": "Imprisonment up to 3 years + Fine"
+      "punishment": "Imprisonment up to 3 years + Fine",
+      "page_number": "Page 45",
+      "file_url": "laws/BNS ACT 2023.pdf"
     }
   ],
   "sop": [
@@ -441,7 +464,9 @@ Your task: Analyze the complaint/document and return EXACTLY this JSON structure
       "action": "Register FIR immediately under BNSS Section 173 - this is a cognizable offence",
       "time_limit": "Within 24 hours",
       "authority": "SHO",
-      "priority": "CRITICAL"
+      "priority": "CRITICAL",
+      "page_number": "Page 2",
+      "file_url": "sop/Regulation No. 14 of 2024.GUIDLINE FOR EXPEDITIOUS  & FAIR INVESTIGATION OF RAPE CASES.pdf"
     }
   ],
   "sc_judgments": [
@@ -459,7 +484,9 @@ Your task: Analyze the complaint/document and return EXACTLY this JSON structure
         "Victim can approach SP or Magistrate if SHO refuses"
       ],
       "io_duty": "Mandatory - Register FIR immediately. No preliminary inquiry for cognizable offences. Non-compliance invites disciplinary action.",
-      "relevance": "Mandatory FIR registration"
+      "relevance": "Mandatory FIR registration",
+      "page_number": "Page 12",
+      "file_url": "judgements/Landmark Supreme Court Directives.pdf"
     }
   ],
   "hc_judgments": [
@@ -476,7 +503,9 @@ Your task: Analyze the complaint/document and return EXACTLY this JSON structure
         "Third important point for IO"
       ],
       "io_duty": "Specific duty cast on the IO by this HC judgment",
-      "relevance": "How IO should apply this"
+      "relevance": "How IO should apply this",
+      "page_number": "Page 5",
+      "file_url": "judgements/relevant_hc_judgment.pdf"
     }
   ],
   "special_laws": [
@@ -484,7 +513,9 @@ Your task: Analyze the complaint/document and return EXACTLY this JSON structure
       "act_name": "Protection of Women from Domestic Violence Act 2005",
       "sections": ["3", "12", "23"],
       "action": "File for protection order. Inform victim of rights. Report to DV Magistrate.",
-      "priority": "HIGH"
+      "priority": "HIGH",
+      "page_number": "Page 3",
+      "file_url": "laws/special_law.pdf"
     }
   ],
   "deadlines": [
@@ -519,10 +550,11 @@ Your task: Analyze the complaint/document and return EXACTLY this JSON structure
 FINAL STRICT RULES:
 1. Return ONLY valid JSON. Absolutely NO extra text, no markdown, no explanation.
 2. "code" field MUST start with "BNS " not "IPC " - use the conversion table above.
-3. Include 4-6 BNS sections minimum, covering all applicable offences.
+3. ONLY include BNS sections that strictly apply to the facts. DO NOT suggest sections for human offenses (like homicide or human hurt) if the crime is against an animal. If no BNS sections apply, leave the sections array empty.
 4. If unreadable text: {"error": "Cannot read document clearly. Upload a clearer image or type complaint text."}
-5. IMPORTANT FOR SOP & JUDGEMENTS: If you find relevant Standard Operating Procedures (SOPs), Special Laws, or Judgements in the "CUSTOM KNOWLEDGE BASE" section below, you MUST use them directly instead of creating generic ones. Extract their details thoroughly.
-5b. MANDATORY SOP RULE: If "OFFICIAL HARYANA POLICE SOP" documents are present in your context, you MUST extract the exact procedural steps from those Regulations (not generic steps). Each SOP step must cite the source Regulation (e.g., "As per Regulation 14/2024, Step 3...").
+5. ABSOLUTE STRICT GROUNDING RULE: For "sections", "sop", "sc_judgments", "hc_judgments", and "special_laws", YOU MUST ONLY SUGGEST items that are EXPLICITLY FOUND in the "=== CUSTOM KNOWLEDGE BASE ===" provided below. 
+5b. DO NOT USE YOUR PRE-TRAINED KNOWLEDGE to invent or suggest sections, SOPs, or judgments that are not in the provided knowledge base. If there is no relevant SOP or judgment in the knowledge base, LEAVE THE ARRAY EMPTY ([]). DO NOT hallucinate.
+5c. For page_number: ONLY provide the EXACT "[Page X]" if it is explicitly present in the provided context block where you found the information. If you cannot find the "[Page X]" tag for that exact information, you MUST return an empty string "" for page_number. DO NOT GUESS OR HALLUCINATE PAGE NUMBERS.
 6. Deadlines MUST reference BNSS sections (not CrPC).
 7. Evidence checklist must be crime-specific and actionable.`;
 
@@ -539,6 +571,138 @@ const getAllFiles = (dirPath, arrayOfFiles) => {
     }
   });
   return arrayOfFiles;
+};
+
+
+// ─── Law Library Metadata: All files with their category, url, label ──────────
+const LAW_LIBRARY_META = {
+  laws: [
+    { file: 'laws/BNS ACT 2023.pdf', label: 'BNS (Bharatiya Nyaya Sanhita) 2023', keywords: ['bns', 'bharatiya nyaya', 'murder', 'theft', 'rape', 'assault', 'cheating', 'fraud', 'ipc', 'criminal', 'offense', 'punishment'] },
+    { file: 'laws/BNSS ACT 2023.pdf', label: 'BNSS (Bharatiya Nagarik Suraksha Sanhita) 2023', keywords: ['bnss', 'crpc', 'fir', 'arrest', 'remand', 'trial', 'bail', 'procedure', 'investigation', 'charge sheet', 'magistrate'] },
+    { file: 'laws/BSA 2023.pdf', label: 'BSA (Bharatiya Sakshya Adhiniyam) 2023', keywords: ['bsa', 'evidence', 'witness', 'confession', 'sakshya', 'proof', 'digital evidence'] },
+  ],
+  specialLaws: [
+    { file: 'special laws/IT ACT 2000.pdf', label: 'IT Act 2000', keywords: ['cyber', 'it act', 'hacking', 'digital', 'computer', 'online fraud', 'cybercrime', 'internet', 'data'] },
+    { file: 'special laws/NDPS_Act_and_Rules_1985-(updated_2025).pdf', label: 'NDPS Act 1985 (Updated 2025)', keywords: ['ndps', 'drugs', 'narcotic', 'psychotropic', 'narcotics', 'drug trafficking', 'nasha'] },
+    { file: 'special laws/pocso act 2012.pdf', label: 'POCSO Act 2012', keywords: ['pocso', 'child', 'minor', 'sexual abuse', 'children', 'juvenile'] },
+    { file: 'special laws/Domestic violence act.pdf', label: 'Domestic Violence Act 2005', keywords: ['domestic violence', 'pwdva', 'dv act', 'protection order', 'matrimonial', 'wife'] },
+    { file: 'special laws/sc & st act.pdf', label: 'SC/ST (Prevention of Atrocities) Act', keywords: ['sc st', 'atrocity', 'dalit', 'scheduled caste', 'scheduled tribe', 'atrocities'] },
+    { file: 'special laws/dowry prohibition act 1961.pdf', label: 'Dowry Prohibition Act 1961', keywords: ['dowry', 'dahej', 'dowry prohibition', 'dowry demand'] },
+    { file: 'special laws/arms act 1959.pdf', label: 'Arms Act 1959', keywords: ['arms', 'weapon', 'gun', 'firearm', 'pistol', 'rifle', 'hathiyar'] },
+    { file: 'special laws/motor vehicle act 1988.pdf', label: 'Motor Vehicle Act 1988', keywords: ['motor vehicle', 'accident', 'rash driving', 'drunk driving', 'traffic', 'vehicle'] },
+    { file: 'special laws/THE PROTECTION OF CHILDREN FROM SEXUAL OFFENCES ACT, 2012.pdf', label: 'POCSO Act 2012 (Full)', keywords: ['pocso', 'child protection', 'sexual offence', 'minor'] },
+    { file: 'special laws/prevention of money laundering act 2002.pdf', label: 'Prevention of Money Laundering Act 2002', keywords: ['money laundering', 'pmla', 'hawala', 'benami', 'financial crime'] },
+    { file: 'special laws/THE HARYANA POLICE ACT, 2007.pdf', label: 'Haryana Police Act 2007', keywords: ['haryana police', 'police act', 'police duty', 'police conduct'] },
+    { file: 'special laws/THE HARYANA GAUVANSH SANRAKSHAN AND GAUSAMVARDHAN ACT, 2015.pdf', label: 'Haryana Gauvansh Sanrakshan Act 2015', keywords: ['cow', 'gauvansh', 'cattle', 'slaughter', 'gau'] },
+    { file: 'special laws/THE IMMORAL TRAFFIC (PREVENTION) ACT, 1956.pdf', label: 'Immoral Traffic Prevention Act 1956', keywords: ['immoral traffic', 'trafficking', 'prostitution', 'itpa'] },
+    { file: 'special laws/THE JUVENILE JUSTICE (CARE AND PROTECTION OF CHILDREN) ACT, 2015.pdf', label: 'Juvenile Justice Act 2015', keywords: ['juvenile', 'child in conflict', 'borstal', 'jjb', 'child care'] },
+    { file: 'special laws/THE UNLAWFUL ACTIVITIES (PREVENTION) ACT, 1967.pdf', label: 'UAPA 1967', keywords: ['uapa', 'terrorism', 'unlawful', 'terrorist', 'extremist'] },
+    { file: 'special laws/The Prevention of Corruption Act, 1988.pdf', label: 'Prevention of Corruption Act 1988', keywords: ['corruption', 'bribery', 'bribe', 'dishonest', 'pc act', 'trap case'] },
+    { file: 'special laws/essential_commodities_act_1955.pdf', label: 'Essential Commodities Act 1955', keywords: ['essential commodities', 'hoarding', 'black market', 'commodity'] },
+    { file: 'special laws/haryana_excise_act,_1914_(1_of_1914).pdf', label: 'Haryana Excise Act 1914', keywords: ['excise', 'liquor', 'alcohol', 'sharab', 'illicit liquor', 'bootlegging'] },
+    { file: 'special laws/Benami Property Transactions Act, 1988.pdf', label: 'Benami Transactions Act 1988', keywords: ['benami', 'property', 'black money', 'benami property'] },
+    { file: 'special laws/THE NATIONAL SECURITY ACT, 1980.pdf', label: 'National Security Act 1980', keywords: ['nsa', 'national security', 'detention', 'preventive detention'] },
+    { file: 'special laws/the_prohibition_of_child_marriage_act,_2006.pdf', label: 'Child Marriage Prohibition Act 2006', keywords: ['child marriage', 'bal vivah', 'minor marriage'] },
+    { file: 'special laws/THE PUBLIC GAMBLING ACT, 1867.pdf', label: 'Public Gambling Act 1867', keywords: ['gambling', 'jua', 'betting', 'casino', 'gaming'] },
+  ],
+  sops: [
+    { file: 'sop/Regulation No. 14 of 2024.GUIDLINE FOR EXPEDITIOUS  & FAIR INVESTIGATION OF RAPE CASES.pdf', label: 'SOP: Rape Investigation (Regulation 14/2024)', keywords: ['rape case', 'rape investigation', 'sexual assault investigation', 'bns 63', 'bns 64', 'bns 70', 'gang rape', 'rape sop', 'regulation 14'] },
+    { file: 'sop/Regulation No. 15 of 2024.CRUELTY IN MARRIAGE_.pdf', label: 'SOP: Cruelty in Marriage (Regulation 15/2024)', keywords: ['cruelty in marriage', 'domestic violence case', 'bns 85', 'matrimonial case', 'dowry harassment', '498a sop', 'regulation 15'] },
+    { file: 'sop/Regulation No. 20 of 2024.INVESTIGATION INTO ECONOMIC OFFENCES_.pdf', label: 'SOP: Economic Offences (Regulation 20/2024)', keywords: ['economic offence', 'fraud investigation', 'bns 318', 'financial crime', 'cyber fraud sop', 'regulation 20'] },
+    { file: 'sop/SOP MISSING PERSON.pdf', label: 'SOP: Missing Person', keywords: ['missing person', 'missing child', 'gumshuda person', 'child missing', 'abduction sop', 'kidnapping sop'] },
+    { file: 'sop/cyber slavery SOP.pdf', label: 'SOP: Cyber Slavery & Human Trafficking', keywords: ['cyber slavery', 'human trafficking', 'cyber crime sop', 'online fraud sop', 'digital crime sop', 'trafficking sop'] },
+    { file: 'sop/Regulation No. 3.VISIT BY FORENSIC TEAM IN HENIOUS CRIME CASES.pdf', label: 'SOP: Forensic Team Visit - Heinous Crimes (Regulation 3)', keywords: ['forensic team', 'heinous crime', 'fsl visit', 'murder investigation sop', 'bns 101 sop', 'regulation 3'] },
+    { file: 'sop/Regulation No. 4.PROCEDURE U_S 41 & 41A  CRPC.pdf', label: 'SOP: Arrest Procedure BNSS 35 (Regulation 4)', keywords: ['arrest procedure', 'bnss 35 sop', 'section 41a', 'arrest guideline', 'giraftari sop', 'regulation 4'] },
+    { file: 'sop/Regulation No. 12 of 2024.BNSS GUIDELINE SECTION 35,187,153,157.pdf', label: 'SOP: Remand & Custody (Regulation 12/2024)', keywords: ['remand procedure', 'bnss 187', 'judicial custody', 'police custody sop', 'regulation 12', 'remand guideline'] },
+  ],
+  judgements: [
+    { file: 'judgements/Arnesh Kumar vs State of Bihar.pdf', label: 'Arnesh Kumar vs State of Bihar', keywords: ['arrest', 'bnss 35', '41a', 'crpc 41', 'bns 85', '498a', 'arnesh kumar', 'arrest guideline'] },
+    { file: 'judgements/Landmark Supreme Court Directives & national human right commission guidelines.pdf', label: 'Landmark SC Directives & NHRC Guidelines', keywords: ['nhrc', 'human rights', 'police', 'guidelines', 'landmark', 'supreme court'] },
+    { file: 'judgements/Maneka_Gandhi_vs_Union_Of_India_on_25_January_1978 (1).pdf', label: 'Maneka Gandhi vs Union of India (1978)', keywords: ['personal liberty', 'article 21', 'fundamental rights', 'passport', 'maneka gandhi'] },
+    { file: 'judgements/Nandini_Satpathy_vs_Dani_P_L_And_Anr_on_7_April_1978 (1).pdf', label: 'Nandini Satpathy vs Dani (1978)', keywords: ['self incrimination', 'article 20(3)', 'interrogation', 'custodial interrogation', 'right to silence'] },
+    { file: 'judgements/Selvi_Ors_vs_State_Of_Karnataka_Anr_on_5_May_2010 (1).pdf', label: 'Selvi vs State of Karnataka (2010)', keywords: ['narco analysis', 'brain mapping', 'polygraph', 'lie detector', 'compelled testimony', 'selvi'] },
+    { file: 'judgements/Bhagwat_Singh_vs_Commissioner_Of_Police_And_Anr_on_25_April_1985 (1).pdf', label: 'Bhagwat Singh vs Commissioner of Police (1985)', keywords: ['arrest memo', 'grounds of arrest', 'detention', 'police custody', 'bhagwat singh'] },
+    { file: 'judgements/Zahira_Habibullah_Sheikh_Anr_vs_State_Of_Gujarat_Ors_on_8_March_2006 (1).pdf', label: 'Zahira Sheikh vs State of Gujarat (Best Bakery) (2006)', keywords: ['best bakery', 'witness protection', 'hostile witness', 'fair investigation', 'zahira'] },
+    { file: 'judgements/Priyanka_Srivastava_Anr_vs_State_Of_U_P_Ors_on_19_March_2015 (1).pdf', label: 'Priyanka Srivastava vs State of UP (2015)', keywords: ['fake complaint', 'false case', 'misuse', 'section 156(3)', 'bnss', 'affidavit', 'magistrate'] },
+    { file: 'judgements/People\'S_Union_For_Civil_Liberties_And_vs_State_Of_Maharashtra_Ors_on_23_September_2014 (1).pdf', label: 'PUCL vs State of Maharashtra (2014)', keywords: ['encounter', 'fake encounter', 'extrajudicial killing', 'pucl', 'human rights'] },
+    { file: 'judgements/Arjun_Panditrao_Khotkar_vs_Kailash_Kushanrao_Gorantyal_on_14_July_2020 (1) (1).pdf', label: 'Arjun Panditrao Khotkar vs Kailash Gorantyal (2020)', keywords: ['electronic evidence', 'digital evidence', 'certificate', 'section 65b', 'bsa', 'whatsapp', 'video'] },
+    { file: 'judgements/2026 Supreme Court Guidelines on Digital Devices.pdf', label: '2026 SC Guidelines on Digital Devices', keywords: ['digital device', 'mobile phone', 'seizure', 'electronic', '2026', 'digital forensic', 'phone seizure'] },
+    { file: 'judgements/Naresh_Kumar_Garg_vs_The_State_Of_Haryana_on_23_February_2026 (1).pdf', label: 'Naresh Kumar Garg vs State of Haryana (2026)', keywords: ['haryana', '2026', 'high court', 'phc', 'punjab haryana'] },
+    { file: 'judgements/lalit kumar vs govt of u.p.pdf', label: 'Lalit Kumar vs Govt of UP', keywords: ['lalit kumar', 'up', 'investigation', 'uttar pradesh'] },
+  ]
+};
+
+// ─── PDF Paged Extractor Helper ───────────────────────────────────────────
+const extractPdfWithPages = async (dataBuffer, maxChars = 4000) => {
+  let pageTexts = [];
+  try {
+    await pdfParse(dataBuffer, {
+      pagerender: function(pageData) {
+        return pageData.getTextContent().then(function(textContent) {
+          let pageText = textContent.items.map(i => i.str).join(' ');
+          pageTexts.push(pageText);
+          return pageText;
+        });
+      }
+    });
+    if (pageTexts.length > 0) {
+      return pageTexts.map((pt, i) => `[Page ${i + 1}]:\n${pt}`).join('\n\n').substring(0, maxChars);
+    }
+  } catch (e) {
+    console.error("Error in pagerender:", e.message);
+  }
+  // Fallback
+  try {
+    const pdfData = await pdfParse(dataBuffer);
+    return (pdfData.text || '').substring(0, maxChars);
+  } catch (e) {
+    return '';
+  }
+};
+
+// ─── Smart Library Context Extractor ───────────────────────────────────────
+const getRelevantLibraryContext = async (crimeContext = '') => {
+  const kbPath = path.join(process.cwd(), 'user_knowledge_base');
+  const lowerContext = crimeContext.toLowerCase();
+  
+  const relevantFiles = [];
+  const allCategories = [
+    ...LAW_LIBRARY_META.laws.map(f => ({ ...f, category: 'laws' })),
+    ...LAW_LIBRARY_META.specialLaws.map(f => ({ ...f, category: 'special_laws' })),
+    ...LAW_LIBRARY_META.sops.map(f => ({ ...f, category: 'sop' })),
+    ...LAW_LIBRARY_META.judgements.map(f => ({ ...f, category: 'judgements' })),
+  ];
+
+  for (const item of allCategories) {
+    const matchScore = item.keywords.filter(kw => lowerContext.includes(kw)).length;
+    if (matchScore > 0) {
+      relevantFiles.push({ ...item, matchScore });
+    }
+  }
+
+  // Sort by matchScore descending
+  relevantFiles.sort((a, b) => b.matchScore - a.matchScore);
+
+  // Take top 2 from each category to ensure diversity (Laws, SOPs, Judgements)
+  const topFiles = [];
+  ['laws', 'special_laws', 'sop', 'judgements'].forEach(cat => {
+    const catFiles = relevantFiles.filter(f => f.category === cat);
+    if (catFiles.length > 0) {
+      topFiles.push(...catFiles.slice(0, 2));
+    }
+  });
+
+  let combinedContext = '';
+  for (const item of topFiles) {
+    const filePath = path.join(kbPath, item.file);
+    if (!fs.existsSync(filePath)) continue;
+    try {
+      const dataBuffer = fs.readFileSync(filePath);
+      const text = await extractPdfWithPages(dataBuffer, 4000);
+      combinedContext += `\n\n=== SOURCE TYPE: ${item.category.toUpperCase()} | FILE: ${item.label} (URL: ${item.file}) ===\n${text}\n${'='.repeat(60)}\n`;
+    } catch (e) { }
+  }
+  return combinedContext;
 };
 
 // ─── SOP → Crime Type Mapping Table ───────────────────────────────────────
@@ -598,8 +762,8 @@ const getRelevantSOPs = async (crimeContext = '') => {
       if (fs.existsSync(filePath)) {
         try {
           const dataBuffer = fs.readFileSync(filePath);
-          const pdfData = await pdfParse(dataBuffer);
-          sopContent += `\n\n=== OFFICIAL HARYANA POLICE SOP: ${sop.label} ===\n${pdfData.text}\n${'='.repeat(60)}\n`;
+          const text = await extractPdfWithPages(dataBuffer, 4000);
+          sopContent += `\n\n=== OFFICIAL HARYANA POLICE SOP: ${sop.label} ===\n${text}\n${'='.repeat(60)}\n`;
           console.log(`✅ SOP Loaded for AI: ${sop.label}`);
         } catch (e) {
           console.error(`❌ Error loading SOP [${sop.label}]:`, e.message);
@@ -625,8 +789,8 @@ const getUserKnowledge = async () => {
         } else if (file.toLowerCase().endsWith('.pdf')) {
           try {
             const dataBuffer = fs.readFileSync(filePath);
-            const pdfData = await pdfParse(dataBuffer);
-            kbContent += `\n--- CUSTOM USER KNOWLEDGE FROM PDF: ${file} ---\n${pdfData.text}\n----------------------------------------\n`;
+            const text = await extractPdfWithPages(dataBuffer, 4000);
+            kbContent += `\n--- CUSTOM USER KNOWLEDGE FROM PDF: ${file} ---\n${text}\n----------------------------------------\n`;
           } catch (pdfErr) {
             console.error(`Error parsing PDF ${file}:`, pdfErr);
           }
@@ -656,9 +820,53 @@ app.get('/api/cases/list', authenticateToken, (req, res) => {
   }
 });
 
+// ─── List Knowledge Base Files ────────────────────────────────────────────────
+app.get('/api/kb', authenticateToken, (req, res) => {
+  try {
+    const kbPath = path.join(process.cwd(), 'user_knowledge_base');
+    if (!fs.existsSync(kbPath)) return res.json({ files: [] });
+    
+    const allFilesOnDisk = getAllFiles(kbPath).filter(f => f.toLowerCase().endsWith('.pdf'));
+    const files = allFilesOnDisk.map(absolutePath => {
+      const relPath = path.relative(kbPath, absolutePath).replace(/\\/g, '/');
+      const filename = path.basename(relPath);
+      
+      let category = 'special laws';
+      if (relPath.startsWith('laws/')) category = 'laws';
+      else if (relPath.startsWith('sop/')) category = 'sop';
+      else if (relPath.startsWith('judgements/')) category = 'judgements';
+      
+      return {
+        name: filename,
+        category: category,
+        url: relPath
+      };
+    });
+    res.json({ files });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── 1. Smart Multi-File Analysis Endpoint ────────────────────────────────────
 app.post('/api/ai/analyze-complaint', authenticateToken, upload.array('files', 10), async (req, res) => {
   try {
+    const caseType = req.body.caseType;
+    const caseName = req.body.caseName;
+    
+    let cacheFile = null;
+    if (caseType && caseName) {
+      const dirPath = path.join(process.cwd(), 'cases', caseType);
+      if (fs.existsSync(dirPath)) {
+        cacheFile = path.join(dirPath, `${caseName}.cache.json`);
+        if (fs.existsSync(cacheFile)) {
+          console.log(`[Cache Hit] Serving cached analysis for ${caseName}`);
+          const cachedData = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+          return res.json(cachedData);
+        }
+      }
+    }
+
     let allExtractedTexts = [];
     let fileResults = [];
 
@@ -740,30 +948,106 @@ Now analyze this complaint/document and return JSON:
 ${combinedText}
 `.trim();
 
-    // ─── Load Knowledge: Crime-specific SOPs + General KB ────────────────
-    // const customKnowledge = await getUserKnowledge();          // ← DISABLED: Loading all PDFs exceeds context limits
-    const relevantSOP = await getRelevantSOPs(combinedText);  // ← Smart SOP by crime type
+    // ─── Load Knowledge: Comprehensive Library Match ──────────────────────
+    const libraryContext = await getRelevantLibraryContext(combinedText);
+    const knowledgeInjection = libraryContext
+      ? `\n\n=== CUSTOM KNOWLEDGE BASE (USE ONLY THESE SOURCES) ===\n${libraryContext}\n`
+      : '\n\n=== CUSTOM KNOWLEDGE BASE ===\n[No specific matches found in library. Return empty arrays for SOP and Judgements.]\n';
 
-    const sopInjection = relevantSOP
-      ? `\n\n=== HARYANA POLICE OFFICIAL SOPs (MANDATORY - USE THESE STEPS DIRECTLY) ===\n${relevantSOP}\n`
-      : '';
-
-    const finalSystemPrompt = ANALYSIS_SYSTEM_PROMPT
-      + sopInjection;
+    const finalSystemPrompt = ANALYSIS_SYSTEM_PROMPT + knowledgeInjection;
       // + (customKnowledge ? `\n\n=== CUSTOM KNOWLEDGE BASE ===\n${customKnowledge}\n=============================\n` : '');
 
-    if (relevantSOP) console.log('✅ Crime-specific SOP injected into AI prompt');
-    else console.log('ℹ️  No specific SOP matched - using general knowledge');
+    if (libraryContext) console.log('✅ Custom Library Context injected into AI prompt');
+    else console.log('ℹ️ No specific library match found - returning empty recommendations');
 
     const aiResponse = await callGroqAPI([
       { role: "system", content: finalSystemPrompt },
       { role: "user", content: userMessage }
-    ], true, "llama-3.3-70b-versatile");
+    ], true, "llama-3.1-8b-instant");
 
     const parsedJson = JSON.parse(aiResponse);
 
     if (parsedJson.error) {
       return res.status(400).json({ error: parsedJson.error });
+    }
+
+    // ─── Post-Process: Inject Law Library Links for BNS Sections ─────────────
+    // Since the full BNS PDF is too large for the context window, the AI often leaves page_number blank.
+    if (parsedJson.sections && Array.isArray(parsedJson.sections)) {
+      parsedJson.sections.forEach(sec => {
+        const code = sec.code ? sec.code.toUpperCase() : '';
+        if (code.startsWith('BNS ')) {
+          sec.file_url = 'laws/BNS ACT 2023.pdf';
+          
+          // Basic page number mapping for common BNS sections
+          const numMatch = code.match(/\d+/);
+          if (numMatch) {
+            const num = parseInt(numMatch[0]);
+            if (!sec.page_number) {
+              if (num >= 63 && num <= 71) sec.page_number = "Page 5"; // Sexual offences
+              else if (num >= 74 && num <= 85) sec.page_number = "Page 6"; // Women / Cruelty
+              else if (num >= 100 && num <= 113) sec.page_number = "Page 6"; // Murder / Homicide
+              else if (num >= 114 && num <= 125) sec.page_number = "Page 7"; // Hurt
+              else if (num >= 137 && num <= 141) sec.page_number = "Page 8"; // Kidnapping
+              else if (num >= 303 && num <= 306) sec.page_number = "Page 13"; // Theft
+              else if (num >= 308 && num <= 311) sec.page_number = "Page 14"; // Extortion/Robbery
+              else if (num >= 316 && num <= 318) sec.page_number = "Page 15"; // Fraud
+              else sec.page_number = "Page 2"; // Default fallback to index/start
+            }
+          }
+        } else if (code.startsWith('BNSS ')) {
+          sec.file_url = 'laws/BNSS ACT 2023.pdf';
+          if (!sec.page_number) sec.page_number = "Page 10"; // General BNSS fallback
+        }
+      });
+    }
+
+    // ─── Post-Process: Inject Law Library Links for Special Laws ─────────────
+    if (parsedJson.special_laws && Array.isArray(parsedJson.special_laws)) {
+      parsedJson.special_laws.forEach(sl => {
+        const actNameLower = (sl.act_name || '').toLowerCase();
+        
+        if (actNameLower.includes('pocso') || actNameLower.includes('children from sexual offences')) {
+          sl.file_url = 'special laws/THE PROTECTION OF CHILDREN FROM SEXUAL OFFENCES ACT, 2012.pdf';
+          if (!sl.page_number) sl.page_number = "Page 10";
+        } else if (actNameLower.includes('ndps') || actNameLower.includes('narcotic')) {
+          sl.file_url = 'special laws/NDPS_Act_and_Rules_1985-(updated_2025).pdf';
+          if (!sl.page_number) sl.page_number = "Page 15";
+        } else if (actNameLower.includes('it act') || actNameLower.includes('information technology')) {
+          sl.file_url = 'special laws/IT ACT 2000.pdf';
+          if (!sl.page_number) sl.page_number = "Page 25";
+        } else if (actNameLower.includes('sc/st') || actNameLower.includes('atrocities') || actNameLower.includes('scheduled caste')) {
+          sl.file_url = 'special laws/sc & st act.pdf';
+          if (!sl.page_number) sl.page_number = "Page 4";
+        } else if (actNameLower.includes('domestic violence') || actNameLower.includes('pwdva')) {
+          sl.file_url = 'special laws/Domestic violence act.pdf';
+          if (!sl.page_number) sl.page_number = "Page 6";
+        } else if (actNameLower.includes('arms act')) {
+          sl.file_url = 'special laws/arms act 1959.pdf';
+          if (!sl.page_number) sl.page_number = "Page 10";
+        } else if (actNameLower.includes('motor vehicle')) {
+          sl.file_url = 'special laws/motor vehicle act 1988.pdf';
+          if (!sl.page_number) sl.page_number = "Page 80";
+        } else if (actNameLower.includes('dowry')) {
+          sl.file_url = 'special laws/dowry prohibition act 1961.pdf';
+          if (!sl.page_number) sl.page_number = "Page 2";
+        } else if (actNameLower.includes('money laundering')) {
+          sl.file_url = 'special laws/prevention of money laundering act 2002.pdf';
+          if (!sl.page_number) sl.page_number = "Page 5";
+        } else if (actNameLower.includes('corruption')) {
+          sl.file_url = 'special laws/The Prevention of Corruption Act, 1988.pdf';
+          if (!sl.page_number) sl.page_number = "Page 4";
+        } else {
+          // Dynamic fallback for any other special law
+          const match = LAW_LIBRARY_META.specialLaws.find(meta => 
+            meta.keywords.some(kw => actNameLower.includes(kw))
+          );
+          if (match) {
+            sl.file_url = match.file;
+            if (!sl.page_number) sl.page_number = "Page 1";
+          }
+        }
+      });
     }
 
     // ─── Failsafe: Auto-correct any IPC sections AI returned by mistake ──────
@@ -782,6 +1066,7 @@ ${combinedText}
       '405': 'BNS 316', '406': 'BNS 316', '409': 'BNS 316', '415': 'BNS 318',
       '416': 'BNS 318', '417': 'BNS 318', '418': 'BNS 318', '419': 'BNS 318',
       '420': 'BNS 318', '425': 'BNS 324', '426': 'BNS 324', '427': 'BNS 324',
+      '428': 'BNS 325', '429': 'BNS 325',
       '441': 'BNS 329', '447': 'BNS 333', '448': 'BNS 329', '452': 'BNS 330',
       '494': 'BNS 82', '495': 'BNS 82', '496': 'BNS 83', '497': 'BNS 84',
       '498A': 'BNS 85', '499': 'BNS 356', '500': 'BNS 356', '503': 'BNS 351',
@@ -820,7 +1105,7 @@ ${combinedText}
     }
 
     // Attach file processing metadata and send
-    res.json({
+    const structuredData = {
       ...parsedJson,
       _meta: {
         filesProcessed: fileResults.length,
@@ -832,11 +1117,21 @@ ${combinedText}
         })),
         analysisDate: new Date().toISOString()
       }
-    });
+    };
+
+    if (cacheFile) {
+      try {
+        fs.writeFileSync(cacheFile, JSON.stringify(structuredData, null, 2));
+        console.log(`[Cache Saved] Saved analysis to ${cacheFile}`);
+      } catch (e) {
+        console.error('Error saving cache file:', e.message);
+      }
+    }
+
+    res.json(structuredData);
 
   } catch (error) {
     console.error("Analysis Error:", error);
-    fs.writeFileSync('debug.log', error.stack || error.toString());
     res.status(500).json({ error: error.message || 'Failed to analyze complaint' });
   }
 });
@@ -849,24 +1144,54 @@ app.post('/api/ai/chat', authenticateToken, async (req, res) => {
     const messages = [
       {
         role: "system",
-        content: `You are Dost - AI Police Investigation Assistant for Haryana Police. 
-You are expert in Indian criminal law post July 2024:
-- Use BNS (not IPC), BNSS (not CrPC), BSA (not IEA)
-- Also knowledgeable about POCSO, SC/ST Act, IT Act, Protection of Women from DV Act, etc.
-- Speak in Hindi, English, or Hinglish as the user prefers.
-- Be concise, practical, and officer-friendly.
-- Always cite specific section numbers.
-- For arrest procedures, always mention D.K. Basu guidelines.
-- For FIR, always mention Lalita Kumari judgment.`
+        content: `You are Dost, a highly bilingual Legal Assistant.
+        
+*** CRITICAL RULE: LANGUAGE MATCHING ***
+You MUST analyze the user's text and reply in the EXACT same language.
+- User uses English -> Reply in pure English.
+- User uses Hinglish (Roman Hindi) -> Reply in Hinglish.
+- User uses Devanagari Hindi -> Reply in Devanagari Hindi.
+This rule is your top priority.
+
+=== LAWS (effective July 1, 2024) ===
+BNS replaces IPC. BNSS replaces CrPC. BSA replaces Indian Evidence Act.
+Use BNS/BNSS/BSA section numbers. (e.g. BNS 101 for old IPC 302)
+
+Key BNS: Murder=BNS 101, Culpable Homicide=BNS 105, Attempt to Murder=BNS 109, Rape=BNS 63/64, Theft=BNS 303, Robbery=BNS 309, Fraud=BNS 318, Cruelty=BNS 85, Kidnapping=BNS 137.
+Key BNSS: FIR=BNSS 173, Witness Statement=BNSS 180, Remand=BNSS 187, Charge Sheet=BNSS 193, Arrest=BNSS 35.
+
+=== BEHAVIOR ===
+- Be concise.
+- Cite BNS/BNSS/BSA section numbers.
+- Knowledgeable about POCSO, SC/ST Act, IT Act, PWDVA.`
       }
     ];
-    if (history && history.length > 0) messages.push(...history);
-    messages.push({ role: "user", content: currentMessage });
+    // Sanitize history: ensure it alternates properly and ends with 'assistant'
+    if (history && history.length > 0) {
+      let sanitizedHistory = [];
+      let expectedRole = 'user';
+      for (const msg of history) {
+        if (msg.role === expectedRole) {
+          sanitizedHistory.push(msg);
+          expectedRole = expectedRole === 'user' ? 'assistant' : 'user';
+        }
+      }
+      // If it ends with 'user', drop the last message so the next pushed message is valid
+      if (sanitizedHistory.length > 0 && sanitizedHistory[sanitizedHistory.length - 1].role === 'user') {
+        sanitizedHistory.pop();
+      }
+      messages.push(...sanitizedHistory);
+    }
+    
+    // Enforce language constraint by appending a strong reminder to the current message
+    const enforcedMessage = `[User Message]: ${currentMessage}\n\n[System]: Reply to the user's message. You MUST reply in the EXACT SAME LANGUAGE the user used. If they asked in English, reply in English. If they asked in Hindi, reply in Hindi.`;
+    messages.push({ role: "user", content: enforcedMessage });
+    
     const reply = await callGroqAPI(messages, false);
     res.json({ reply });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Failed to chat with AI' });
+    res.status(500).json({ error: error.message || 'Failed to chat with AI' });
   }
 });
 
@@ -880,6 +1205,9 @@ app.post('/api/ai/law-detail', authenticateToken, async (req, res) => {
       {
         role: "system",
         content: `You are an authoritative Indian Legal Encyclopedia specializing in BNS, BNSS, BSA, and Special Laws (POCSO, SC/ST Act, IT Act 2000, etc.).
+
+CRITICAL RULE: You MUST provide the explanation ENTIRELY in ENGLISH. Do NOT use Hindi.
+
 For the given section, provide:
 1. **Official Title** of the section
 2. **Full Definition** (exact legal language)
@@ -888,7 +1216,7 @@ For the given section, provide:
 5. **IO's Duty** (what the Investigating Officer must do)
 Use clean markdown formatting. Be comprehensive but concise.`
       },
-      { role: "user", content: `Explain: ${sectionCode}` }
+      { role: "user", content: `Explain: ${sectionCode} (in English only)` }
     ];
 
     const reply = await callGroqAPI(messages, false);
@@ -1019,7 +1347,7 @@ ${JSON.stringify(analysisData, null, 2)}`;
     const reply = await callGroqAPI([
       { role: 'system', content: HINDI_TRANSLATE_PROMPT },
       { role: 'user', content: userMsg }
-    ], true, 'llama-3.3-70b-versatile');
+    ], true, 'llama-3.1-8b-instant');
 
     const translated = JSON.parse(reply);
     res.json({ translated });
@@ -1056,11 +1384,303 @@ Answer in a clear, concise format.`
       { role: "user", content: query }
     ];
 
-    const answer = await callGroqAPI(messages, false, "llama-3.3-70b-versatile");
+    const answer = await callGroqAPI(messages, false, "llama-3.1-8b-instant");
     res.json({ answer });
   } catch (error) {
     console.error("AI KB Search Error:", error);
     res.status(500).json({ error: 'Failed to search knowledge base' });
+  }
+});
+
+
+
+// ─── 6c. Law Library Smart AI Search (NotebookLM Style) ───────────────────────
+app.post('/api/ai/law-library-search', authenticateToken, async (req, res) => {
+  try {
+    const { query } = req.body;
+    if (!query) return res.status(400).json({ error: 'Query required' });
+
+    const kbPath = path.join(process.cwd(), 'user_knowledge_base');
+    const lowerQuery = query.toLowerCase();
+
+    // ── Step 1: Scan entire folder dynamically ──
+    const allFilesOnDisk = getAllFiles(kbPath).filter(f => f.toLowerCase().endsWith('.pdf'));
+    
+    // Convert hardcoded meta into a flat map for easy lookup
+    const metaMap = new Map();
+    [
+      ...LAW_LIBRARY_META.laws.map(f => ({ ...f, category: 'laws' })),
+      ...LAW_LIBRARY_META.specialLaws.map(f => ({ ...f, category: 'special laws' })),
+      ...LAW_LIBRARY_META.judgements.map(f => ({ ...f, category: 'judgements' })),
+      ...LAW_LIBRARY_META.sops.map(f => ({ ...f, category: 'sop' }))
+    ].forEach(item => {
+      // normalize path separators
+      const normPath = item.file.replace(/\\/g, '/');
+      metaMap.set(normPath, item);
+    });
+
+    const relevantFiles = [];
+    
+    for (const absolutePath of allFilesOnDisk) {
+      // Get relative path like "special laws/factory_act.pdf"
+      const relPath = path.relative(kbPath, absolutePath).replace(/\\/g, '/');
+      const filename = path.basename(relPath).toLowerCase();
+      
+      let itemMeta = metaMap.get(relPath);
+      
+      // If file not in hardcoded META, dynamically generate it
+      if (!itemMeta) {
+        // Create keywords by splitting filename
+        const generatedKeywords = filename.replace('.pdf', '').split(/[\s_,-]+/).filter(k => k.length > 2);
+        
+        let category = 'general';
+        if (relPath.startsWith('laws/')) category = 'laws';
+        else if (relPath.startsWith('sop/')) category = 'sop';
+        else if (relPath.startsWith('judgements/')) category = 'judgements';
+        else if (relPath.startsWith('special laws/')) category = 'special laws';
+
+        itemMeta = {
+          file: relPath,
+          label: filename.replace('.pdf', '').toUpperCase(),
+          category: category,
+          keywords: generatedKeywords
+        };
+      }
+
+      // Check match score based on words in the query vs keywords/filename
+      let matchScore = 0;
+      
+      // 1. Direct keyword matches
+      const kwMatches = itemMeta.keywords.filter(kw => lowerQuery.includes(kw)).length;
+      matchScore += kwMatches;
+      
+      // 2. Direct filename substring match (e.g. if query is "factory" and filename is "factory_act")
+      const queryWords = lowerQuery.split(/\s+/).filter(w => w.length > 3);
+      for (const word of queryWords) {
+        if (filename.includes(word)) matchScore += 2; // Extra weight for filename match
+      }
+
+      if (matchScore > 0) {
+        // SOPs need higher strictness (score >= 2) to prevent false positives
+        if (itemMeta.category === 'sop' && matchScore < 2) continue;
+        
+        relevantFiles.push({ ...itemMeta, matchScore });
+      }
+    }
+
+    // Sort by relevance score. Laws first (higher priority), then SOPs only if strongly relevant.
+    relevantFiles.sort((a, b) => {
+      // SOPs always go after laws/judgements at equal score
+      if (a.category === 'sop' && b.category !== 'sop') return 1;
+      if (a.category !== 'sop' && b.category === 'sop') return -1;
+      return b.matchScore - a.matchScore;
+    });
+    const topFiles = relevantFiles.slice(0, 5);
+
+    // ── Step 2: Extract text from relevant PDFs ────────────────────────────────
+    let combinedContext = '';
+    const sourceFiles = [];
+
+    for (const item of topFiles) {
+      const filePath = path.join(kbPath, item.file);
+      if (!fs.existsSync(filePath)) continue;
+      try {
+        const dataBuffer = fs.readFileSync(filePath);
+
+        // ── Page-by-page extraction to find exact page number ──
+        let bestMatchPage = 1;
+        let allText = '';
+        const lowerKw = item.keywords.filter(kw => lowerQuery.includes(kw));
+        const queryWords = lowerQuery.split(/\s+/).filter(w => w.length > 2 || /^\d+[a-z]?$/.test(w));
+        const numbers = lowerQuery.match(/\b\d+[a-z]?\b/g) || [];
+
+        let pageTexts = [];
+        await pdfParse(dataBuffer, {
+          pagerender: function(pageData) {
+            return pageData.getTextContent().then(function(textContent) {
+              let pageText = textContent.items.map(item => item.str).join(' ');
+              pageTexts.push(pageText);
+              return pageText;
+            });
+          }
+        });
+
+          if (pageTexts.length > 0) {
+          let bestScore = -1;
+          let bestIdx = 0;
+          pageTexts.forEach((pt, idx) => {
+            const lower = pt.toLowerCase();
+            let score = 0;
+            // Full query exact match
+            if (lower.includes(lowerQuery)) score += 100;
+            
+            // Keyword matches (diminished returns to prevent index pages from winning)
+            lowerKw.forEach(kw => { if (lower.includes(kw)) score += 5; });
+            queryWords.forEach(qw => {
+              // Ignore very generic words for scoring
+              if (['act', 'the', 'law', 'and', 'for', 'rule'].includes(qw)) return;
+              const count = (lower.match(new RegExp('\\b' + qw + '\\b', 'g')) || []).length;
+              score += count > 5 ? 10 : count * 2; // Cap keyword score
+            });
+            
+            // Massive boost for numbers to find the actual section
+            numbers.forEach(num => {
+              // Match "section 54", "sec 54", "sec. 54", "धारा 54"
+              const secRegex = new RegExp(`(?:section|sec\\.?|धारा)\\s*${num}\\b`, 'gi');
+              score += (lower.match(secRegex) || []).length * 500;
+              // Match "54." or "54" as an isolated word
+              const isolatedNumRegex = new RegExp(`\\b${num}\\b`, 'g');
+              const isolatedCount = (lower.match(isolatedNumRegex) || []).length;
+              score += isolatedCount * 50; 
+            });
+            
+            if (score > bestScore) { bestScore = score; bestIdx = idx; }
+          });
+          
+          bestMatchPage = bestIdx + 1;
+          // Extract exactly the best page and slightly pad it, avoiding truncation of the actual best page
+          const startIdx = Math.max(0, bestIdx - 1);
+          const endIdx = Math.min(pageTexts.length - 1, bestIdx + 1);
+          const selectedPages = [];
+          for (let i = startIdx; i <= endIdx; i++) {
+            selectedPages.push(`[Page ${i + 1}]:\n${pageTexts[i]}`);
+          }
+          allText = selectedPages.join('\n\n').substring(0, 12000);
+        } else {
+          const pdfData = await pdfParse(dataBuffer);
+          allText = (pdfData.text || '').substring(0, 12000);
+        }
+
+        if (combinedContext.length + allText.length > 20000) {
+          allText = allText.substring(0, Math.max(0, 20000 - combinedContext.length));
+        }
+
+        combinedContext += `\n\n=== SOURCE: ${item.label} (File: ${item.file}, Best Page: ${bestMatchPage}) ===\n${allText}\n${'='.repeat(60)}\n`;
+        sourceFiles.push({
+          label: item.label,
+          file: item.file,
+          category: item.category,
+          url: `/kb-files/${item.file}`,
+          matchScore: item.matchScore,
+          page: bestMatchPage
+        });
+        console.log(`✅ Law Library: Loaded "${item.label}" — best match on page ${bestMatchPage}`);
+      } catch (e) {
+        console.error(`Error loading ${item.file}:`, e.message);
+      }
+    }
+
+    // ── Step 3: If no keyword match, use broad search across key files ─────────
+    if (sourceFiles.length === 0) {
+      const fallbackFiles = [
+        ...LAW_LIBRARY_META.laws.map(f => ({ ...f, category: 'laws', keywords: [] })),
+        ...LAW_LIBRARY_META.sops.slice(0, 2).map(f => ({ ...f, category: 'sop', keywords: [] }))
+      ];
+      for (const item of fallbackFiles.slice(0, 3)) {
+        const filePath = path.join(kbPath, item.file);
+        if (!fs.existsSync(filePath)) continue;
+        try {
+          const dataBuffer = fs.readFileSync(filePath);
+          let bestMatchPage = 1;
+          let allText = '';
+          const queryWords = lowerQuery.split(/\s+/).filter(w => w.length > 2 || /^\d+[a-z]?$/.test(w));
+          const numbers = lowerQuery.match(/\b\d+[a-z]?\b/g) || [];
+
+          let pageTexts = [];
+          await pdfParse(dataBuffer, {
+            pagerender: function(pageData) {
+              return pageData.getTextContent().then(function(textContent) {
+                let pageText = textContent.items.map(i => i.str).join(' ');
+                pageTexts.push(pageText);
+                return pageText;
+              });
+            }
+          });
+
+          if (pageTexts.length > 0) {
+            let bestScore = -1;
+            let bestIdx = 0;
+            pageTexts.forEach((pt, idx) => {
+              const lower = pt.toLowerCase();
+              let score = 0;
+              if (lower.includes(lowerQuery)) score += 100;
+              queryWords.forEach(qw => {
+                if (['act', 'the', 'law', 'and', 'for', 'rule'].includes(qw)) return;
+                const count = (lower.match(new RegExp('\\b' + qw + '\\b', 'g')) || []).length;
+                score += count > 5 ? 10 : count * 2;
+              });
+              numbers.forEach(num => {
+                const secRegex = new RegExp(`(?:section|sec\\.?|धारा)\\s*${num}\\b`, 'gi');
+                score += (lower.match(secRegex) || []).length * 500;
+                const isolatedNumRegex = new RegExp(`\\b${num}\\b`, 'g');
+                const isolatedCount = (lower.match(isolatedNumRegex) || []).length;
+                score += isolatedCount * 50; 
+              });
+              if (score > bestScore) { bestScore = score; bestIdx = idx; }
+            });
+            bestMatchPage = bestIdx + 1;
+            const startIdx = Math.max(0, bestIdx - 1);
+            const endIdx = Math.min(pageTexts.length - 1, bestIdx + 1);
+            const selectedPages = [];
+            for (let i = startIdx; i <= endIdx; i++) selectedPages.push(`[Page ${i + 1}]:\n${pageTexts[i]}`);
+            allText = selectedPages.join('\n\n').substring(0, 12000);
+          } else {
+            const pdfData = await pdfParse(dataBuffer);
+            allText = (pdfData.text || '').substring(0, 12000);
+          }
+
+          if (combinedContext.length + allText.length > 20000) {
+            allText = allText.substring(0, Math.max(0, 20000 - combinedContext.length));
+          }
+
+          combinedContext += `\n\n=== SOURCE: ${item.label} (File: ${item.file}, Best Page: ${bestMatchPage}) ===\n${allText}\n${'='.repeat(60)}\n`;
+          sourceFiles.push({ label: item.label, file: item.file, category: item.category, url: `/kb-files/${item.file}`, matchScore: 0, page: bestMatchPage });
+        } catch (e) { }
+      }
+    }
+
+    // ── Step 4: Ask AI to answer using ONLY these sources ─────────────────────
+    const systemPrompt = `You are an expert Indian Police Legal AI Assistant. You have access to the following law library documents from Haryana Police Knowledge Base. 
+
+*** CRITICAL STRICT RULE ***
+You MUST answer the user's query using ONLY the content from the provided SOURCE documents below. 
+DO NOT use your pre-trained knowledge. If the answer cannot be found in the SOURCE documents, you MUST reply: "The answer is not available in the provided Law Library PDFs."
+Do not guess. Do not hallucinate.
+
+When mentioning legal sections or guidelines found in the sources, always state:
+- The exact section number or regulation
+- The exact name of the act or SOP document
+- The EXACT PAGE NUMBER where you found it (look for markers like "[Page X]" or "Best Page" in the source headers)
+- The FULL PROVISION TEXT exactly as written in the source document
+
+Format your answer in clear sections with:
+**Sources Used:** (list which documents and EXACT Page Numbers you referenced)
+**Relevant Details Found:** (quote exactly what was found in the sources)
+**Summary:** (brief practical answer for police officer based ONLY on the sources)
+
+LANGUAGE: Answer in English.
+
+${combinedContext}`;
+
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: query }
+    ];
+
+    let answer = await callGroqAPI(messages, false, 'qwen/qwen3-32b');
+    
+    // Strip <think> blocks if generated by qwen models
+    answer = answer.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+
+    res.json({
+      answer,
+      sources: sourceFiles,
+      totalSources: sourceFiles.length
+    });
+
+  } catch (error) {
+    console.error('Law Library Search Error:', error);
+    res.status(500).json({ error: error.message || error.toString() });
   }
 });
 

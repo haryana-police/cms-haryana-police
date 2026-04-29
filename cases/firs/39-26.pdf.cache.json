@@ -1,0 +1,92 @@
+{
+  "case_summary": "A complaint has been filed with the Haryana Police regarding an incident related to the Haryana Gauvansh Sanrakshan and Gausamvardhan Act, 2015. The complainant, Udham Singh, has reported an occurrence of an offence under this Act.",
+  "crime_type": "Animal Cruelty",
+  "severity": "MEDIUM",
+  "sections": [
+    {
+      "code": "BNS 303",
+      "old_code": "IPC 379",
+      "title": "Theft",
+      "description": "Whoever, intending to take dishonestly any property out of the possession of any person without that person's consent, moves that property in order to take it, is said to commit theft.",
+      "relevance": "Not directly relevant to the case at hand, as the primary complaint is regarding the Haryana Gauvansh Sanrakshan and Gausamvardhan Act, 2015.",
+      "punishment": "As per the context, not directly applicable.",
+      "page_number": "Page 13",
+      "file_url": "laws/BNS ACT 2023.pdf"
+    }
+  ],
+  "sop": [
+    {
+      "step": 1,
+      "action": "Register FIR immediately under BNSS Section 173",
+      "time_limit": "Within 24 hours",
+      "authority": "SHO",
+      "priority": "CRITICAL",
+      "page_number": "",
+      "file_url": ""
+    }
+  ],
+  "sc_judgments": [
+    {
+      "case_name": "Lalita Kumari vs Govt. of UP (2014)",
+      "court": "Supreme Court",
+      "year": "2014",
+      "citation": "AIR 2014 SC 187",
+      "guideline": "FIR must be registered immediately on receipt of cognizable offense",
+      "holding": "The Constitution Bench unanimously held that registration of FIR is mandatory under Section 154 CrPC (now BNSS 173) if the information discloses commission of a cognizable offence.",
+      "key_points": [
+        "FIR cannot be refused on any pretext for cognizable offences",
+        "Preliminary inquiry can only be done in cases like matrimonial disputes, commercial cases, medical negligence, corruption - not in serious crimes",
+        "Officer refusing to register FIR is liable under departmental action and contempt of court",
+        "Victim can approach SP or Magistrate if SHO refuses"
+      ],
+      "io_duty": "Mandatory - Register FIR immediately. No preliminary inquiry for cognizable offences. Non-compliance invites disciplinary action.",
+      "relevance": "Mandatory FIR registration",
+      "page_number": "",
+      "file_url": ""
+    }
+  ],
+  "hc_judgments": [],
+  "special_laws": [
+    {
+      "act_name": "The Haryana Gauvansh Sanrakshan and Gausamvardhan Act, 2015",
+      "sections": [
+        "3",
+        "13(1)",
+        "13(3)"
+      ],
+      "action": "Investigate the complaint under the relevant sections of the Act.",
+      "priority": "HIGH",
+      "page_number": "",
+      "file_url": ""
+    }
+  ],
+  "deadlines": [
+    {
+      "task": "Register FIR",
+      "days": 0,
+      "hours": 24,
+      "legal_basis": "BNSS Sec 173",
+      "authority": "SHO",
+      "priority": "CRITICAL"
+    }
+  ],
+  "evidence_checklist": [
+    "Seize any relevant documents or evidence related to the Haryana Gauvansh Sanrakshan and Gausamvardhan Act, 2015",
+    "Record witness statements under BNSS Sec 180"
+  ],
+  "io_warnings": [
+    "Ensure that the complaint is investigated thoroughly and that all relevant evidence is collected and preserved."
+  ],
+  "_meta": {
+    "filesProcessed": 1,
+    "fileResults": [
+      {
+        "filename": "39-26.pdf",
+        "method": "pdf-text",
+        "confidence": 100,
+        "textLength": 7444
+      }
+    ],
+    "analysisDate": "2026-04-28T04:31:44.612Z"
+  }
+}

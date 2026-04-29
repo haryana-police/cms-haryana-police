@@ -1,0 +1,83 @@
+{
+  "case_summary": "The complainant, a married woman, was subjected to cruelty and harassment by her husband and in-laws for dowry. She was beaten, thrown out of the house, and forced to return to her parents' home. She has filed a complaint against her husband and in-laws.",
+  "crime_type": "Dowry harassment and cruelty",
+  "severity": "HIGH",
+  "sections": [
+    {
+      "code": "BNS 85",
+      "old_code": "IPC 498A",
+      "title": "Cruelty by Husband or Relatives",
+      "description": "Whoever, being the husband or relative of husband of a woman, subjects such woman to cruelty shall be punished...",
+      "relevance": "Primary",
+      "punishment": "Imprisonment up to 3 years + Fine",
+      "page_number": "Page 6",
+      "file_url": "laws/BNS ACT 2023.pdf"
+    },
+    {
+      "code": "BNS 303",
+      "old_code": "IPC 379",
+      "title": "Theft",
+      "description": "Whoever, intending to take dishonestly any movable property out of the possession of any person without that person's consent, moves that property in order to take it, shall be punished...",
+      "relevance": "Secondary",
+      "punishment": "Imprisonment up to 3 years + Fine",
+      "page_number": "Page 13",
+      "file_url": "laws/BNS ACT 2023.pdf"
+    }
+  ],
+  "sop": [],
+  "sc_judgments": [],
+  "hc_judgments": [],
+  "special_laws": [
+    {
+      "act_name": "Protection of Women from Domestic Violence Act 2005",
+      "sections": [
+        "3",
+        "12",
+        "23"
+      ],
+      "action": "File for protection order. Inform victim of rights. Report to DV Magistrate.",
+      "priority": "HIGH",
+      "page_number": "",
+      "file_url": ""
+    }
+  ],
+  "deadlines": [
+    {
+      "task": "Register FIR",
+      "days": 0,
+      "hours": 24,
+      "legal_basis": "BNSS Sec 173",
+      "authority": "SHO",
+      "priority": "CRITICAL"
+    },
+    {
+      "task": "File Charge Sheet",
+      "days": 60,
+      "hours": null,
+      "legal_basis": "BNSS Sec 193",
+      "authority": "IO",
+      "priority": "HIGH"
+    }
+  ],
+  "evidence_checklist": [
+    "Seize mobile phone - extract call records, WhatsApp messages",
+    "Photograph all visible injuries on victim",
+    "Record witness statements under BNSS Sec 180"
+  ],
+  "io_warnings": [
+    "MANDATORY: Do not refuse FIR - Lalita Kumari SC judgment applies",
+    "MANDATORY: Arrest must follow D.K. Basu SC guidelines"
+  ],
+  "_meta": {
+    "filesProcessed": 1,
+    "fileResults": [
+      {
+        "filename": "COMPLAINTS 6.pdf",
+        "method": "pdf-ocr-canvas",
+        "confidence": 80,
+        "textLength": 2704
+      }
+    ],
+    "analysisDate": "2026-04-27T08:19:29.063Z"
+  }
+}
