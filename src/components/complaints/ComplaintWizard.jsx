@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Card, Steps, Button, Typography, Space, Row, Col, Upload, message, Form, Input, Select, DatePicker, TimePicker, Divider, Result, Radio } from 'antd';
-import { FilePdfOutlined, AudioOutlined, InboxOutlined, RobotOutlined, CheckCircleOutlined, PaperClipOutlined, DownloadOutlined, MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
+import { FilePdfOutlined, AudioOutlined, InboxOutlined, RobotOutlined, CheckCircleOutlined, PaperClipOutlined, DownloadOutlined, MinusCircleOutlined, PlusOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { Document, Packer, Paragraph as DocxParagraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
@@ -826,7 +826,7 @@ ${textToProcess}
 
       <div style={{ textAlign: 'right', marginTop: '30px' }}>
         <Space>
-          <Button onClick={() => setCurrentStep(2)}>Back</Button>
+          <Button icon={<ArrowLeftOutlined />} style={{ background: '#1f1f1f', color: '#177ddc', borderColor: '#303030', borderRadius: '8px', padding: '4px 16px', fontWeight: 500 }} onClick={() => setCurrentStep(2)}>Back</Button>
 
           <Button type="primary" size="large" icon={<CheckCircleOutlined />} onClick={handleFinalSubmit} loading={isProcessing}>
             Submit
@@ -984,7 +984,7 @@ ${textToProcess}
 
       <div style={{ textAlign: 'center', marginTop: '30px' }}>
         <Space>
-          <Button onClick={() => setCurrentStep(0)}>Back</Button>
+          <Button icon={<ArrowLeftOutlined />} style={{ background: '#1f1f1f', color: '#177ddc', borderColor: '#303030', borderRadius: '8px', padding: '4px 16px', fontWeight: 500 }} onClick={() => setCurrentStep(0)}>Back</Button>
           <Button 
             type="primary" 
             size="large" 
@@ -1392,7 +1392,7 @@ ${textToProcess}
 
       <div style={{ textAlign: 'right', marginTop: '20px' }}>
         <Space>
-          <Button onClick={() => setCurrentStep(1)}>Back</Button>
+          <Button icon={<ArrowLeftOutlined />} style={{ background: '#1f1f1f', color: '#177ddc', borderColor: '#303030', borderRadius: '8px', padding: '4px 16px', fontWeight: 500 }} onClick={() => setCurrentStep(1)}>Back</Button>
           <Button type="primary" htmlType="submit" size="large" style={{ minWidth: '150px' }}>
             Register Complaint
           </Button>

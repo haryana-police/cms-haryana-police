@@ -117,9 +117,10 @@ export default function Complaints() {
     }
 
     const total = saved.length;
-    // Mocking some stats for visual completeness based on typical workflows
-    const pendingEnquiry = saved.filter(c => !c.ioStatus || c.ioStatus === 'Pending' || c.ioStatus === 'Under Investigation').length;
-    const closed = saved.length - pendingEnquiry;
+    const pendingEnquiry = saved.filter(c => !c.ioStatus || c.ioStatus === 'Pending' || c.ioStatus === 'Pending SHO Approval').length;
+    const underInvestigation = saved.filter(c => c.ioStatus === 'Under Investigation').length;
+    const disposed = saved.filter(c => c.ioStatus === 'Disposed').length;
+    const convertToFir = saved.filter(c => c.ioStatus === 'Convert to FIR').length;
 
     return (
       <div style={{ padding: '0px' }}>
@@ -155,22 +156,34 @@ export default function Complaints() {
 
         {/* Stats Row */}
         <Row gutter={[16, 16]} style={{ marginBottom: '20px' }}>
-          <Col xs={24} sm={8}>
+          <Col style={{ flex: 1, minWidth: '180px' }}>
             <Card style={{ borderRadius: '12px', background: '#141414', borderColor: '#303030' }} bodyStyle={{ padding: '16px 20px' }}>
               <Paragraph type="secondary" style={{ margin: 0, marginBottom: '4px' }}>Total Complaints</Paragraph>
               <Title level={2} style={{ margin: 0 }}>{total}</Title>
             </Card>
           </Col>
-          <Col xs={24} sm={8}>
+          <Col style={{ flex: 1, minWidth: '180px' }}>
             <Card style={{ borderRadius: '12px', background: '#141414', borderColor: '#303030' }} bodyStyle={{ padding: '16px 20px' }}>
               <Paragraph type="secondary" style={{ margin: 0, marginBottom: '4px' }}>Pending Enquiry</Paragraph>
               <Title level={2} style={{ margin: 0 }}>{pendingEnquiry}</Title>
             </Card>
           </Col>
-          <Col xs={24} sm={8}>
+          <Col style={{ flex: 1, minWidth: '180px' }}>
             <Card style={{ borderRadius: '12px', background: '#141414', borderColor: '#303030' }} bodyStyle={{ padding: '16px 20px' }}>
-              <Paragraph type="secondary" style={{ margin: 0, marginBottom: '4px' }}>Closed / Resolved</Paragraph>
-              <Title level={2} style={{ margin: 0 }}>{closed}</Title>
+              <Paragraph type="secondary" style={{ margin: 0, marginBottom: '4px' }}>Under Investigation</Paragraph>
+              <Title level={2} style={{ margin: 0 }}>{underInvestigation}</Title>
+            </Card>
+          </Col>
+          <Col style={{ flex: 1, minWidth: '180px' }}>
+            <Card style={{ borderRadius: '12px', background: '#141414', borderColor: '#303030' }} bodyStyle={{ padding: '16px 20px' }}>
+              <Paragraph type="secondary" style={{ margin: 0, marginBottom: '4px' }}>Disposed</Paragraph>
+              <Title level={2} style={{ margin: 0 }}>{disposed}</Title>
+            </Card>
+          </Col>
+          <Col style={{ flex: 1, minWidth: '180px' }}>
+            <Card style={{ borderRadius: '12px', background: '#141414', borderColor: '#303030' }} bodyStyle={{ padding: '16px 20px' }}>
+              <Paragraph type="secondary" style={{ margin: 0, marginBottom: '4px' }}>Convert To FIR</Paragraph>
+              <Title level={2} style={{ margin: 0 }}>{convertToFir}</Title>
             </Card>
           </Col>
         </Row>

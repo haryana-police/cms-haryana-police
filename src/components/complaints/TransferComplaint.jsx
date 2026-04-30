@@ -25,6 +25,7 @@ export default function TransferComplaint({ onBack }) {
     'GURUGRAM',
     'HANSI',
     'Haryana State Enforcement Bureau (HSEnB)',
+    'Haryana State Narcotics Control Bureau',
     'HISAR',
     'JHAJJAR',
     'JIND',
@@ -539,6 +540,70 @@ export default function TransferComplaint({ onBack }) {
     'Nodal Cyber Crime Police Station, Haryana'
   ];
 
+  const acbPoliceStations = [
+    'ACB Ambala',
+    'ACB Faridabad',
+    'ACB Gurugram',
+    'ACB Hisar',
+    'ACB Karnal',
+    'ACB Panchkula',
+    'ACB Rohtak'
+  ];
+
+  const transportDeptStations = [
+    'TRANSPORT DEPT. HARYANA'
+  ];
+
+  const stfPoliceStations = [
+    'STF (NDPS) UNIT SIRSA',
+    'STF COBRA UNIT GURUGRAM',
+    'STF HAWK (CYBER CELL) GURUGRAM',
+    'STF JAGUAR UNIT HISAR',
+    'STF LEOPARD UNIT SONIPAT',
+    'STF PANTHER UNIT BAHADURGARH',
+    'STF TEAM NARNAUL',
+    'STF TEAM PANCHKULA',
+    'STF TEAM ROHTAK',
+    'STF UNIT AMBALA',
+    'STF UNIT CENTRAL HQ GURUGRAM',
+    'STF UNIT KARNAL',
+    'STF UNIT PALWAL',
+    'STF UNIT-2 SONIPAT'
+  ];
+
+  const grpAmbalaCanttStations = [
+    'GRP AMBALA Cantt',
+    'GRP BAHADURGARH',
+    'GRP CHANDIGARH',
+    'GRP FARIDABAD',
+    'GRP GURUGRAM',
+    'GRP HISAR',
+    'GRP JAGADHARI',
+    'GRP JIND',
+    'GRP KALKA',
+    'GRP KARNAL',
+    'GRP KURUKSHETRA',
+    'GRP PANIPAT',
+    'GRP REWARI',
+    'GRP ROHTAK',
+    'GRP SIRSA',
+    'GRP SONIPAT'
+  ];
+
+  const haryanaStateNarcoticsControlBureauStations = [
+    'HSNCB Unit Ambala',
+    'HSNCB Unit Bhiwani',
+    'HSNCB Unit Faridabad',
+    'HSNCB Unit Fatehabad',
+    'HSNCB Unit Gurugram',
+    'HSNCB Unit Hisar',
+    'HSNCB Unit Karnal',
+    'HSNCB Unit Kurukshetra',
+    'HSNCB Unit Rewari',
+    'HSNCB Unit Rohtak',
+    'HSNCB Unit Sirsa'
+  ];
+
   const handleFinish = (values) => {
     console.log('Transfer Complaint Form Values:', values);
     onBack();
@@ -548,6 +613,7 @@ export default function TransferComplaint({ onBack }) {
     <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
       <Button 
         onClick={onBack}
+        icon={<ArrowLeftOutlined />}
         style={{ 
           marginBottom: '20px', 
           background: '#1f1f1f', 
@@ -655,6 +721,7 @@ export default function TransferComplaint({ onBack }) {
                 >
                   <Select placeholder="Select" showSearch disabled={!selectedDistrict}>
                     {selectedDistrict === 'AMBALA' && ambalaPoliceStations.map(ps => <Option key={ps} value={ps}>{ps}</Option>)}
+                    {selectedDistrict === 'Anti Corruption Bureau, Haryana' && acbPoliceStations.map(ps => <Option key={ps} value={ps}>{ps}</Option>)}
                     {selectedDistrict === 'BHIWANI' && bhiwaniPoliceStations.map(ps => <Option key={ps} value={ps}>{ps}</Option>)}
                     {selectedDistrict === 'CHARKHI DADRI' && charkhiDadriPoliceStations.map(ps => <Option key={ps} value={ps}>{ps}</Option>)}
                     {selectedDistrict === 'DABWALI' && dabwaliPoliceStations.map(ps => <Option key={ps} value={ps}>{ps}</Option>)}
@@ -678,9 +745,12 @@ export default function TransferComplaint({ onBack }) {
                     {selectedDistrict === 'ROHTAK' && rohtakPoliceStations.map(ps => <Option key={ps} value={ps}>{ps}</Option>)}
                     {selectedDistrict === 'SIRSA' && sirsaPoliceStations.map(ps => <Option key={ps} value={ps}>{ps}</Option>)}
                     {selectedDistrict === 'SONIPAT' && sonipatPoliceStations.map(ps => <Option key={ps} value={ps}>{ps}</Option>)}
+                    {selectedDistrict === 'SPECIAL TASK FORCE (STF)' && stfPoliceStations.map(ps => <Option key={ps} value={ps}>{ps}</Option>)}
                     {selectedDistrict === 'State Crime Branch' && stateCrimeBranchPoliceStations.map(ps => <Option key={ps} value={ps}>{ps}</Option>)}
+                    {selectedDistrict === 'TRANSPORT DEPT' && transportDeptStations.map(ps => <Option key={ps} value={ps}>{ps}</Option>)}
                     {selectedDistrict === 'YAMUNA NAGAR' && yamunanagarPoliceStations.map(ps => <Option key={ps} value={ps}>{ps}</Option>)}
-                    {selectedDistrict !== 'AMBALA' && selectedDistrict !== 'BHIWANI' && selectedDistrict !== 'CHARKHI DADRI' && selectedDistrict !== 'DABWALI' && selectedDistrict !== 'FARIDABAD' && selectedDistrict !== 'FATEHABAD' && selectedDistrict !== 'GURUGRAM' && selectedDistrict !== 'HANSI' && selectedDistrict !== 'Haryana State Enforcement Bureau (HSEnB)' && selectedDistrict !== 'HISAR' && selectedDistrict !== 'JHAJJAR' && selectedDistrict !== 'JIND' && selectedDistrict !== 'KAITHAL' && selectedDistrict !== 'KARNAL' && selectedDistrict !== 'KURUKSHETRA' && selectedDistrict !== 'MAHENDERGARH' && selectedDistrict !== 'NUH' && selectedDistrict !== 'PALWAL' && selectedDistrict !== 'PANCHKULA' && selectedDistrict !== 'PANIPAT' && selectedDistrict !== 'REWARI' && selectedDistrict !== 'ROHTAK' && selectedDistrict !== 'SIRSA' && selectedDistrict !== 'SONIPAT' && selectedDistrict !== 'State Crime Branch' && selectedDistrict !== 'YAMUNA NAGAR' && <Option value="Other">Other (Select a supported district for full list)</Option>}
+                    {selectedDistrict === 'GRP AMBALA CANTT' && grpAmbalaCanttStations.map(ps => <Option key={ps} value={ps}>{ps}</Option>)}
+                    {selectedDistrict === 'Haryana State Narcotics Control Bureau' && haryanaStateNarcoticsControlBureauStations.map(ps => <Option key={ps} value={ps}>{ps}</Option>)}
                   </Select>
                 </Form.Item>
               </div>

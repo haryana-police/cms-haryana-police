@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Button, Typography, Row, Col, Divider, Input, message, Select, Tag, Empty, Radio, Space, Spin, Modal, List } from 'antd';
+import { Card, Button, Typography, Row, Col, Divider, Input, message, Select, Tag, Empty, Radio, Space, Spin, Modal, List, Checkbox } from 'antd';
 import { DownloadOutlined, ArrowLeftOutlined, SearchOutlined, FileTextOutlined, RobotOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { Document, Packer, Paragraph as DocxParagraph, TextRun } from 'docx';
@@ -13,17 +13,53 @@ const { Option } = Select;
 export default function Enquiry({ onBack, preSelectedComplaintId }) {
   const { profile } = useAuth();
   const [complaints, setComplaints] = useState([]);
-  const [selectedComplaintId, setSelectedComplaintId] = useState(preSelectedComplaintId || null);
+  const [selectedComplaintId, setSelectedComplaintId] = useState(() => sessionStorage.getItem('enquiry_selectedComplaintId') || preSelectedComplaintId || null);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
-  const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [documentText, setDocumentText] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState(() => sessionStorage.getItem('enquiry_selectedTemplate') || null);
+  const [documentText, setDocumentText] = useState(() => sessionStorage.getItem('enquiry_documentText') || '');
   const [searchVal, setSearchVal] = useState('');
-  const [showDocGen, setShowDocGen] = useState(false);
+  const [showDocGen, setShowDocGen] = useState(() => sessionStorage.getItem('enquiry_showDocGen') === 'true');
   
   // IO & Status State
-  const [showAssignModal, setShowAssignModal] = useState(false);
-  const [showStatusModal, setShowStatusModal] = useState(false);
-  const [showIoComplaintsModal, setShowIoComplaintsModal] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(() => sessionStorage.getItem('enquiry_showAssignModal') === 'true');
+  const [showStatusModal, setShowStatusModal] = useState(() => sessionStorage.getItem('enquiry_showStatusModal') === 'true');
+  const [showIoComplaintsModal, setShowIoComplaintsModal] = useState(() => sessionStorage.getItem('enquiry_showIoComplaintsModal') === 'true');
+
+  useEffect(() => {
+    sessionStorage.setItem('enquiry_showDocGen', showDocGen);
+  }, [showDocGen]);
+
+  useEffect(() => {
+    sessionStorage.setItem('enquiry_showAssignModal', showAssignModal);
+  }, [showAssignModal]);
+
+  useEffect(() => {
+    sessionStorage.setItem('enquiry_showStatusModal', showStatusModal);
+  }, [showStatusModal]);
+
+  useEffect(() => {
+    sessionStorage.setItem('enquiry_showIoComplaintsModal', showIoComplaintsModal);
+  }, [showIoComplaintsModal]);
+  useEffect(() => {
+    if (selectedComplaintId) {
+      sessionStorage.setItem('enquiry_selectedComplaintId', selectedComplaintId);
+    } else {
+      sessionStorage.removeItem('enquiry_selectedComplaintId');
+    }
+  }, [selectedComplaintId]);
+
+  useEffect(() => {
+    if (selectedTemplate) {
+      sessionStorage.setItem('enquiry_selectedTemplate', selectedTemplate);
+    } else {
+      sessionStorage.removeItem('enquiry_selectedTemplate');
+    }
+  }, [selectedTemplate]);
+
+  useEffect(() => {
+    sessionStorage.setItem('enquiry_documentText', documentText);
+  }, [documentText]);
+
   const [ioList, setIoList] = useState([]);
   const [selectedIoForAssign, setSelectedIoForAssign] = useState(null);
   const [statusUpdate, setStatusUpdate] = useState('');
@@ -34,6 +70,7 @@ export default function Enquiry({ onBack, preSelectedComplaintId }) {
   const [otherPersonAddress, setOtherPersonAddress] = useState('');
   const [customSection, setCustomSection] = useState('');
   const [customSections, setCustomSections] = useState([]);
+  const [selectedAccusedIndices, setSelectedAccusedIndices] = useState([]);
 
   // Email-specific state
   const [emailPrompt, setEmailPrompt] = useState('');
@@ -49,6 +86,15 @@ export default function Enquiry({ onBack, preSelectedComplaintId }) {
       saved = saved.filter(c => c.id === preSelectedComplaintId);
       if (saved.length > 0) {
         setSelectedComplaint(saved[0]);
+      }
+    } else {
+      // If we have a selectedComplaintId from sessionStorage, we should set the selectedComplaint object
+      const savedComplaintId = sessionStorage.getItem('enquiry_selectedComplaintId');
+      if (savedComplaintId) {
+        const found = saved.find(c => c.id === savedComplaintId);
+        if (found) {
+          setSelectedComplaint(found);
+        }
       }
     }
     setComplaints(saved);
@@ -83,6 +129,7 @@ export default function Enquiry({ onBack, preSelectedComplaintId }) {
     setCustomSections([]);
     setCustomSection('');
     setEmailPrompt('');
+    setSelectedAccusedIndices([]);
   };
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -92,31 +139,63 @@ export default function Enquiry({ onBack, preSelectedComplaintId }) {
     const compPhone = c.mobileNumber || '[Complainant Mobile]';
     const addrParts = [c.houseNumber, c.streetName, c.colonyArea, c.villageTown, c.tehsilBlock, c.district, c.state, c.pinCode];
     const compAddress = addrParts.filter(Boolean).join(', ') || '[Complainant Address]';
-    const accName = c.accusedName || '[Accused Name]';
-    const accAddress = c.accusedAddress || '[Accused Address]';
     const incidentClass = c.classOfIncident || '[Class of Incident]';
     const placeOfIncident = c.placeOfIncident || '[Place of Incident]';
     const dateOfInc = c.dateOfIncident ? dayjs(c.dateOfIncident).format('DD-MM-YYYY') : '[Date of Incident]';
     const timeOfInc = c.timeOfIncident ? dayjs(c.timeOfIncident).format('HH:mm') : '[Time of Incident]';
     const actDescription = c.descriptionOfComplaint || '[Description of Complaint]';
     const complaintId = c.id || '[Complaint ID]';
-    return { compName, compPhone, compAddress, accName, accAddress, incidentClass, placeOfIncident, dateOfInc, timeOfInc, actDescription, complaintId };
+
+    // Build accused list — support both accusedList[] (new) and accusedName/accusedAddress (old fallback)
+    const rawList = (c.accusedList && c.accusedList.length > 0)
+      ? c.accusedList
+      : (c.accusedName ? [{ name: c.accusedName, address: c.accusedAddress || '' }] : []);
+    const accusedList = rawList.length > 0 ? rawList : [{ name: '[Accused Name]', address: '[Accused Address]' }];
+
+    // For Notice "To:" block — Name + Address on separate lines for each accused
+    const accusedToBlock = accusedList.length === 1
+      ? `Name: ${accusedList[0].name}\nAddress: ${accusedList[0].address || '[Accused Address]'}`
+      : accusedList.map((a, i) => `Accused ${i + 1}:\nName: ${a.name}\nAddress: ${a.address || '[Accused Address]'}`).join('\n\n');
+
+    // For inline body text — "Name (R/o Address)" format
+    const accusedInlineBlock = accusedList.length === 1
+      ? `${accusedList[0].name} (R/o ${accusedList[0].address || '[Accused Address]'})`
+      : accusedList.map((a, i) => `${i + 1}. ${a.name} (R/o ${a.address || '[Accused Address]'})`).join('\n');
+
+    // For report "ACCUSED DETAILS" section
+    const accusedDetailsBlock = accusedList.length === 1
+      ? `Name: ${accusedList[0].name}\nAddress: ${accusedList[0].address || '[Accused Address]'}`
+      : accusedList.map((a, i) => `${i + 1}. Name: ${a.name}\n   Address: ${a.address || '[Accused Address]'}`).join('\n');
+
+    // First accused (for subject lines etc.)
+    const accName = accusedList[0].name;
+    const accAddress = accusedList[0].address || '[Accused Address]';
+
+    return { compName, compPhone, compAddress, accName, accAddress, accusedList, accusedToBlock, accusedInlineBlock, accusedDetailsBlock, incidentClass, placeOfIncident, dateOfInc, timeOfInc, actDescription, complaintId };
   };
 
   // Build notice addressed to the selected recipient
-  const generateNoticeText = (complaint, recipient, otherName, otherAddr, extraSections) => {
+  const generateNoticeText = (complaint, recipient, otherName, otherAddr, extraSections, selAccusedInds = []) => {
     const dateToday = dayjs().format('DD-MM-YYYY');
     const f = getBaseFields(complaint);
 
-    let toName, toAddress, subjectLine;
+    let toBlock, subjectLine;
     if (recipient === 'complainant') {
-      toName = f.compName; toAddress = f.compAddress;
+      toBlock = `Name: ${f.compName}\nAddress: ${f.compAddress}`;
       subjectLine = `Notice regarding your complaint (ID: ${f.complaintId}) filed against ${f.accName}.`;
     } else if (recipient === 'other') {
-      toName = otherName || '[Recipient Name]'; toAddress = otherAddr || '[Recipient Address]';
+      toBlock = `Name: ${otherName || '[Recipient Name]'}\nAddress: ${otherAddr || '[Recipient Address]'}`;
       subjectLine = `Notice regarding complaint (ID: ${f.complaintId}) filed by ${f.compName}.`;
     } else {
-      toName = f.accName; toAddress = f.accAddress;
+      // Accused — show selected accused in "To:" block
+      let targetAccused = f.accusedList;
+      if (selAccusedInds && selAccusedInds.length > 0) {
+        targetAccused = selAccusedInds.map(i => f.accusedList[i]).filter(Boolean);
+      }
+      
+      toBlock = targetAccused.length === 1 
+        ? `Name: ${targetAccused[0].name}\nAddress: ${targetAccused[0].address || '[Accused Address]'}`
+        : targetAccused.map((a, i) => `Accused ${i + 1}:\nName: ${a.name}\nAddress: ${a.address || '[Accused Address]'}`).join('\n\n');
       subjectLine = `Notice for appearance regarding complaint filed by ${f.compName}.`;
     }
 
@@ -131,12 +210,12 @@ Date: ${dateToday}
 Complaint ID: ${f.complaintId}
 
 To,
-Name: ${toName}
-Address: ${toAddress}
+${toBlock}
 
 Subject: ${subjectLine}
 
-WHEREAS, a complaint has been registered at this Police Station by ${f.compName} (R/o ${f.compAddress}) against ${f.accName} (R/o ${f.accAddress}).
+WHEREAS, a complaint has been registered at this Police Station by ${f.compName} (R/o ${f.compAddress}) against:
+${f.accusedInlineBlock}
 
 BRIEF FACT OF COMPLAINT:
 The complainant alleges that an incident of "${f.incidentClass}" occurred at ${f.placeOfIncident} on ${f.dateOfInc} around ${f.timeOfInc}.
@@ -156,10 +235,11 @@ Police Station: _______________`;
     const dateToday = dayjs().format('DD-MM-YYYY');
     const f = getBaseFields(complaint);
     const { compName, compPhone, compAddress, accName, accAddress, incidentClass, placeOfIncident, dateOfInc, timeOfInc, actDescription, complaintId } = f;
+    // f also contains: accusedList, accusedToBlock, accusedInlineBlock, accusedDetailsBlock
 
     switch (templateType) {
       case 'notice':
-        return generateNoticeText(complaint, noticeRecipient, otherPersonName, otherPersonAddress, customSections);
+        return generateNoticeText(complaint, noticeRecipient, otherPersonName, otherPersonAddress, customSections, selectedAccusedIndices);
 
       case 'email':
         return `Subject: Status Update on Complaint Registration - ${incidentClass}
@@ -171,7 +251,8 @@ This is to officially inform you that we are in receipt of your complaint (ID: $
 COMPLAINT DETAILS:
 - Complainant Name: ${compName}
 - Complainant Contact: ${compPhone}
-- Accused Named: ${accName}
+- Accused Detail(s):
+${f.accusedInlineBlock}
 - Alleged Incident Place: ${placeOfIncident}
 - Date of Occurrence: ${dateOfInc}
 
@@ -193,7 +274,8 @@ Complaint ID: ${complaintId}
 
 1. REFERENCE COMPLAINT
 Complainant: ${compName}, R/o ${compAddress}, Ph: ${compPhone}
-Accused: ${accName}, R/o ${accAddress}
+Accused Detail(s):
+${f.accusedDetailsBlock}
 Nature of Incident: ${incidentClass}
 Date & Place of Occurrence: ${dateOfInc} at ${placeOfIncident}
 
@@ -224,7 +306,8 @@ Complaint ID: ${complaintId}
 
 1. REFERENCE COMPLAINT
 Complainant: ${compName}, R/o ${compAddress}, Ph: ${compPhone}
-Accused: ${accName}, R/o ${accAddress}
+Accused Detail(s):
+${f.accusedDetailsBlock}
 Subject/Category: ${incidentClass}
 Date & Place of Incident: ${dateOfInc} at ${placeOfIncident}
 
@@ -261,8 +344,7 @@ Address: ${compAddress}
 Contact: ${compPhone}
 
 2. ACCUSED DETAILS
-Name: ${accName}
-Address: ${accAddress}
+${f.accusedDetailsBlock}
 
 3. INCIDENT DETAILS
 Category: ${incidentClass}
@@ -294,7 +376,8 @@ Complaint ID: ${complaintId}
 1. REFERENCE
 Source of Complaint: Received from ${compName} (Ph: ${compPhone})
 Complainant Address: ${compAddress}
-Alleged Accused: ${accName}, R/o ${accAddress}
+Alleged Accused Detail(s):
+${f.accusedDetailsBlock}
 
 2. INCIDENT PARTICULARS
 Classification: ${incidentClass}
@@ -333,9 +416,15 @@ Forwarded to SHO for approval / FIR Registration.`;
   const handleNoticeRecipientChange = (val) => {
     setNoticeRecipient(val);
     if (val !== 'other') {
-      const text = generateNoticeText(selectedComplaint, val, otherPersonName, otherPersonAddress, customSections);
+      const text = generateNoticeText(selectedComplaint, val, otherPersonName, otherPersonAddress, customSections, selectedAccusedIndices);
       setDocumentText(text);
     }
+  };
+
+  const handleAccusedSelectionChange = (checkedValues) => {
+    setSelectedAccusedIndices(checkedValues);
+    const text = generateNoticeText(selectedComplaint, noticeRecipient, otherPersonName, otherPersonAddress, customSections, checkedValues);
+    setDocumentText(text);
   };
 
   const handleAddCustomSection = () => {
@@ -343,14 +432,14 @@ Forwarded to SHO for approval / FIR Registration.`;
     const updated = [...customSections, customSection.trim()];
     setCustomSections(updated);
     setCustomSection('');
-    const text = generateNoticeText(selectedComplaint, noticeRecipient, otherPersonName, otherPersonAddress, updated);
+    const text = generateNoticeText(selectedComplaint, noticeRecipient, otherPersonName, otherPersonAddress, updated, selectedAccusedIndices);
     setDocumentText(text);
   };
 
   const handleRemoveCustomSection = (idx) => {
     const updated = customSections.filter((_, i) => i !== idx);
     setCustomSections(updated);
-    const text = generateNoticeText(selectedComplaint, noticeRecipient, otherPersonName, otherPersonAddress, updated);
+    const text = generateNoticeText(selectedComplaint, noticeRecipient, otherPersonName, otherPersonAddress, updated, selectedAccusedIndices);
     setDocumentText(text);
   };
 
@@ -378,7 +467,7 @@ Write formal, professional emails in English. Always include Subject line at the
 Complaint context:
 - Complaint ID: ${f.complaintId}
 - Complainant: ${f.compName} (Ph: ${f.compPhone})
-- Accused: ${f.accName}
+- Accused Detail(s):\n${f.accusedDetailsBlock}
 - Incident: ${f.incidentClass} at ${f.placeOfIncident} on ${f.dateOfInc}
 - Description: ${f.actDescription}
 Output ONLY the email text, no explanation.`,
@@ -499,18 +588,57 @@ Output ONLY the email text, no explanation.`,
 
   const handleUpdateStatus = (complaintId, newStatus) => {
     const saved = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
+    let updatedStatus = newStatus;
+    let pendingStatus = null;
+
+    if (newStatus === 'Disposed' || newStatus === 'Convert to FIR') {
+      updatedStatus = 'Pending SHO Approval';
+      pendingStatus = newStatus;
+    }
+
     const updated = saved.map(c => {
       if (c.id === complaintId) {
-        return { ...c, ioStatus: newStatus };
+        if (pendingStatus) {
+           return { ...c, ioStatus: updatedStatus, pendingIoStatus: pendingStatus };
+        } else {
+           const { pendingIoStatus, ...rest } = c;
+           return { ...rest, ioStatus: updatedStatus };
+        }
       }
       return c;
     });
     localStorage.setItem('registeredComplaints', JSON.stringify(updated));
-    message.success(`Status updated successfully to ${newStatus}`);
+    message.success(pendingStatus ? `Sent request to SHO for ${pendingStatus}` : `Status updated successfully to ${newStatus}`);
     loadComplaints();
     if (selectedComplaint && selectedComplaint.id === complaintId) {
-      setSelectedComplaint({ ...selectedComplaint, ioStatus: newStatus });
+      if (pendingStatus) {
+         setSelectedComplaint({ ...selectedComplaint, ioStatus: updatedStatus, pendingIoStatus: pendingStatus });
+      } else {
+         const { pendingIoStatus, ...rest } = selectedComplaint;
+         setSelectedComplaint({ ...rest, ioStatus: updatedStatus });
+      }
     }
+  };
+
+  const handleShoApproval = (complaintId, isApproved) => {
+    const saved = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
+    let msg = '';
+    const updated = saved.map(c => {
+      if (c.id === complaintId && c.ioStatus === 'Pending SHO Approval') {
+        const { pendingIoStatus, ...rest } = c;
+        if (isApproved) {
+           msg = `Approved: Status is now ${c.pendingIoStatus}`;
+           return { ...rest, ioStatus: c.pendingIoStatus };
+        } else {
+           msg = `Rejected request for ${c.pendingIoStatus}. Status reverted to Under Investigation.`;
+           return { ...rest, ioStatus: 'Under Investigation' };
+        }
+      }
+      return c;
+    });
+    localStorage.setItem('registeredComplaints', JSON.stringify(updated));
+    message.success(msg || 'Status updated');
+    loadComplaints();
   };
 
   const filteredComplaints = complaints.filter(c => {
@@ -523,7 +651,7 @@ Output ONLY the email text, no explanation.`,
     <div>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={showDocGen ? () => setShowDocGen(false) : onBack}>Back</Button>
+        <Button icon={<ArrowLeftOutlined />} style={{ background: '#1f1f1f', color: '#177ddc', borderColor: '#303030', borderRadius: '8px', padding: '4px 16px', fontWeight: 500 }} onClick={showDocGen ? () => setShowDocGen(false) : onBack}>Back</Button>
         <Title level={3} style={{ margin: 0 }}>
           {showDocGen ? 'Enquire Registered Complaints — Document Generation' : 'Enquire Registered Complaints'}
         </Title>
@@ -542,16 +670,19 @@ Output ONLY the email text, no explanation.`,
               Document Generation
             </Button>
 
-            {profile?.role === 'sho' && (
+            {['sho', 'admin'].includes(String(profile?.role).toLowerCase()) && (
               <>
                 <Button 
                   type="primary" 
                   size="large" 
                   icon={<PlusOutlined />} 
-                  onClick={() => setShowAssignModal(true)}
+                  onClick={() => {
+                    setSelectedIoForAssign(null);
+                    setShowAssignModal(true);
+                  }}
                   style={{ borderRadius: '8px', fontWeight: 'bold', width: '250px', textAlign: 'left' }}
                 >
-                  IO Assigned
+                  Assign / Change IO
                 </Button>
                 <Button 
                   type="primary" 
@@ -565,7 +696,7 @@ Output ONLY the email text, no explanation.`,
               </>
             )}
 
-            {profile?.role === 'io' && (
+            {String(profile?.role).toLowerCase() === 'io' && (
               <Button 
                 type="primary" 
                 size="large" 
@@ -573,7 +704,7 @@ Output ONLY the email text, no explanation.`,
                 onClick={() => setShowIoComplaintsModal(true)}
                 style={{ borderRadius: '8px', fontWeight: 'bold', width: '250px', textAlign: 'left' }}
               >
-                Complaints Assigned
+                Assigned Complaints & Status
               </Button>
             )}
           </div>
@@ -753,6 +884,20 @@ Output ONLY the email text, no explanation.`,
                         <Radio value="other">Other Person</Radio>
                       </Radio.Group>
 
+                      {noticeRecipient === 'accused' && selectedComplaint?.accusedList?.length > 1 && (
+                        <div style={{ marginBottom: 16, background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8 }}>
+                          <Text strong style={{ display: 'block', marginBottom: 8, color: '#1890ff' }}>Select Specific Accused for Notice:</Text>
+                          <Checkbox.Group 
+                            options={selectedComplaint.accusedList.map((a, i) => ({ label: a.name, value: i }))} 
+                            value={selectedAccusedIndices} 
+                            onChange={handleAccusedSelectionChange} 
+                          />
+                          <Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+                            (If none selected, notice will be addressed to all accused)
+                          </Text>
+                        </div>
+                      )}
+
                       {noticeRecipient === 'other' && (
                         <Row gutter={16} style={{ marginBottom: 16 }}>
                           <Col span={10}>
@@ -779,31 +924,32 @@ Output ONLY the email text, no explanation.`,
                   {/* -- Email Configuration Header -- */}
                   {selectedTemplate === 'email' && (
                     <div style={{ marginBottom: 16, padding: '16px', background: 'rgba(24, 144, 255, 0.1)', borderRadius: 8, border: '1px solid rgba(24, 144, 255, 0.3)' }}>
-                      <Text strong style={{ display: 'block', marginBottom: 8, color: '#1890ff' }}>
-                        <RobotOutlined style={{ marginRight: 6 }} />
-                        Draft Email with AI
-                      </Text>
-                      <Text type="secondary" style={{ display: 'block', marginBottom: 12, fontSize: 13 }}>
-                        The AI knows the details of Complaint {selectedComplaint?.id}. Just tell it who to email and what to say.
-                      </Text>
-                      <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
-                        <TextArea 
-                          rows={2} 
-                          placeholder="E.g., Write an email to the SHO requesting more time because the accused is out of town." 
-                          value={emailPrompt}
-                          onChange={e => setEmailPrompt(e.target.value)}
-                          style={{ resize: 'none' }}
-                        />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                        <div>
+                          <Text strong style={{ display: 'block', marginBottom: 4, color: '#1890ff' }}>
+                            <RobotOutlined style={{ marginRight: 6 }} />
+                            Draft Email with AI
+                          </Text>
+                          <Text type="secondary" style={{ fontSize: 13 }}>
+                            The AI knows the details of Complaint {selectedComplaint?.id}. Just tell it who to email and what to say.
+                          </Text>
+                        </div>
                         <Button 
                           type="primary" 
                           icon={<RobotOutlined />} 
-                          style={{ height: 'auto', minWidth: 140, fontWeight: 500 }}
                           onClick={handleGenerateEmailWithAI}
                           loading={isAiLoading}
                         >
                           Draft Email
                         </Button>
                       </div>
+                      <TextArea 
+                        rows={2} 
+                        placeholder="E.g., Write an email to the SHO requesting more time because the accused is out of town." 
+                        value={emailPrompt}
+                        onChange={e => setEmailPrompt(e.target.value)}
+                        style={{ resize: 'none', width: '100%' }}
+                      />
                     </div>
                   )}
 
@@ -845,28 +991,55 @@ Output ONLY the email text, no explanation.`,
         </>
       )}
 
-      {/* MODAL: SHO Assigns IO */}
+      {/* MODAL: SHO Assigns or Changes IO */}
       <Modal
-        title="Assign IO to Complaint"
+        title={selectedComplaint?.assignedIoId ? "Change IO for Complaint" : "Assign IO to Complaint"}
         open={showAssignModal}
         onCancel={() => setShowAssignModal(false)}
-        onOk={handleAssignIo}
-        okText="Assign IO"
+        footer={[
+          <Button key="cancel" onClick={() => setShowAssignModal(false)}>
+            Cancel
+          </Button>,
+          <Button 
+            key="assign" 
+            type="primary" 
+            onClick={() => {
+              if (!selectedIoForAssign) {
+                message.warning('Please select an IO.');
+                return;
+              }
+              handleAssignIo();
+            }}
+            style={{ backgroundColor: '#1890ff', borderColor: '#1890ff', color: '#fff', borderRadius: '8px' }}
+          >
+            {selectedComplaint?.assignedIoId ? "Change IO" : "Assign IO"}
+          </Button>
+        ]}
       >
         <div style={{ marginBottom: 16 }}>
           <Text strong>Selected Complaint ID: </Text>
           <Text>{selectedComplaint?.id || 'None selected'}</Text>
         </div>
+        
+        {selectedComplaint?.assignedIoName && (
+          <div style={{ marginBottom: 16 }}>
+            <Text strong>Currently Assigned IO: </Text>
+            <Tag color="blue">{selectedComplaint.assignedIoName}</Tag>
+          </div>
+        )}
+
         {selectedComplaint?.id ? (
           <div>
-            <Text>Select Investigating Officer:</Text>
+            <Text>{selectedComplaint?.assignedIoId ? "Select New Investigating Officer:" : "Select Investigating Officer:"}</Text>
             <Select
               style={{ width: '100%', marginTop: 8 }}
               placeholder="Select an IO"
               value={selectedIoForAssign}
               onChange={setSelectedIoForAssign}
             >
-              {ioList.map(io => (
+              {ioList
+                .filter(io => io.id !== selectedComplaint?.assignedIoId)
+                .map(io => (
                 <Option key={io.id} value={io.id}>{io.username} - {io.full_name}</Option>
               ))}
             </Select>
@@ -892,6 +1065,7 @@ Output ONLY the email text, no explanation.`,
           return assigned.map((c, idx) => {
             const statusColor =
               c.ioStatus === 'Under Investigation' ? 'blue' :
+              c.ioStatus === 'Pending SHO Approval' ? 'gold' :
               c.ioStatus === 'Disposed' ? 'purple' :
               c.ioStatus === 'Convert to FIR' ? 'red' : 'orange';
             return (
@@ -911,6 +1085,16 @@ Output ONLY the email text, no explanation.`,
                   <span><Text type="secondary">Date: </Text><Text>{dayjs(c.registrationDate).format('DD MMM YYYY')}</Text></span>
                   <span><Text type="secondary">Assigned To: </Text><Tag color="cyan">{c.assignedIoName}</Tag></span>
                 </div>
+                {c.ioStatus === 'Pending SHO Approval' && (
+                  <div style={{ marginTop: 12, padding: 8, background: '#141414', border: '1px solid #d48806', borderRadius: 4 }}>
+                    <Text strong style={{ color: '#d48806' }}>Action Required: </Text>
+                    <Text>IO requested to mark as <strong style={{ color: c.pendingIoStatus === 'Convert to FIR' ? '#ff4d4f' : '#b37feb' }}>{c.pendingIoStatus}</strong></Text>
+                    <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                      <Button type="primary" size="small" style={{ background: '#52c41a' }} onClick={() => handleShoApproval(c.id, true)}>Approve</Button>
+                      <Button danger size="small" onClick={() => handleShoApproval(c.id, false)}>Reject</Button>
+                    </div>
+                  </div>
+                )}
               </Card>
             );
           });
@@ -940,6 +1124,7 @@ Output ONLY the email text, no explanation.`,
           return assigned.map((c, idx) => {
             const statusColor =
               c.ioStatus === 'Under Investigation' ? 'blue' :
+              c.ioStatus === 'Pending SHO Approval' ? 'gold' :
               c.ioStatus === 'Disposed' ? 'purple' :
               c.ioStatus === 'Convert to FIR' ? 'red' : 'orange';
             return (
@@ -962,18 +1147,30 @@ Output ONLY the email text, no explanation.`,
                   <Text type="secondary" style={{ marginLeft: 16 }}>Class: </Text>
                   <Tag color="blue">{c.classOfIncident || 'N/A'}</Tag>
                 </div>
+                {c.ioStatus === 'Pending SHO Approval' && (
+                  <div style={{ marginBottom: 12, color: '#d48806', fontWeight: 500 }}>
+                    <i className="fas fa-clock" style={{ marginRight: 6 }}></i>
+                    Waiting for SHO to approve your request to mark as "{c.pendingIoStatus}"
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {['Pending', 'Under Investigation', 'Disposed', 'Convert to FIR'].map(status => (
-                    <Button
-                      key={status}
-                      size="middle"
-                      type={(c.ioStatus || 'Pending') === status ? 'primary' : 'default'}
-                      danger={status === 'Convert to FIR' && (c.ioStatus || 'Pending') === status}
-                      onClick={() => handleUpdateStatus(c.id, status)}
-                    >
-                      {status}
-                    </Button>
-                  ))}
+                  {['Pending', 'Under Investigation', 'Disposed', 'Convert to FIR'].map(status => {
+                    const isPendingApproval = c.ioStatus === 'Pending SHO Approval';
+                    const isCurrent = (c.ioStatus || 'Pending') === status || (isPendingApproval && c.pendingIoStatus === status);
+                    const disabled = isPendingApproval && (status === 'Disposed' || status === 'Convert to FIR');
+                    return (
+                      <Button
+                        key={status}
+                        size="middle"
+                        type={isCurrent ? 'primary' : 'default'}
+                        danger={status === 'Convert to FIR' && isCurrent}
+                        disabled={disabled}
+                        onClick={() => handleUpdateStatus(c.id, status)}
+                      >
+                        {status}
+                      </Button>
+                    );
+                  })}
                 </div>
               </Card>
             );
