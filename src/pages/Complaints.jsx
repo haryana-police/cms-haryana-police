@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Typography, Row, Col, Card, Button, Alert } from 'antd';
-import { SearchOutlined, FormOutlined, FileTextOutlined } from '@ant-design/icons';
+import { SearchOutlined, FormOutlined, FileTextOutlined, SwapOutlined } from '@ant-design/icons';
 import { useSearchParams } from 'react-router-dom';
 import ComplaintWizard from '../components/complaints/ComplaintWizard';
 import Enquiry from '../components/complaints/Enquiry';
@@ -121,6 +121,7 @@ export default function Complaints() {
     const underInvestigation = saved.filter(c => c.ioStatus === 'Under Investigation').length;
     const disposed = saved.filter(c => c.ioStatus === 'Disposed').length;
     const convertToFir = saved.filter(c => c.ioStatus === 'Convert to FIR').length;
+    const transferred = saved.filter(c => c.ioStatus === 'Transferred').length;
 
     return (
       <div style={{ padding: '0px' }}>
@@ -132,17 +133,7 @@ export default function Complaints() {
               Register, Search, and Enquire Complaints
             </Paragraph>
           </div>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            {profile?.role === 'sho' && (
-              <Button 
-                type="primary"
-                size="large" 
-                onClick={() => setCurrentView('transfer')}
-                style={{ borderRadius: '8px', fontWeight: 'bold' }}
-              >
-                Transfer Complaint
-              </Button>
-            )}
+        <div style={{ display: 'flex', gap: '12px' }}>
             <Button 
               type="primary" 
               size="large" 
@@ -186,6 +177,14 @@ export default function Complaints() {
               <Title level={2} style={{ margin: 0 }}>{convertToFir}</Title>
             </Card>
           </Col>
+          {profile?.role !== 'io' && (
+            <Col style={{ flex: 1, minWidth: '180px' }}>
+              <Card style={{ borderRadius: '12px', background: '#141414', borderColor: '#303030', cursor: 'pointer' }} bodyStyle={{ padding: '16px 20px' }}>
+                <Paragraph type="secondary" style={{ margin: 0, marginBottom: '4px' }}>Transferred</Paragraph>
+                <Title level={2} style={{ margin: 0 }}>{transferred}</Title>
+              </Card>
+            </Col>
+          )}
         </Row>
 
         {/* Embedded Unified Search and Data Table */}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Button, Typography, Row, Col, Divider, Input, message, Select, Tag, Empty, Radio, Space, Spin, Modal, List, Checkbox } from 'antd';
-import { DownloadOutlined, ArrowLeftOutlined, SearchOutlined, FileTextOutlined, RobotOutlined, PlusOutlined } from '@ant-design/icons';
+import { Card, Button, Typography, Row, Col, Divider, Input, message, Select, Tag, Empty, Radio, Space, Spin, Modal, List, Checkbox, Upload } from 'antd';
+import { DownloadOutlined, ArrowLeftOutlined, SearchOutlined, FileTextOutlined, RobotOutlined, PlusOutlined, SwapOutlined, CheckCircleOutlined, EyeOutlined, UploadOutlined } from '@ant-design/icons';
+import { districts, policeStationsByDistrict } from '../../data/districtPoliceStations';
 import dayjs from 'dayjs';
 import { Document, Packer, Paragraph as DocxParagraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
@@ -23,7 +24,26 @@ export default function Enquiry({ onBack, preSelectedComplaintId }) {
   // IO & Status State
   const [showAssignModal, setShowAssignModal] = useState(() => sessionStorage.getItem('enquiry_showAssignModal') === 'true');
   const [showStatusModal, setShowStatusModal] = useState(() => sessionStorage.getItem('enquiry_showStatusModal') === 'true');
+
+  // Transfer State (SHO only)
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferDistrict, setTransferDistrict] = useState('');
+  const [transferPS, setTransferPS] = useState('');
+  const [transferReason, setTransferReason] = useState('');
   const [showIoComplaintsModal, setShowIoComplaintsModal] = useState(() => sessionStorage.getItem('enquiry_showIoComplaintsModal') === 'true');
+
+  // IO & SHO Investigation Report State
+  const [showIoReportModal, setShowIoReportModal] = useState(false);
+  const [activeReportComplaintId, setActiveReportComplaintId] = useState(null);
+  const [ioReportText, setIoReportText] = useState('');
+  const [ioAttachedFiles, setIoAttachedFiles] = useState([]);
+  
+  const [showShoReportModal, setShowShoReportModal] = useState(false);
+  const [shoViewReportText, setShoViewReportText] = useState('');
+  const [shoViewAttachedFiles, setShoViewAttachedFiles] = useState([]);
+
+  // File Preview State
+  const [previewFile, setPreviewFile] = useState(null);
 
   useEffect(() => {
     sessionStorage.setItem('enquiry_showDocGen', showDocGen);
@@ -560,6 +580,33 @@ Output ONLY the email text, no explanation.`,
     });
   };
 
+  const handleTransfer = () => {
+    if (!selectedComplaint) { message.warning('Please select a complaint first from Document Generation.'); return; }
+    if (!transferDistrict || !transferPS) { message.warning('Please select both District and Police Station.'); return; }
+
+    const saved = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
+    const updated = saved.map(c =>
+      c.id === selectedComplaint.id
+        ? {
+            ...c,
+            ioStatus: 'Transferred',
+            transferredTo: { district: transferDistrict, policeStation: transferPS },
+            transferReason: transferReason.trim(),
+            transferDate: new Date().toISOString(),
+          }
+        : c
+    );
+    localStorage.setItem('registeredComplaints', JSON.stringify(updated));
+    message.success(`Complaint ${selectedComplaint.id} transferred to ${transferPS}, ${transferDistrict}`);
+    setShowTransferModal(false);
+    setTransferDistrict('');
+    setTransferPS('');
+    setTransferReason('');
+    loadComplaints();
+    // Update selected complaint state too
+    setSelectedComplaint(prev => prev ? { ...prev, ioStatus: 'Transferred', transferredTo: { district: transferDistrict, policeStation: transferPS } } : prev);
+  };
+
   const handleAssignIo = () => {
     if (!selectedIoForAssign || !selectedComplaint) {
       message.error('Please select an IO and ensure a complaint is selected.');
@@ -588,6 +635,22 @@ Output ONLY the email text, no explanation.`,
 
   const handleUpdateStatus = (complaintId, newStatus) => {
     const saved = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
+    const targetC = saved.find(c => c.id === complaintId);
+
+    if (targetC?.ioStatus === 'Disposed' || targetC?.ioStatus === 'Convert to FIR') {
+       message.error('This complaint has already been finalized by the SHO. Status cannot be changed.');
+       return;
+    }
+    if (targetC?.ioStatus === 'Pending SHO Approval') {
+       message.error('Your recommendation is pending SHO approval. Status cannot be changed.');
+       return;
+    }
+
+    if ((newStatus === 'Disposed' || newStatus === 'Convert to FIR') && !targetC?.investigationReport) {
+      message.error(`You must attach investigation documents before marking as ${newStatus}.`);
+      return;
+    }
+
     let updatedStatus = newStatus;
     let pendingStatus = null;
 
@@ -620,6 +683,25 @@ Output ONLY the email text, no explanation.`,
     }
   };
 
+  const handleSaveIoReport = () => {
+    if (!ioReportText.trim() && ioAttachedFiles.length === 0) {
+      message.warning('Please enter the report content or attach documents.');
+      return;
+    }
+    const saved = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
+    const fileNames = ioAttachedFiles.map(f => f.name);
+    const updated = saved.map(c =>
+      c.id === activeReportComplaintId ? { ...c, investigationReport: ioReportText.trim(), investigationFiles: fileNames, isReportRejected: false } : c
+    );
+    localStorage.setItem('registeredComplaints', JSON.stringify(updated));
+    message.success('Final investigation report and documents attached successfully.');
+    setShowIoReportModal(false);
+    loadComplaints();
+    if (selectedComplaint && selectedComplaint.id === activeReportComplaintId) {
+      setSelectedComplaint({ ...selectedComplaint, investigationReport: ioReportText.trim(), investigationFiles: fileNames, isReportRejected: false });
+    }
+  };
+
   const handleShoApproval = (complaintId, isApproved) => {
     const saved = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
     let msg = '';
@@ -631,7 +713,7 @@ Output ONLY the email text, no explanation.`,
            return { ...rest, ioStatus: c.pendingIoStatus };
         } else {
            msg = `Rejected request for ${c.pendingIoStatus}. Status reverted to Under Investigation.`;
-           return { ...rest, ioStatus: 'Under Investigation' };
+           return { ...rest, ioStatus: 'Under Investigation', isReportRejected: true };
         }
       }
       return c;
@@ -692,6 +774,16 @@ Output ONLY the email text, no explanation.`,
                   style={{ borderRadius: '8px', fontWeight: 'bold', width: '250px', textAlign: 'left' }}
                 >
                   Status of Complaint
+                </Button>
+
+                <Button 
+                  type="primary" 
+                  size="large" 
+                  icon={<SwapOutlined />} 
+                  onClick={() => setShowTransferModal(true)}
+                  style={{ borderRadius: '8px', fontWeight: 'bold', width: '250px', textAlign: 'left' }}
+                >
+                  Transfer Complaint
                 </Button>
               </>
             )}
@@ -1089,6 +1181,23 @@ Output ONLY the email text, no explanation.`,
                   <div style={{ marginTop: 12, padding: 8, background: '#141414', border: '1px solid #d48806', borderRadius: 4 }}>
                     <Text strong style={{ color: '#d48806' }}>Action Required: </Text>
                     <Text>IO requested to mark as <strong style={{ color: c.pendingIoStatus === 'Convert to FIR' ? '#ff4d4f' : '#b37feb' }}>{c.pendingIoStatus}</strong></Text>
+                    
+                    {c.investigationReport && (
+                      <div style={{ marginTop: 12, marginBottom: 12 }}>
+                        <Button 
+                          type="dashed" 
+                          icon={<EyeOutlined />} 
+                          onClick={() => {
+                            setShoViewReportText(c.investigationReport);
+                            setShoViewAttachedFiles(c.investigationFiles || []);
+                            setShowShoReportModal(true);
+                          }}
+                        >
+                          View IO Report & Documents
+                        </Button>
+                      </div>
+                    )}
+
                     <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
                       <Button type="primary" size="small" style={{ background: '#52c41a' }} onClick={() => handleShoApproval(c.id, true)}>Approve</Button>
                       <Button danger size="small" onClick={() => handleShoApproval(c.id, false)}>Reject</Button>
@@ -1156,8 +1265,20 @@ Output ONLY the email text, no explanation.`,
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {['Pending', 'Under Investigation', 'Disposed', 'Convert to FIR'].map(status => {
                     const isPendingApproval = c.ioStatus === 'Pending SHO Approval';
+                    const isAlreadyClosed = c.ioStatus === 'Disposed' || c.ioStatus === 'Convert to FIR';
                     const isCurrent = (c.ioStatus || 'Pending') === status || (isPendingApproval && c.pendingIoStatus === status);
-                    const disabled = isPendingApproval && (status === 'Disposed' || status === 'Convert to FIR');
+                    
+                    const requiresReport = status === 'Disposed' || status === 'Convert to FIR';
+                    const hasReport = !!c.investigationReport || (c.investigationFiles && c.investigationFiles.length > 0);
+                    
+                    // Disabled if already finalized, or pending approval, or missing report when needed
+                    const disabled = isAlreadyClosed || isPendingApproval || (requiresReport && !hasReport);
+                    
+                    let titleText = '';
+                    if (isAlreadyClosed) titleText = 'Finalized by SHO. Cannot be changed.';
+                    else if (isPendingApproval) titleText = 'Pending SHO approval. Cannot be changed.';
+                    else if (requiresReport && !hasReport) titleText = 'Please attach investigation documents first';
+
                     return (
                       <Button
                         key={status}
@@ -1165,6 +1286,7 @@ Output ONLY the email text, no explanation.`,
                         type={isCurrent ? 'primary' : 'default'}
                         danger={status === 'Convert to FIR' && isCurrent}
                         disabled={disabled}
+                        title={titleText}
                         onClick={() => handleUpdateStatus(c.id, status)}
                       >
                         {status}
@@ -1172,10 +1294,356 @@ Output ONLY the email text, no explanation.`,
                     );
                   })}
                 </div>
+                
+                {/* Attach Report Section */}
+                {c.ioStatus === 'Under Investigation' && (
+                  <div style={{ marginTop: 16, padding: 12, background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 6 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text type="secondary" style={{ fontSize: 13 }}>
+                        <FileTextOutlined style={{ marginRight: 6 }} />
+                        {c.investigationReport ? 'Documents attached. Ready for Disposal/FIR.' : 'Attach investigation documents to proceed to Disposed/FIR.'}
+                      </Text>
+                      <Button 
+                        type={c.investigationReport ? "default" : "primary"} 
+                        size="small"
+                        icon={c.investigationReport ? <CheckCircleOutlined style={{ color: '#52c41a' }} /> : <PlusOutlined />}
+                        onClick={() => {
+                          setActiveReportComplaintId(c.id);
+                          setIoReportText(c.investigationReport || '');
+                          setIoAttachedFiles(c.investigationFiles ? c.investigationFiles.map((f, i) => ({ uid: i, name: f, status: 'done' })) : []);
+                          setShowIoReportModal(true);
+                        }}
+                        style={{ borderColor: c.investigationReport ? '#52c41a' : undefined }}
+                      >
+                        {c.investigationReport ? 'View Attached Documents' : 'Attach Documents'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </Card>
             );
           });
         })()}
+      </Modal>
+
+      {/* ── Transfer Complaint Modal (SHO Only) ── */}
+      {showTransferModal && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: 'rgba(0,0,0,0.65)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(2px)',
+        }}>
+          <div style={{
+            background: '#1e2130',
+            border: '1px solid #30363d',
+            borderRadius: '10px',
+            width: '480px',
+            maxWidth: '95vw',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            overflow: 'hidden',
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '18px 24px',
+              borderBottom: '1px solid #30363d',
+              background: 'rgba(59,130,246,0.15)',
+              display: 'flex', alignItems: 'center', gap: '10px',
+            }}>
+              <SwapOutlined style={{ fontSize: 18, color: '#3b82f6' }} />
+              <span style={{ color: '#f0f6fc', fontWeight: 700, fontSize: '16px' }}>
+                Transfer Complaint
+              </span>
+            </div>
+
+            {/* Selected Complaint Info */}
+            <div style={{ padding: '16px 24px 0', color: '#8b949e', fontSize: 13 }}>
+              {selectedComplaint ? (
+                <div style={{
+                  background: 'rgba(59,130,246,0.08)',
+                  border: '1px solid rgba(59,130,246,0.25)',
+                  borderRadius: 6, padding: '10px 14px',
+                }}>
+                  <span style={{ color: '#3b82f6', fontWeight: 600 }}>Selected: </span>
+                  <span style={{ color: '#f0f6fc' }}>{selectedComplaint.id}</span>
+                  <span style={{ color: '#8b949e', marginLeft: 10 }}>
+                    {[selectedComplaint.firstName, selectedComplaint.lastName].filter(Boolean).join(' ')}
+                  </span>
+                </div>
+              ) : (
+                <div style={{
+                  background: 'rgba(251,191,36,0.08)',
+                  border: '1px solid rgba(251,191,36,0.25)',
+                  borderRadius: 6, padding: '10px 14px', color: '#fbbf24',
+                }}>
+                  ⚠️ No complaint selected. Please select a complaint first via Document Generation.
+                </div>
+              )}
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* District */}
+              <div>
+                <label style={{ color: '#c9d1d9', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>
+                  Transfer to District <span style={{ color: '#f87171' }}>*</span>
+                </label>
+                <select
+                  value={transferDistrict}
+                  onChange={e => { setTransferDistrict(e.target.value); setTransferPS(''); }}
+                  style={{
+                    width: '100%', padding: '8px 12px', borderRadius: 6,
+                    background: '#252839', border: '1px solid #30363d',
+                    color: '#f0f6fc', fontSize: 13, outline: 'none',
+                  }}
+                >
+                  <option value="">-- Select District --</option>
+                  {districts.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+
+              {/* Police Station */}
+              <div>
+                <label style={{ color: '#c9d1d9', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>
+                  Transfer to Police Station <span style={{ color: '#f87171' }}>*</span>
+                </label>
+                <select
+                  value={transferPS}
+                  onChange={e => setTransferPS(e.target.value)}
+                  disabled={!transferDistrict}
+                  style={{
+                    width: '100%', padding: '8px 12px', borderRadius: 6,
+                    background: '#252839', border: '1px solid #30363d',
+                    color: transferDistrict ? '#f0f6fc' : '#8b949e', fontSize: 13, outline: 'none',
+                    opacity: transferDistrict ? 1 : 0.6,
+                  }}
+                >
+                  <option value="">-- Select Police Station --</option>
+                  {(policeStationsByDistrict[transferDistrict] || []).map(ps => (
+                    <option key={ps} value={ps}>{ps}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Reason */}
+              <div>
+                <label style={{ color: '#c9d1d9', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>
+                  Transfer Reason
+                </label>
+                <textarea
+                  rows={3}
+                  value={transferReason}
+                  onChange={e => setTransferReason(e.target.value)}
+                  placeholder="Enter reason for transfer..."
+                  style={{
+                    width: '100%', padding: '8px 12px', borderRadius: 6,
+                    background: '#252839', border: '1px solid #30363d',
+                    color: '#f0f6fc', fontSize: 13, outline: 'none',
+                    resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: '12px 24px 20px',
+              display: 'flex', justifyContent: 'flex-end', gap: 10,
+            }}>
+              <button
+                onClick={() => { setShowTransferModal(false); setTransferDistrict(''); setTransferPS(''); setTransferReason(''); }}
+                style={{
+                  padding: '7px 20px', borderRadius: 6,
+                  border: '1px solid #30363d', background: 'transparent',
+                  color: '#3b82f6', cursor: 'pointer', fontSize: 14, fontWeight: 500,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleTransfer}
+                disabled={!selectedComplaint || !transferDistrict || !transferPS}
+                style={{
+                  padding: '7px 20px', borderRadius: 6,
+                  border: 'none', background: (!selectedComplaint || !transferDistrict || !transferPS) ? '#1f2937' : '#1677ff',
+                  color: '#ffffff', cursor: (!selectedComplaint || !transferDistrict || !transferPS) ? 'not-allowed' : 'pointer',
+                  fontSize: 14, fontWeight: 600,
+                }}
+              >
+                Transfer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── IO Report Modal (Read-Only once saved) ── */}
+      <Modal
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <FileTextOutlined style={{ color: '#3b82f6' }} />
+            <span>Attach Investigation Documents & Report</span>
+          </div>
+        }
+        open={showIoReportModal}
+        onCancel={() => setShowIoReportModal(false)}
+        footer={null}
+        width={700}
+      >
+        {(() => {
+          const currentC = complaints.find(c => c.id === activeReportComplaintId);
+          const isAlreadyAttached = (!!currentC?.investigationReport || (currentC?.investigationFiles && currentC.investigationFiles.length > 0)) && !currentC?.isReportRejected;
+          
+          return (
+            <div>
+              <div style={{ marginBottom: 16 }}>
+                <Text type="secondary">Complaint ID:</Text> <Text strong>{activeReportComplaintId}</Text>
+              </div>
+              
+              {isAlreadyAttached ? (
+                <div style={{ background: '#1e2130', padding: 16, borderRadius: 8, border: '1px solid #30363d' }}>
+                  <div style={{ marginBottom: 12, color: '#52c41a', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <CheckCircleOutlined /> Documents and report have been finalized and cannot be rewritten.
+                  </div>
+                  {currentC.investigationFiles && currentC.investigationFiles.length > 0 && (
+                    <div style={{ marginBottom: 16 }}>
+                      <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>Attached Files:</Text>
+                      <Space direction="vertical" style={{ width: '100%' }}>
+                        {currentC.investigationFiles.map((file, idx) => (
+                          <div key={idx} style={{ background: '#252839', padding: '8px 12px', borderRadius: 4, border: '1px solid #30363d', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <UploadOutlined style={{ color: '#8b949e' }} />
+                            <Text style={{ color: '#c9d1d9' }}>{file}</Text>
+                            <Button size="small" type="primary" ghost style={{ marginLeft: 'auto' }} onClick={() => setPreviewFile(file)}>View</Button>
+                          </div>
+                        ))}
+                      </Space>
+                    </div>
+                  )}
+                  {currentC.investigationReport && (
+                    <>
+                      <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>Written Details:</Text>
+                      <div style={{ whiteSpace: 'pre-wrap', color: '#e5e7eb', fontSize: 14, fontFamily: 'monospace', lineHeight: 1.6, background: '#13151f', padding: 12, borderRadius: 4 }}>
+                        {currentC.investigationReport}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  {currentC?.isReportRejected && (
+                    <div style={{ marginBottom: 12, color: '#f87171', fontSize: 13, background: '#450a0a', padding: '8px 12px', borderRadius: 6, border: '1px solid #7f1d1d' }}>
+                      ❌ Your previous report was rejected by the SHO. Please update your documents/details and submit again.
+                    </div>
+                  )}
+                  <div style={{ marginBottom: 12, color: '#fbbf24', fontSize: 13 }}>
+                    ⚠️ Note: Once these documents and details are saved, they become final and <strong>cannot be edited or rewritten</strong>.
+                  </div>
+                  
+                  <div style={{ marginBottom: 20 }}>
+                    <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>Attach Evidences (PDF, Image, Video, Audio):</Text>
+                    <Upload
+                      multiple
+                      fileList={ioAttachedFiles}
+                      beforeUpload={(file) => {
+                        setIoAttachedFiles(prev => [...prev, file]);
+                        return false; // Prevent auto upload
+                      }}
+                      onRemove={(file) => {
+                        setIoAttachedFiles(prev => prev.filter(f => f.uid !== file.uid));
+                      }}
+                    >
+                      <Button icon={<UploadOutlined />}>Select Files</Button>
+                    </Upload>
+                  </div>
+
+                  <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>Written Details (Optional):</Text>
+                  <TextArea
+                    rows={8}
+                    value={ioReportText}
+                    onChange={e => setIoReportText(e.target.value)}
+                    placeholder="Enter the detailed investigation report, actions taken, and final recommendations here..."
+                    style={{ fontFamily: 'monospace', fontSize: 14, padding: 12 }}
+                  />
+                  <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                    <Button onClick={() => setShowIoReportModal(false)}>Cancel</Button>
+                    <Button type="primary" onClick={handleSaveIoReport} disabled={!ioReportText.trim() && ioAttachedFiles.length === 0}>
+                      Submit
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </Modal>
+
+      {/* ── SHO View Report Modal ── */}
+      <Modal
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <EyeOutlined style={{ color: '#3b82f6' }} />
+            <span>IO Investigation Documents & Report</span>
+          </div>
+        }
+        open={showShoReportModal}
+        onCancel={() => setShowShoReportModal(false)}
+        footer={[
+          <Button key="close" type="primary" onClick={() => setShowShoReportModal(false)}>
+            Close
+          </Button>
+        ]}
+        width={700}
+      >
+        <div style={{ background: '#1e2130', padding: 16, borderRadius: 8, border: '1px solid #30363d', maxHeight: '60vh', overflowY: 'auto' }}>
+          {shoViewAttachedFiles && shoViewAttachedFiles.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>Attached Files:</Text>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                {shoViewAttachedFiles.map((file, idx) => (
+                  <div key={idx} style={{ background: '#252839', padding: '8px 12px', borderRadius: 4, border: '1px solid #30363d', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <UploadOutlined style={{ color: '#8b949e' }} />
+                    <Text style={{ color: '#c9d1d9' }}>{file}</Text>
+                    <Button size="small" type="primary" ghost style={{ marginLeft: 'auto' }} onClick={() => setPreviewFile(file)}>View</Button>
+                  </div>
+                ))}
+              </Space>
+            </div>
+          )}
+          {shoViewReportText && (
+            <>
+              <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>Written Details:</Text>
+              <div style={{ whiteSpace: 'pre-wrap', color: '#e5e7eb', fontSize: 14, fontFamily: 'monospace', lineHeight: 1.6, background: '#13151f', padding: 12, borderRadius: 4 }}>
+                {shoViewReportText}
+              </div>
+            </>
+          )}
+          {!shoViewReportText && (!shoViewAttachedFiles || shoViewAttachedFiles.length === 0) && (
+            <Empty description="No documents or details were provided by the IO." />
+          )}
+        </div>
+      </Modal>
+
+      {/* ── File Preview Modal ── */}
+      <Modal
+        title={`Viewing: ${previewFile}`}
+        open={!!previewFile}
+        onCancel={() => setPreviewFile(null)}
+        footer={[
+          <Button key="close" type="primary" onClick={() => setPreviewFile(null)}>
+            Close
+          </Button>
+        ]}
+        width={800}
+        style={{ top: 20 }}
+      >
+        <div style={{ height: '60vh', background: '#141414', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1px solid #30363d', borderRadius: 8 }}>
+          <FileTextOutlined style={{ fontSize: 64, color: '#3b82f6', marginBottom: 16 }} />
+          <Text style={{ color: '#e5e7eb', fontSize: 18 }}>{previewFile}</Text>
+          <Text type="secondary" style={{ marginTop: 12, textAlign: 'center', maxWidth: 400 }}>
+            Document preview is simulated.<br />
+            In a real environment with a backend, this area would display the actual PDF, Image, or Video content uploaded by the IO.
+          </Text>
+        </div>
       </Modal>
 
     </div>

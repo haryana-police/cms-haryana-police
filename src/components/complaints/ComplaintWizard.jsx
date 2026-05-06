@@ -415,16 +415,15 @@ TYPE OF ACCUSED (typeOfAccused) — Use EXACT enum value:
   * "Suo-Moto(Newspaper/Social Media/Internet etc)" → police noticed via news/social media
 - If unclear or not mentioned, default to "In-Person/By Hand".
 
-[11] DESCRIPTION OF COMPLAINT — EXACT ORIGINAL TEXT RULE (MOST IMPORTANT)
-THIS IS NOT A SUMMARIZATION OR TRANSLATION TASK.
-YOUR TASK: Copy the EXACT ORIGINAL BODY of the complaint text exactly as written in the document.
+[11] DESCRIPTION OF COMPLAINT — ENGLISH TRANSLATION RULE (MOST IMPORTANT)
+YOUR TASK: Extract the main body of the complaint and translate it accurately to English.
 
 EXACT RULES:
 - Find the main body of the complaint (the narrative section where the complainant describes what happened).
-- COPY IT VERBATIM IN ITS ORIGINAL LANGUAGE (whether Hindi or English). 
-- DO NOT TRANSLATE to English. DO NOT REPHRASE. DO NOT SUMMARIZE.
-- Every single word must perfectly match the original document. Do not fix grammar or spelling mistakes.
-- This guarantees that the description will be 100% identical every time you process the same PDF without any hallucination.
+- TRANSLATE IT TO ENGLISH — regardless of whether the original is in Hindi, Punjabi, Urdu, or any other language.
+- Keep the translation faithful and accurate — do not add, remove, or alter any facts.
+- Do NOT summarize. Include all details mentioned in the original complaint body.
+- Every time you process the same PDF, the translation must convey the same meaning consistently.
 
 [12] ADDRESS ANALYSIS (CRITICAL)
 - The complainant may have a Present/Current Address and a separate Permanent Address.
