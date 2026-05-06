@@ -405,3 +405,70 @@ textarea.ant-input { color: var(--text) !important; }
   background-color: rgba(24, 144, 255, 0.1) !important;
   border: 1px solid rgba(24, 144, 255, 0.5) !important;
 }
+
+/* ── Duplicate Complaint Modal (Dark Theme Override) ──────────────────────── */
+/* Target the root and wrap classes properly */
+.dark-duplicate-modal-root .ant-modal,
+.dark-duplicate-modal-wrap .ant-modal,
+.dark-duplicate-modal .ant-modal,
+.dark-duplicate-modal-root .ant-modal-content,
+.dark-duplicate-modal-wrap .ant-modal-content,
+.dark-duplicate-modal .ant-modal-content {
+  background: var(--bg) !important;
+  background-color: var(--bg) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Force inner wrappers to be dark as well */
+.dark-duplicate-modal-root .ant-modal-body,
+.dark-duplicate-modal-root .ant-modal-confirm-body-wrapper,
+.dark-duplicate-modal-wrap .ant-modal-body,
+.dark-duplicate-modal-wrap .ant-modal-confirm-body-wrapper,
+.dark-duplicate-modal .ant-modal-body,
+.dark-duplicate-modal .ant-modal-confirm-body-wrapper {
+  background: var(--bg) !important;
+  background-color: var(--bg) !important;
+}
+
+/* Restore padding to the body so content doesn't touch edges */
+.dark-duplicate-modal-root .ant-modal-body,
+.dark-duplicate-modal-wrap .ant-modal-body,
+.dark-duplicate-modal .ant-modal-body {
+  padding: 32px 32px 24px !important;
+}
+
+/* Text Colors */
+.dark-duplicate-modal-root .ant-modal-confirm-title,
+.dark-duplicate-modal-wrap .ant-modal-confirm-title,
+.dark-duplicate-modal .ant-modal-confirm-title,
+.dark-duplicate-modal-root .ant-modal-confirm-content,
+.dark-duplicate-modal-wrap .ant-modal-confirm-content,
+.dark-duplicate-modal .ant-modal-confirm-content {
+  color: var(--text) !important;
+}
+
+/* Highlights */
+.dark-duplicate-modal-root .ant-modal-confirm-content strong,
+.dark-duplicate-modal-wrap .ant-modal-confirm-content strong,
+.dark-duplicate-modal .ant-modal-confirm-content strong {
+  color: var(--accent) !important;
+}
+
+/* Buttons */
+.dark-duplicate-modal-root .ant-btn-default,
+.dark-duplicate-modal-wrap .ant-btn-default,
+.dark-duplicate-modal .ant-btn-default {
+  background: transparent !important;
+  border-color: var(--border) !important;
+  color: var(--accent) !important;
+}
+
+.dark-duplicate-modal-root .ant-btn-default:hover,
+.dark-duplicate-modal-wrap .ant-btn-default:hover,
+.dark-duplicate-modal .ant-btn-default:hover {
+  border-color: var(--accent-hover) !important;
+  color: var(--accent-hover) !important;
+}

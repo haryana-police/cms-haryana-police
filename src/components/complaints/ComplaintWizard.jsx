@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Card, Steps, Button, Typography, Space, Row, Col, Upload, message, Form, Input, Select, DatePicker, TimePicker, Divider, Result, Radio } from 'antd';
+import { Card, Steps, Button, Typography, Space, Row, Col, Upload, message, Form, Input, Select, DatePicker, TimePicker, Divider, Result, Radio, Modal } from 'antd';
 import { FilePdfOutlined, AudioOutlined, InboxOutlined, RobotOutlined, CheckCircleOutlined, PaperClipOutlined, DownloadOutlined, MinusCircleOutlined, PlusOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { Document, Packer, Paragraph as DocxParagraph, TextRun } from 'docx';
@@ -42,6 +42,7 @@ export default function ComplaintWizard({ onBack }) {
   });
   const [selectedTemplate, setSelectedTemplate] = useState(() => { try { return localStorage.getItem('complaint_template') || null; } catch { return null; } });
   const [documentText, setDocumentText] = useState(() => { try { return localStorage.getItem('complaint_docText') || ''; } catch { return ''; } });
+  const [duplicateModalData, setDuplicateModalData] = useState(null); // { duplicate, values, existing }
 
   React.useEffect(() => { localStorage.setItem('complaint_currentStep', currentStep); }, [currentStep]);
   // Safety: if currentStep is ever invalid (e.g. stale cache from old version), reset to 0
@@ -414,19 +415,16 @@ TYPE OF ACCUSED (typeOfAccused) — Use EXACT enum value:
   * "Suo-Moto(Newspaper/Social Media/Internet etc)" → police noticed via news/social media
 - If unclear or not mentioned, default to "In-Person/By Hand".
 
-[11] DESCRIPTION OF COMPLAINT — VERBATIM COPY RULE (MOST IMPORTANT)
-THIS IS NOT A SUMMARIZATION TASK. DO NOT WRITE A SUMMARY.
-YOUR TASK: Copy the BODY of the complaint text, translated faithfully to English.
+[11] DESCRIPTION OF COMPLAINT — EXACT ORIGINAL TEXT RULE (MOST IMPORTANT)
+THIS IS NOT A SUMMARIZATION OR TRANSLATION TASK.
+YOUR TASK: Copy the EXACT ORIGINAL BODY of the complaint text exactly as written in the document.
 
 EXACT RULES:
 - Find the main body of the complaint (the narrative section where the complainant describes what happened).
-- COPY it word-for-word, translating Hindi to English as you go.
-- Do NOT rephrase. Do NOT condense. Do NOT add headings or bullet points. Do NOT add any sentence not in the original.
-- Do NOT add context, analysis, or your own interpretation.
-- The output must be a plain paragraph that reads like a direct English translation of the original complaint text.
-- Every sentence in your output must correspond to a sentence in the document.
-- If you run this extraction 10 times, this field must produce IDENTICAL text every time.
-- This field will be used for legal documentation — accuracy is mandatory.
+- COPY IT VERBATIM IN ITS ORIGINAL LANGUAGE (whether Hindi or English). 
+- DO NOT TRANSLATE to English. DO NOT REPHRASE. DO NOT SUMMARIZE.
+- Every single word must perfectly match the original document. Do not fix grammar or spelling mistakes.
+- This guarantees that the description will be 100% identical every time you process the same PDF without any hallucination.
 
 [12] ADDRESS ANALYSIS (CRITICAL)
 - The complainant may have a Present/Current Address and a separate Permanent Address.
@@ -558,6 +556,55 @@ ${textToProcess}
   // Old toggleRecording logic removed
 
   const onFinish = (values) => {
+    const existing = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
+
+    // Check for duplicate complaint using a scoring system
+    const duplicate = existing.find(c => {
+      // 1. Check if Incident Class matches - Mandatory
+      if (!c.classOfIncident || !values.classOfIncident || c.classOfIncident !== values.classOfIncident) {
+        return false;
+      }
+      
+      const name1 = ((c.firstName || '') + ' ' + (c.lastName || '')).trim().toLowerCase();
+      const name2 = ((values.firstName || '') + ' ' + (values.lastName || '')).trim().toLowerCase();
+      const sameName = name1 && name2 && name1 === name2;
+
+      const date1 = c.dateOfIncident ? String(c.dateOfIncident) : '';
+      const date2 = values.dateOfIncident ? String(values.dateOfIncident) : '';
+      const sameDate = date1 && date2 && date1 === date2;
+
+      const place1 = (c.placeOfIncident || '').trim().toLowerCase();
+      const place2 = (values.placeOfIncident || '').trim().toLowerCase();
+      const samePlace = place1 && place2 && place1 === place2;
+
+      const accused1 = (c.accusedList || []).map(a => (a.name || '').toLowerCase().trim()).filter(Boolean);
+      const accused2 = (values.accusedList || []).map(a => (a.name || '').toLowerCase().trim()).filter(Boolean);
+      const sameAccused = accused1.length > 0 && accused1.some(a => accused2.includes(a));
+      
+      const sameMobile = c.mobileNumber && values.mobileNumber && c.mobileNumber === values.mobileNumber;
+
+      // Scoring Logic to handle typos (e.g. Kamlesh vs Kamalash)
+      let score = 0;
+      if (sameName) score += 2;
+      if (sameMobile) score += 3;
+      if (sameDate) score += 2;
+      if (samePlace) score += 2;
+      if (sameAccused) score += 2;
+
+      // Threshold is 4. This means we need at least two major fields to match 
+      // (e.g. Date + Place, or Name + Accused) to trigger the duplicate warning.
+      return score >= 4;
+    });
+
+    if (duplicate) {
+      setDuplicateModalData({ duplicate, values, existing });
+      return;
+    }
+
+    proceedRegistration(values, existing);
+  };
+
+  const proceedRegistration = (values, existing) => {
     // Generate a unique complaint ID
     const complaintId = 'C' + Math.floor(10000 + Math.random() * 90000);
     const now = new Date();
@@ -572,8 +619,6 @@ ${textToProcess}
       appliedTemplate: null,
     };
 
-    // Save to registeredComplaints list in localStorage
-    const existing = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
     existing.unshift(complaintRecord); // newest first
     localStorage.setItem('registeredComplaints', JSON.stringify(existing));
 
@@ -1402,6 +1447,7 @@ ${textToProcess}
   );
 
   return (
+    <>
     <Card bordered={false}>
       <style>{`
         .auto-extracted-field,
@@ -1420,5 +1466,105 @@ ${textToProcess}
       {currentStep === 1 && renderDataInput()}
       {currentStep === 2 && renderForm()}
     </Card>
+
+    {/* ── Custom Duplicate Modal — fully dark, no Ant Design CSS-in-JS ── */}
+    {duplicateModalData && (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: 'rgba(0,0,0,0.65)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        backdropFilter: 'blur(2px)',
+      }}>
+        <div style={{
+          background: '#1e2130',
+          border: '1px solid #30363d',
+          borderRadius: '10px',
+          width: '420px',
+          maxWidth: '90vw',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+          overflow: 'hidden',
+        }}>
+          {/* Header */}
+          <div style={{
+            padding: '20px 24px 16px',
+            borderBottom: '1px solid #30363d',
+            display: 'flex', alignItems: 'center', gap: '12px',
+          }}>
+            <span style={{ fontSize: '22px' }}>⚠️</span>
+            <span style={{ color: '#f0f6fc', fontWeight: 700, fontSize: '16px' }}>
+              Duplicate Complaint Detected
+            </span>
+          </div>
+
+          {/* Body */}
+          <div style={{ padding: '20px 24px', color: '#c9d1d9', lineHeight: 1.7 }}>
+            <p style={{ marginBottom: '12px' }}>
+              This complaint appears to be already registered in the system.
+            </p>
+            <p style={{ margin: '4px 0' }}>
+              <span style={{ color: '#3b82f6', fontWeight: 600 }}>Complaint ID: </span>
+              {duplicateModalData.duplicate.id}
+            </p>
+            <p style={{ margin: '4px 0' }}>
+              <span style={{ color: '#3b82f6', fontWeight: 600 }}>Status: </span>
+              {duplicateModalData.duplicate.status}
+            </p>
+            <p style={{ margin: '4px 0' }}>
+              <span style={{ color: '#3b82f6', fontWeight: 600 }}>Assigned IO: </span>
+              {duplicateModalData.duplicate.assignedTo || 'Pending Assignment'}
+            </p>
+            <p style={{ margin: '4px 0' }}>
+              <span style={{ color: '#3b82f6', fontWeight: 600 }}>Date Registered: </span>
+              {duplicateModalData.duplicate.dateRegistered}
+            </p>
+            <p style={{ marginTop: '16px', color: '#c9d1d9' }}>
+              Do you still want to register this as a new complaint?
+            </p>
+          </div>
+
+          {/* Footer buttons */}
+          <div style={{
+            padding: '12px 24px 20px',
+            display: 'flex', justifyContent: 'flex-end', gap: '10px',
+          }}>
+            <button
+              onClick={() => setDuplicateModalData(null)}
+              style={{
+                padding: '7px 20px',
+                borderRadius: '6px',
+                border: '1px solid #30363d',
+                background: 'transparent',
+                color: '#3b82f6',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 500,
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                const { values, existing } = duplicateModalData;
+                setDuplicateModalData(null);
+                proceedRegistration(values, existing);
+              }}
+              style={{
+                padding: '7px 20px',
+                borderRadius: '6px',
+                border: 'none',
+                background: '#3b82f6',
+                color: '#ffffff',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 600,
+              }}
+            >
+              Register Anyway
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
