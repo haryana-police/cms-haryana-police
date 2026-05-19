@@ -7,43 +7,49 @@
 /* ── Dark Theme (default) ─────────────────────────────────────────────────── */
 :root {
   /* Text — WCAG AA: all > 4.5:1 on #1e2130 */
-  --text:        #c9d1d9;          /* 7.5:1 on #1e2130  */
-  --text-h:      #f0f6fc;          /* 14.5:1 — headings  */
-  --text-dim:    #8b949e;          /* 4.6:1 — captions   */
+  --text: #c9d1d9;
+  /* 7.5:1 on #1e2130  */
+  --text-h: #f0f6fc;
+  /* 14.5:1 — headings  */
+  --text-dim: #8b949e;
+  /* 4.6:1 — captions   */
 
   /* Surfaces */
-  --bg:          #1e2130;          /* card / container   */
-  --bg-subtle:   #13151f;          /* page background    */
-  --bg-elevated: #252839;          /* modals, dropdowns  */
+  --bg: #1e2130;
+  /* card / container   */
+  --bg-subtle: #13151f;
+  /* page background    */
+  --bg-elevated: #252839;
+  /* modals, dropdowns  */
 
   /* Borders */
-  --border:      #30363d;
-  --border-sub:  #21262d;
+  --border: #30363d;
+  --border-sub: #21262d;
 
   /* Code / pre */
-  --code-bg:     #252839;
+  --code-bg: #252839;
 
   /* Accent — electric blue */
-  --accent:        #3b82f6;
-  --accent-hover:  #60a5fa;
-  --accent-bg:     rgba(59, 130, 246, 0.12);
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-bg: rgba(59, 130, 246, 0.12);
   --accent-border: rgba(59, 130, 246, 0.40);
 
   /* Semantic */
-  --success:  #4ade80;
-  --warning:  #fbbf24;
-  --danger:   #f87171;
-  --info:     #38bdf8;
-  --purple:   #a78bfa;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --info: #38bdf8;
+  --purple: #a78bfa;
 
   /* Shadows */
-  --shadow:    0 1px 3px rgba(0,0,0,0.4), 0 4px 14px rgba(0,0,0,0.35);
-  --shadow-lg: 0 8px 24px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4);
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
 
   /* Typography */
-  --sans:    'Inter', 'Segoe UI', system-ui, sans-serif;
+  --sans: 'Inter', 'Segoe UI', system-ui, sans-serif;
   --heading: 'Inter', 'Segoe UI', system-ui, sans-serif;
-  --mono:    'JetBrains Mono', ui-monospace, Consolas, monospace;
+  --mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
 
   font: 14px/1.55 var(--sans);
   letter-spacing: 0.012em;
@@ -54,36 +60,23 @@
   text-rendering: optimizeLegibility;
   color-scheme: dark;
 
-  @media (max-width: 1024px) { font-size: 13px; }
+  @media (max-width: 1024px) {
+    font-size: 13px;
+  }
 }
 
-<<<<<<< HEAD
 @media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
   #social .button-icon {
     filter: invert(1) brightness(2);
   }
 
   input:-webkit-autofill,
-  input:-webkit-autofill:hover, 
-  input:-webkit-autofill:focus, 
-  input:-webkit-autofill:active{
-      -webkit-box-shadow: 0 0 0 30px #141414 inset !important;
-      -webkit-text-fill-color: #f3f4f6 !important;
-      transition: background-color 5000s ease-in-out 0s;
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px #141414 inset !important;
+    -webkit-text-fill-color: #f3f4f6 !important;
+    transition: background-color 5000s ease-in-out 0s;
   }
 
   /* Global dark loading message for Ant Design */
@@ -92,17 +85,15 @@
     color: rgba(255, 255, 255, 0.85) !important;
     border: 1px solid var(--border) !important;
   }
+
   .anticon-loading {
     color: #1890ff !important;
   }
+
   .ant-message-custom-content {
     color: rgba(255, 255, 255, 0.85) !important;
   }
 }
-=======
-/* ── Reset ────────────────────────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; }
->>>>>>> origin/main
 
 body {
   margin: 0;
@@ -123,24 +114,59 @@ body {
 }
 
 /* ── Typography ──────────────────────────────────────────────────────────── */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-family: var(--heading);
   font-weight: 600;
   color: var(--text-h);
   margin: 0;
   line-height: 1.35;
 }
-h1 { font-size: 1.9rem; letter-spacing: -0.03em; }
-h2 { font-size: 1.4rem; letter-spacing: -0.02em; }
-h3 { font-size: 1.15rem; }
-h4 { font-size: 1rem;   }
-h5 { font-size: 0.9rem; }
 
-p  { margin: 0; color: var(--text); line-height: 1.65; }
-a  { color: var(--accent); text-decoration: none; }
-a:hover { color: var(--accent-hover); text-decoration: underline; }
+h1 {
+  font-size: 1.9rem;
+  letter-spacing: -0.03em;
+}
 
-code, .counter {
+h2 {
+  font-size: 1.4rem;
+  letter-spacing: -0.02em;
+}
+
+h3 {
+  font-size: 1.15rem;
+}
+
+h4 {
+  font-size: 1rem;
+}
+
+h5 {
+  font-size: 0.9rem;
+}
+
+p {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.65;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+code,
+.counter {
   font-family: var(--mono);
   display: inline-flex;
   border-radius: 4px;
@@ -155,156 +181,312 @@ code, .counter {
 /* ── Ant Design Global Overrides ─────────────────────────────────────────── */
 
 /* Layout */
-.ant-layout  { background: var(--bg-subtle) !important; }
-.ant-layout-content { background: transparent !important; }
+.ant-layout {
+  background: var(--bg-subtle) !important;
+}
+
+.ant-layout-content {
+  background: transparent !important;
+}
 
 /* Card */
 .ant-card {
   background: var(--bg) !important;
   border-color: var(--border) !important;
 }
+
 .ant-card-head {
   border-bottom-color: var(--border) !important;
   background: var(--bg) !important;
 }
+
 .ant-card-head-title,
-.ant-card-extra { color: var(--text-h) !important; font-weight: 600 !important; }
-.ant-card-body  { color: var(--text) !important; }
+.ant-card-extra {
+  color: var(--text-h) !important;
+  font-weight: 600 !important;
+}
+
+.ant-card-body {
+  color: var(--text) !important;
+}
 
 /* Typography */
-.ant-typography              { color: var(--text) !important; }
-.ant-typography-secondary    { color: var(--text-dim) !important; }
-.ant-typography h1, .ant-typography h2,
-.ant-typography h3, .ant-typography h4,
-.ant-typography h5 { color: var(--text-h) !important; }
-.ant-typography-danger       { color: var(--danger) !important; }
-.ant-typography-warning      { color: var(--warning) !important; }
-.ant-typography-success      { color: var(--success) !important; }
-.ant-typography-code { background: var(--code-bg) !important; color: var(--text-h) !important; }
-.ant-typography strong, strong { color: var(--text-h) !important; }
-span.ant-typography { color: inherit; }
+.ant-typography {
+  color: var(--text) !important;
+}
+
+.ant-typography-secondary {
+  color: var(--text-dim) !important;
+}
+
+.ant-typography h1,
+.ant-typography h2,
+.ant-typography h3,
+.ant-typography h4,
+.ant-typography h5 {
+  color: var(--text-h) !important;
+}
+
+.ant-typography-danger {
+  color: var(--danger) !important;
+}
+
+.ant-typography-warning {
+  color: var(--warning) !important;
+}
+
+.ant-typography-success {
+  color: var(--success) !important;
+}
+
+.ant-typography-code {
+  background: var(--code-bg) !important;
+  color: var(--text-h) !important;
+}
+
+.ant-typography strong,
+strong {
+  color: var(--text-h) !important;
+}
+
+span.ant-typography {
+  color: inherit;
+}
 
 /* Table */
-.ant-table { background: var(--bg) !important; color: var(--text) !important; font-size: 13px; }
-.ant-table-thead > tr > th {
+.ant-table {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+  font-size: 13px;
+}
+
+.ant-table-thead>tr>th {
   background: var(--code-bg) !important;
   color: var(--text-h) !important;
   font-weight: 600 !important;
   border-bottom-color: var(--border) !important;
-  font-size: 12px; letter-spacing: 0.04em;
+  font-size: 12px;
+  letter-spacing: 0.04em;
 }
-.ant-table-tbody > tr > td {
+
+.ant-table-tbody>tr>td {
   border-bottom-color: var(--border-sub) !important;
   color: var(--text) !important;
   background: var(--bg) !important;
 }
-.ant-table-tbody > tr:hover > td,
-.ant-table-cell-row-hover { background: var(--code-bg) !important; }
-.ant-table-placeholder { background: var(--bg) !important; }
+
+.ant-table-tbody>tr:hover>td,
+.ant-table-cell-row-hover {
+  background: var(--code-bg) !important;
+}
+
+.ant-table-placeholder {
+  background: var(--bg) !important;
+}
 
 /* Statistic */
-.ant-statistic-title   { color: var(--text-dim) !important; font-size: 12px !important; font-weight: 500; }
-.ant-statistic-content { color: var(--text-h) !important; }
-.ant-statistic-content-value { color: inherit; }
+.ant-statistic-title {
+  color: var(--text-dim) !important;
+  font-size: 12px !important;
+  font-weight: 500;
+}
+
+.ant-statistic-content {
+  color: var(--text-h) !important;
+}
+
+.ant-statistic-content-value {
+  color: inherit;
+}
 
 /* Tabs */
-.ant-tabs-tab        { color: var(--text-dim) !important; font-size: 13px; }
-.ant-tabs-tab-active .ant-tabs-tab-btn { color: var(--accent-hover) !important; }
-.ant-tabs-ink-bar    { background: var(--accent) !important; }
-.ant-tabs-nav-wrap   { background: var(--code-bg) !important; }
-.ant-tabs-content-holder { 
-  background: var(--bg) !important; 
+.ant-tabs-tab {
+  color: var(--text-dim) !important;
+  font-size: 13px;
+}
+
+.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--accent-hover) !important;
+}
+
+.ant-tabs-ink-bar {
+  background: var(--accent) !important;
+}
+
+.ant-tabs-nav-wrap {
+  background: var(--code-bg) !important;
+}
+
+.ant-tabs-content-holder {
+  background: var(--bg) !important;
   display: flex !important;
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
 }
+
 .ant-tabs-content {
   display: flex !important;
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
 }
+
 .ant-tabs-tabpane.ant-tabs-tabpane-active {
   display: flex !important;
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
 }
+
 .ant-tabs-tabpane {
   /* Inactive panes are display: none by default in Antd; explicitly preserve that behavior */
 }
-.ant-tabs-nav        { margin-bottom: 0 !important; }
-.ant-tabs-tab + .ant-tabs-tab { margin: 0 0 0 20px !important; }
+
+.ant-tabs-nav {
+  margin-bottom: 0 !important;
+}
+
+.ant-tabs-tab+.ant-tabs-tab {
+  margin: 0 0 0 20px !important;
+}
 
 /* Select */
-.ant-select-selector      { background: var(--bg) !important; border-color: var(--border) !important; color: var(--text-h) !important; }
-.ant-select-selection-item{ color: var(--text-h) !important; }
-.ant-select-arrow         { color: var(--text-dim) !important; }
-.ant-select-dropdown      { background: var(--bg-elevated) !important; border: 1px solid var(--border) !important; }
-.ant-select-item-option-content { color: var(--text) !important; }
-.ant-select-item-option-selected .ant-select-item-option-content { color: var(--accent-hover) !important; }
-.ant-select-item-option-active  { background: var(--accent-bg) !important; }
+.ant-select-selector {
+  background: var(--bg) !important;
+  border-color: var(--border) !important;
+  color: var(--text-h) !important;
+}
+
+.ant-select-selection-item {
+  color: var(--text-h) !important;
+}
+
+.ant-select-arrow {
+  color: var(--text-dim) !important;
+}
+
+.ant-select-dropdown {
+  background: var(--bg-elevated) !important;
+  border: 1px solid var(--border) !important;
+}
+
+.ant-select-item-option-content {
+  color: var(--text) !important;
+}
+
+.ant-select-item-option-selected .ant-select-item-option-content {
+  color: var(--accent-hover) !important;
+}
+
+.ant-select-item-option-active {
+  background: var(--accent-bg) !important;
+}
 
 /* Input */
 .ant-input,
-.ant-input-affix-wrapper { background: var(--bg) !important; border-color: var(--border) !important; color: var(--text-h) !important; }
+.ant-input-affix-wrapper {
+  background: var(--bg) !important;
+  border-color: var(--border) !important;
+  color: var(--text-h) !important;
+}
+
 .ant-input::placeholder,
-.ant-input-affix-wrapper > input::placeholder { color: var(--text-dim) !important; }
-.ant-input-prefix, .ant-input-suffix { color: var(--text-dim) !important; }
-.ant-input-search-button { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important; }
-textarea.ant-input { color: var(--text) !important; }
+.ant-input-affix-wrapper>input::placeholder {
+  color: var(--text-dim) !important;
+}
+
+.ant-input-prefix,
+.ant-input-suffix {
+  color: var(--text-dim) !important;
+}
+
+.ant-input-search-button {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+}
+
+textarea.ant-input {
+  color: var(--text) !important;
+}
 
 /* Buttons */
 .ant-btn {
   font-size: 13px !important;
   font-weight: 500 !important;
 }
+
 .ant-btn-primary {
   background: var(--accent) !important;
   border-color: var(--accent) !important;
   color: #ffffff !important;
 }
+
 .ant-btn-primary:hover {
   background: var(--accent-hover) !important;
   border-color: var(--accent-hover) !important;
 }
+
 .ant-btn-default {
   background: var(--bg-elevated) !important;
   border-color: var(--border) !important;
   color: var(--text) !important;
 }
+
 .ant-btn-default:hover {
   border-color: var(--accent) !important;
   color: var(--accent-hover) !important;
 }
+
 .ant-btn-dangerous {
   color: var(--danger) !important;
   border-color: var(--danger) !important;
   background: transparent !important;
 }
+
 .ant-btn-dangerous:hover {
-  background: rgba(241,87,87,0.1) !important;
+  background: rgba(241, 87, 87, 0.1) !important;
 }
+
 .ant-btn-ghost {
   color: var(--text) !important;
   border-color: var(--border) !important;
   background: transparent !important;
 }
+
 .ant-btn-ghost:hover {
   color: var(--accent-hover) !important;
   border-color: var(--accent) !important;
 }
-.ant-btn-link { color: var(--accent-hover) !important; }
-.ant-btn-text { color: var(--text-dim) !important; }
-.ant-btn-text:hover { color: var(--text-h) !important; background: var(--accent-bg) !important; }
-.ant-btn[disabled], .ant-btn[disabled]:hover { opacity: 0.4 !important; cursor: not-allowed; }
+
+.ant-btn-link {
+  color: var(--accent-hover) !important;
+}
+
+.ant-btn-text {
+  color: var(--text-dim) !important;
+}
+
+.ant-btn-text:hover {
+  color: var(--text-h) !important;
+  background: var(--accent-bg) !important;
+}
+
+.ant-btn[disabled],
+.ant-btn[disabled]:hover {
+  opacity: 0.4 !important;
+  cursor: not-allowed;
+}
 
 /* Tags */
 .ant-tag {
-  font-size: 11px !important; font-weight: 500;
-  border-radius: 4px !important; padding: 1px 7px;
+  font-size: 11px !important;
+  font-weight: 500;
+  border-radius: 4px !important;
+  padding: 1px 7px;
 }
+
 .ant-tag-default {
   background: var(--code-bg) !important;
   border-color: var(--border) !important;
@@ -312,64 +494,269 @@ textarea.ant-input { color: var(--text) !important; }
 }
 
 /* Badge */
-.ant-badge-count { font-size: 10px !important; }
+.ant-badge-count {
+  font-size: 10px !important;
+}
 
 /* Alerts */
-.ant-alert { border-radius: 8px !important; border-width: 1px !important; }
-.ant-alert-message     { font-weight: 600 !important; font-size: 13px; color: var(--text-h) !important; }
-.ant-alert-description { font-size: 13px; color: var(--text) !important; }
-.ant-alert-warning  { background: rgba(251,191,36,0.08)  !important; border-color: rgba(251,191,36,0.35)  !important; }
-.ant-alert-error    { background: rgba(241,87,87,0.08)   !important; border-color: rgba(241,87,87,0.35)   !important; }
-.ant-alert-info     { background: rgba(56,189,248,0.08)  !important; border-color: rgba(56,189,248,0.35)  !important; }
-.ant-alert-success  { background: rgba(74,222,128,0.08)  !important; border-color: rgba(74,222,128,0.35)  !important; }
-.ant-alert-icon     { font-size: 14px; }
+.ant-alert {
+  border-radius: 8px !important;
+  border-width: 1px !important;
+}
+
+.ant-alert-message {
+  font-weight: 600 !important;
+  font-size: 13px;
+  color: var(--text-h) !important;
+}
+
+.ant-alert-description {
+  font-size: 13px;
+  color: var(--text) !important;
+}
+
+.ant-alert-warning {
+  background: rgba(251, 191, 36, 0.08) !important;
+  border-color: rgba(251, 191, 36, 0.35) !important;
+}
+
+.ant-alert-error {
+  background: rgba(241, 87, 87, 0.08) !important;
+  border-color: rgba(241, 87, 87, 0.35) !important;
+}
+
+.ant-alert-info {
+  background: rgba(56, 189, 248, 0.08) !important;
+  border-color: rgba(56, 189, 248, 0.35) !important;
+}
+
+.ant-alert-success {
+  background: rgba(74, 222, 128, 0.08) !important;
+  border-color: rgba(74, 222, 128, 0.35) !important;
+}
+
+.ant-alert-icon {
+  font-size: 14px;
+}
 
 /* Menu */
-.ant-menu         { background: transparent !important; border-inline-end: none !important; }
-.ant-menu-item    { color: var(--text) !important; border-radius: 6px !important; }
-.ant-menu-item-selected { background: var(--accent-bg) !important; color: var(--accent-hover) !important; }
-.ant-menu-item:hover    { background: var(--accent-bg) !important; color: var(--accent-hover) !important; }
+.ant-menu {
+  background: transparent !important;
+  border-inline-end: none !important;
+}
+
+.ant-menu-item {
+  color: var(--text) !important;
+  border-radius: 6px !important;
+}
+
+.ant-menu-item-selected {
+  background: var(--accent-bg) !important;
+  color: var(--accent-hover) !important;
+}
+
+.ant-menu-item:hover {
+  background: var(--accent-bg) !important;
+  color: var(--accent-hover) !important;
+}
 
 /* Progress */
-.ant-progress-text  { color: var(--text-h) !important; font-size: 12px !important; }
-.ant-progress-inner { background: var(--border) !important; }
+.ant-progress-text {
+  color: var(--text-h) !important;
+  font-size: 12px !important;
+}
+
+.ant-progress-inner {
+  background: var(--border) !important;
+}
 
 /* Spin */
-.ant-spin-dot-item { background-color: var(--accent) !important; }
+.ant-spin-dot-item {
+  background-color: var(--accent) !important;
+}
 
 /* Empty */
-.ant-empty-description { color: var(--text-dim) !important; font-size: 13px; }
+.ant-empty-description {
+  color: var(--text-dim) !important;
+  font-size: 13px;
+}
 
 /* Tooltip */
-.ant-tooltip-inner    { background: var(--bg-elevated) !important; color: var(--text-h) !important; font-size: 12px; }
-.ant-tooltip-arrow-content { background: var(--bg-elevated) !important; }
+.ant-tooltip-inner {
+  background: var(--bg-elevated) !important;
+  color: var(--text-h) !important;
+  font-size: 12px;
+}
+
+.ant-tooltip-arrow-content {
+  background: var(--bg-elevated) !important;
+}
 
 /* Dropdown */
-.ant-dropdown-menu       { background: var(--bg-elevated) !important; }
-.ant-dropdown-menu-item  { color: var(--text) !important; }
-.ant-dropdown-menu-item:hover { background: var(--accent-bg) !important; }
+.ant-dropdown-menu {
+  background: var(--bg-elevated) !important;
+}
+
+.ant-dropdown-menu-item {
+  color: var(--text) !important;
+}
+
+.ant-dropdown-menu-item:hover {
+  background: var(--accent-bg) !important;
+}
 
 /* Layout sider */
-.ant-layout-sider { background: var(--code-bg) !important; }
+.ant-layout-sider {
+  background: var(--code-bg) !important;
+}
 
 /* Divider */
-.ant-divider { border-color: var(--border) !important; }
+.ant-divider {
+  border-color: var(--border) !important;
+}
 
 /* Suspicious row */
-.suspicious-row > td  { background: rgba(241,87,87,0.05) !important; }
-.suspicious-row:hover > td { background: rgba(241,87,87,0.10) !important; }
+.suspicious-row>td {
+  background: rgba(241, 87, 87, 0.05) !important;
+}
+
+.suspicious-row:hover>td {
+  background: rgba(241, 87, 87, 0.10) !important;
+}
 
 /* ── Scrollbar ────────────────────────────────────────────────────────────── */
-::-webkit-scrollbar       { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-dim);
+}
 
 /* ── Selection ────────────────────────────────────────────────────────────── */
-::selection { background: var(--accent-bg); color: var(--text-h); }
+::selection {
+  background: var(--accent-bg);
+  color: var(--text-h);
+}
 
 /* ── FontAwesome Integration ─────────────────────────────────────────────── */
 .fa-icon-btn {
-  display: inline-flex; align-items: center; gap: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
-.fa-icon-btn svg { flex-shrink: 0; }
+
+.fa-icon-btn svg {
+  flex-shrink: 0;
+}
+
+/* ── Custom Overrides (Local) ─────────────────────────────────────────────── */
+
+/* Global dark loading message for Ant Design */
+.ant-message-notice-content {
+  background-color: var(--bg) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+  border: 1px solid var(--border) !important;
+}
+
+.anticon-loading {
+  color: #1890ff !important;
+}
+
+.ant-message-custom-content {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* Auto-extracted fields highlight */
+.auto-extracted-field.ant-input,
+.auto-extracted-field.ant-input-textarea {
+  background-color: rgba(24, 144, 255, 0.1) !important;
+  border: 1px solid rgba(24, 144, 255, 0.5) !important;
+}
+
+.auto-extracted-field.ant-select:not(.ant-select-customize-input) .ant-select-selector {
+  background-color: rgba(24, 144, 255, 0.1) !important;
+  border: 1px solid rgba(24, 144, 255, 0.5) !important;
+}
+
+.auto-extracted-field.ant-picker {
+  background-color: rgba(24, 144, 255, 0.1) !important;
+  border: 1px solid rgba(24, 144, 255, 0.5) !important;
+}
+
+/* ── Duplicate Complaint Modal (Dark Theme Override) ──────────────────────── */
+/* Target the root and wrap classes properly */
+.dark-duplicate-modal-root .ant-modal,
+.dark-duplicate-modal-wrap .ant-modal,
+.dark-duplicate-modal .ant-modal,
+.dark-duplicate-modal-root .ant-modal-content,
+.dark-duplicate-modal-wrap .ant-modal-content,
+.dark-duplicate-modal .ant-modal-content {
+  background: var(--bg) !important;
+  background-color: var(--bg) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Force inner wrappers to be dark as well */
+.dark-duplicate-modal-root .ant-modal-body,
+.dark-duplicate-modal-root .ant-modal-confirm-body-wrapper,
+.dark-duplicate-modal-wrap .ant-modal-body,
+.dark-duplicate-modal-wrap .ant-modal-confirm-body-wrapper,
+.dark-duplicate-modal .ant-modal-body,
+.dark-duplicate-modal .ant-modal-confirm-body-wrapper {
+  background: var(--bg) !important;
+  background-color: var(--bg) !important;
+}
+
+/* Restore padding to the body so content doesn't touch edges */
+.dark-duplicate-modal-root .ant-modal-body,
+.dark-duplicate-modal-wrap .ant-modal-body,
+.dark-duplicate-modal .ant-modal-body {
+  padding: 32px 32px 24px !important;
+}
+
+/* Text Colors */
+.dark-duplicate-modal-root .ant-modal-confirm-title,
+.dark-duplicate-modal-wrap .ant-modal-confirm-title,
+.dark-duplicate-modal .ant-modal-confirm-title,
+.dark-duplicate-modal-root .ant-modal-confirm-content,
+.dark-duplicate-modal-wrap .ant-modal-confirm-content,
+.dark-duplicate-modal .ant-modal-confirm-content {
+  color: var(--text) !important;
+}
+
+/* Highlights */
+.dark-duplicate-modal-root .ant-modal-confirm-content strong,
+.dark-duplicate-modal-wrap .ant-modal-confirm-content strong,
+.dark-duplicate-modal .ant-modal-confirm-content strong {
+  color: var(--accent) !important;
+}
+
+/* Buttons */
+.dark-duplicate-modal-root .ant-btn-default,
+.dark-duplicate-modal-wrap .ant-btn-default,
+.dark-duplicate-modal .ant-btn-default {
+  background: transparent !important;
+  border-color: var(--border) !important;
+  color: var(--accent) !important;
+}
+
+.dark-duplicate-modal-root .ant-btn-default:hover,
+.dark-duplicate-modal-wrap .ant-btn-default:hover,
+.dark-duplicate-modal .ant-btn-default:hover {
+  border-color: var(--accent-hover) !important;
+  color: var(--accent-hover) !important;
+}

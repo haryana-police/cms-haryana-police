@@ -120,6 +120,17 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
   }
 });
 
+// Get all IOs
+app.get('/api/users/ios', authenticateToken, (req, res) => {
+  try {
+    const ios = db.prepare('SELECT id, username, full_name, badge_number, rank, station_id FROM profiles WHERE role = ?').all('io');
+    res.json(ios);
+  } catch (error) {
+    console.error('Error fetching IOs:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // â”€â”€â”€ Groq API Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function callGroqAPI(messages, jsonMode = false, model = "llama-3.3-70b-versatile") {
   const apiKey = process.env.GROQ_API_KEY;

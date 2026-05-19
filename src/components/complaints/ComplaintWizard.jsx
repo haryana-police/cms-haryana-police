@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Card, Steps, Button, Typography, Space, Row, Col, Upload, message, Form, Input, Select, DatePicker, TimePicker, Divider, Result, Radio } from 'antd';
-import { FilePdfOutlined, AudioOutlined, InboxOutlined, RobotOutlined, CheckCircleOutlined, PaperClipOutlined, DownloadOutlined } from '@ant-design/icons';
+import { Card, Steps, Button, Typography, Space, Row, Col, Upload, message, Form, Input, Select, DatePicker, TimePicker, Divider, Result, Radio, Modal } from 'antd';
+import { FilePdfOutlined, AudioOutlined, InboxOutlined, RobotOutlined, CheckCircleOutlined, PaperClipOutlined, DownloadOutlined, MinusCircleOutlined, PlusOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { Document, Packer, Paragraph as DocxParagraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
@@ -14,31 +14,84 @@ const { Dragger } = Upload;
 const { TextArea } = Input;
 const { Option } = Select;
 
-export default function ComplaintWizard() {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [mode, setMode] = useState(null); // 'pdf' or 'voice'
+export default function ComplaintWizard({ onBack }) {
+  const [currentStep, setCurrentStep] = useState(() => {
+    try {
+      const saved = localStorage.getItem('complaint_currentStep');
+      const step = saved !== null ? parseInt(saved, 10) : 0;
+      // Clamp to valid range 0-2 (step 3 was removed — document generation is now in Enquiry)
+      return (step >= 0 && step <= 2) ? step : 0;
+    } catch { return 0; }
+  });
+  const [mode, setMode] = useState(() => { try { return localStorage.getItem('complaint_mode') || null; } catch { return null; } }); // 'pdf' or 'voice'
   const [isProcessing, setIsProcessing] = useState(false);
   const [form] = Form.useForm();
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [uploadedFile, setUploadedFile] = useState(null);
-  const [extractedData, setExtractedData] = useState(null); // Save extracted data for reliable auto-fill
-  const [complaintData, setComplaintData] = useState(null);
-  const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [documentText, setDocumentText] = useState('');
+  const [extractedData, setExtractedData] = useState(() => {
+    try {
+      const saved = localStorage.getItem('complaint_extractedData');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+  const [complaintData, setComplaintData] = useState(() => {
+    try {
+      const saved = localStorage.getItem('complaint_data');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+  const [selectedTemplate, setSelectedTemplate] = useState(() => { try { return localStorage.getItem('complaint_template') || null; } catch { return null; } });
+  const [documentText, setDocumentText] = useState(() => { try { return localStorage.getItem('complaint_docText') || ''; } catch { return ''; } });
+  const [duplicateModalData, setDuplicateModalData] = useState(null); // { duplicate, values, existing }
+
+  React.useEffect(() => { localStorage.setItem('complaint_currentStep', currentStep); }, [currentStep]);
+  // Safety: if currentStep is ever invalid (e.g. stale cache from old version), reset to 0
+  React.useEffect(() => { if (currentStep < 0 || currentStep > 2) setCurrentStep(0); }, [currentStep]);
+
+  React.useEffect(() => { if (mode) localStorage.setItem('complaint_mode', mode); else localStorage.removeItem('complaint_mode'); }, [mode]);
+  React.useEffect(() => { if (extractedData) localStorage.setItem('complaint_extractedData', JSON.stringify(extractedData)); else localStorage.removeItem('complaint_extractedData'); }, [extractedData]);
+  React.useEffect(() => { if (complaintData) localStorage.setItem('complaint_data', JSON.stringify(complaintData)); else localStorage.removeItem('complaint_data'); }, [complaintData]);
+  React.useEffect(() => { if (selectedTemplate) localStorage.setItem('complaint_template', selectedTemplate); else localStorage.removeItem('complaint_template'); }, [selectedTemplate]);
+  React.useEffect(() => { localStorage.setItem('complaint_docText', documentText); }, [documentText]);
 
   // Safe auto-fill execution when Form successfully mounts in Step 2
   React.useEffect(() => {
-    if (currentStep === 2 && extractedData) {
-      form.setFieldsValue(extractedData);
+    if (currentStep === 2) {
+      const savedForm = localStorage.getItem('complaint_formData');
+      if (savedForm) {
+        try {
+          const parsed = JSON.parse(savedForm);
+          if (parsed.dateOfIncident) parsed.dateOfIncident = dayjs(parsed.dateOfIncident);
+          if (parsed.timeOfIncident) parsed.timeOfIncident = dayjs(parsed.timeOfIncident);
+          if (parsed.dateOfComplaint) parsed.dateOfComplaint = dayjs(parsed.dateOfComplaint);
+          form.setFieldsValue(parsed);
+        } catch { localStorage.removeItem('complaint_formData'); }
+      } else if (extractedData) {
+        form.setFieldsValue(extractedData);
+      }
     }
   }, [currentStep, extractedData, form]);
+
+  const onValuesChange = (_, allValues) => {
+    localStorage.setItem('complaint_formData', JSON.stringify(allValues));
+  };
+
+  const getHighlightClass = (fieldName) => {
+    if (extractedData && extractedData[fieldName] !== undefined && extractedData[fieldName] !== null && extractedData[fieldName] !== '') {
+      return 'auto-extracted-field';
+    }
+    return '';
+  };
   
   // Voice Upload State using same uploadedFile
   
   // Supporting Documents State
-  const [hasSupportingDoc, setHasSupportingDoc] = useState('no');
+  const [hasSupportingDoc, setHasSupportingDoc] = useState(() => { try { return localStorage.getItem('complaint_hasDoc') || 'no'; } catch { return 'no'; } });
   const [supportingDocs, setSupportingDocs] = useState([]);
-  const [isSameAddress, setIsSameAddress] = useState('yes');
+  const [isSameAddress, setIsSameAddress] = useState(() => { try { return localStorage.getItem('complaint_sameAddr') || 'yes'; } catch { return 'yes'; } });
+
+  React.useEffect(() => { localStorage.setItem('complaint_hasDoc', hasSupportingDoc); }, [hasSupportingDoc]);
+  React.useEffect(() => { localStorage.setItem('complaint_sameAddr', isSameAddress); }, [isSameAddress]);
 
 
   // Extract Text from PDF locally
@@ -211,8 +264,12 @@ export default function ComplaintWizard() {
           "nationality": "string",
           "idType": "Aadhar Card" | "Any Other" | "Arms License" | "Driving License" | "Income Tax (PAN Card)" | "Passport" | "Ration Card" | "Visa" | "Voter Card" | "",
           "idNumber": "string",
-          "accusedName": "string",
-          "accusedAddress": "string",
+          "accusedList": [
+            {
+              "name": "string",
+              "address": "string"
+            }
+          ],
           "classOfIncident": "Cyber Crimes (other than financial fraud)" | "Cyber Financial Fraud" | "Other IPC/BNS Crimes" | "Other LSL Crimes" | "Miscellaneous" | "Crimes Against SC/ST" | "Crime Against Children" | "Matrimonial Dispute" | "Illegal Immigration" | "Job Related Fraud" | "Property/Land Dispute" | "Other Economic Offence" | "Noise Pollution" | "Runaway Couple" | "Security Threat" | "Deserter/Absent (Army/Paramilitary)" | "Death during Police Action" | "Death in Judicial Custody" | "Death in Police Custody" | "Corruption/Demand of Bribe" | "Human Rights Violation" | "Crime Against Women",
           "placeOfIncident": "string",
           "dateOfIncident": "ISO 8601 date string like '2023-10-25' or ''",
@@ -226,94 +283,158 @@ export default function ComplaintWizard() {
           "descriptionOfComplaint": "string"
         }`;
 
-      const prompt = `You are an expert Police Complaint analyzer for Haryana Police. The complaint may be in Hindi, English, or Hinglish (mix of both).
-Carefully read the text AND images provided. Extract all relevant information and return it as a strict JSON object matching the schema below.
+      const prompt = `You are a DATA EXTRACTION ENGINE for Haryana Police complaints. Your ONLY job is to READ and COPY data from the document. You are NOT a writer, NOT a summarizer, NOT an analyst.
+
+=== ABSOLUTE RULE #1 — NO HALLUCINATION ===
+NEVER write anything that is not LITERALLY present in the document.
+- If a field's information is missing from the document → leave it as "" (empty string).
+- Do NOT guess. Do NOT infer. Do NOT fill blanks with "likely" or "probably" values.
+- Do NOT repeat information from one field to fill another.
+- Every single character you output must have a direct, verifiable source in the input text.
+- Violation of this rule is a critical failure.
+
+=== ABSOLUTE RULE #2 — SAME INPUT = SAME OUTPUT ===
+You are extracting facts, not creating content. If you run this extraction 10 times on the same document, the output must be IDENTICAL every time. If your output varies between runs, you are hallucinating.
 
 === EXTRACTION RULES ===
-
 [1] LANGUAGE
 - Translate ALL Hindi content to English.
-- Transliterate Hindi names/places into Roman script. Example: "रामकुमार" becomes "Ramkumar", "हिसार" becomes "Hisar".
+- Transliterate Hindi names/places into Roman script. Example: "रामकुमार" → "Ramkumar", "हिसार" → "Hisar".
+- Translate faithfully — do NOT add, remove, or paraphrase any word.
 
 [2] COMPLAINANT NAME AND GENDER
-- firstName = first/given name only. lastName = surname/family name only.
-- If name is a single word, put it all in firstName, leave lastName as empty string.
-- Extract the COMPLAINANT name only, NOT the accused, witness, or officer name.
-- Deduce gender from context and name. Indian male names: Ram, Suresh, Vikram, Mohit. Female: Sunita, Priya, Kavita.
+- firstName = ONLY the complainant's first/given name as written.
+- lastName = ONLY a hereditary caste/family surname (like Sharma, Singh, Yadav, Gupta, Verma, Jat, etc.).
+- STRICT RULE: The following are RELATION words, NOT surnames. If any of these appear after the complainant's name, set lastName = "" (empty string):
+  Patni, Patnee, पत्नी (= wife of)
+  Putra, पुत्र (= son of)
+  Putri, Beti, पुत्री, बेटी (= daughter of)
+  Pita, पिता (= father of)
+  Mata, माता (= mother of)
+  Bahu, बहू (= daughter-in-law of)
+  S/O, W/O, D/O, C/O (= son/wife/daughter/care of)
+- EXAMPLES — follow these exactly:
+  "Sunita Patni Ram Kumar" → firstName="Sunita", lastName="" – Patni is a relation word, Ram Kumar is the husband
+  "Rekha W/O Rajesh Kumar" → firstName="Rekha", lastName=""
+  "Priya Beti Suresh" → firstName="Priya", lastName=""
+  "Amit Sharma" → firstName="Amit", lastName="Sharma" – Sharma is a valid caste surname
+- If name is only one word: firstName = that word, lastName = ""
+- Extract ONLY the COMPLAINANT's name. Never the accused, witness, or officer.
+- Gender: if Patni/W/O/Wife of/female relation word present → gender = "Female" strictly.
 
 [3] MOBILE NUMBER
-- Extract the complainant 10-digit mobile number. Strip +91 or leading 0 if present.
-- If not present: return empty string.
+- Extract the complainant's 10-digit mobile number. Strip +91 or leading 0 if present.
+- If not present: return empty string "".
 
-[4] ACCUSED
-- accusedName: The person the complaint is filed AGAINST. Look for keywords like "ke viruddh", "against", "pratadit". If unknown write "Unknown".
-- accusedAddress: The accused address. If unknown write "Unknown".
+[4] ACCUSED LIST — THIS IS THE MOST CRITICAL SECTION
+- Scan the ENTIRE document from start to finish. Do NOT stop after the first accused. Extract EVERY SINGLE person the complaint is filed against.
+- accusedList: An array of ALL accused persons. Each object must have 'name' and 'address'.
+
+ACCUSED NAME RULES — NO HALLUCINATION ALLOWED:
+- Write the accused's name EXACTLY as it appears in the document. Do NOT add, invent, or modify anything.
+- "urf" / "उर्फ" / "alias" rule: ONLY include "urf" or alias in the name if the word "urf" or "alias" is LITERALLY written in the document right next to that person's name.
+  * Document says "Kapinder" (no urf anywhere near this name) → write exactly: "Kapinder" — do NOT add "urf Kapinder" or anything else
+  * Document says "Virender urf Billa Kabba" → write exactly: "Virender urf Billa Kabba"
+  * NEVER invent or add "urf [something]" if "urf" is not literally in the document for that person.
+- S/O / W/O rule: ONLY append "S/O FatherName" or "W/O HusbandName" if the father's or husband's name of that specific accused is EXPLICITLY written in the document.
+  * Father name IS explicitly in document → write: "Kapinder S/O Inder" (example)
+  * Father name is NOT in document → write just: "Kapinder" — do NOT add S/O or any guess
+  * NEVER invent a father's name.
+- DO NOT skip any accused even if mentioned only once.
+- DO NOT list the complainant or the investigating officer (IO) as an accused.
+- If accused identity is completely unknown: write "Unknown".
+
+ACCUSED ADDRESS RULES:
+- Write the accused's address exactly as mentioned in the document. If not mentioned, write "Unknown".
+
+TYPE OF ACCUSED (typeOfAccused) — Use EXACT enum value:
+- Determine who the complaint is filed AGAINST. Choose the single best matching value:
+  * "Against Private Person"        → complaint against a common citizen (most common case)
+  * "Against Police Officer"        → accused is a police constable, SI, SHO, DSP, SP, etc.
+  * "Against Public Servant (Civil)"→ accused is a govt. employee (teacher, clerk, SDM, patwari, etc.)
+  * "Against Army and Paramilitary Force" → accused is an army/CRPF/BSF/CISF member
+  * "Against Organization / Department"  → accused is a company, NGO, institution, or department
+  * "Against Foreigner's"           → accused is a foreign national
+  * "Against Unknown Persons"       → accused identity is completely unknown
+- If no accused or unclear, return "".
+
 
 [5] DATES AND TIME
-- dateOfIncident: Date the actual crime occurred. Format YYYY-MM-DD. If unclear or missing return empty string.
-- timeOfIncident: Time the crime occurred in 24-hour format like "14:30:00". If not mentioned return "Not mentioned".
-- dateOfComplaint: Date complaint was written or submitted. Format YYYY-MM-DD. Default to today if missing.
+- dateOfIncident: Date the actual crime/incident occurred. Format YYYY-MM-DD. If unclear or missing return empty string "".
+- timeOfIncident: Time of incident in 24-hour format "HH:MM:00". If not mentioned return "".
+- dateOfComplaint: Date complaint was written or submitted. Format YYYY-MM-DD. Default to today's date if missing.
 - NEVER invent or guess dates. Extract only what is explicitly written in the document.
 
 [6] ID PROOF
-- idType: Detect any government ID mentioned such as Aadhar Card, Voter Card, PAN Card, Driving License, Passport, Ration Card, Arms License, Visa. Match to exact schema enum value.
+- idType: Detect government IDs: Aadhar Card, Voter Card, PAN Card, Driving License, Passport, Ration Card, Arms License, Visa. Match to exact schema enum value.
 - idNumber: Extract the actual ID number. Return empty string if not found.
 
+[6a] NATIONALITY
+- nationality: Extract the complainant's nationality if explicitly mentioned (e.g. "Indian", "Nepali", "Bangladeshi").
+- If not mentioned in the document, default to "Indian" (since this is a Haryana Police complaint system).
+
+
 [7] INCIDENT DETAILS
-- classOfIncident: Categorize from schema enum. Examples: land grab maps to "Property/Land Dispute", UPI fraud maps to "Cyber Financial Fraud", wife beating maps to "Crime Against Women", bribe demand maps to "Corruption/Demand of Bribe".
+- classOfIncident: Categorize from schema enum. Examples: land grab → "Property/Land Dispute", UPI fraud → "Cyber Financial Fraud", wife beating/marital abuse → "Crime Against Women", bribe demand → "Corruption/Demand of Bribe", assault/fighting → "Other IPC/BNS Crimes".
 - placeOfIncident: The specific location where the incident happened. Never leave empty, use "Unknown" if truly missing.
 
-[8] COMPLAINT TYPE AND PURPOSE - Use EXACT enum values only
+[8] COMPLAINT TYPE AND PURPOSE — Use EXACT enum values only
 - typeOfComplaint:
-  "Fresh Complaint" means brand new first-time complaint
-  "Repeat (Same Matter)" means re-filed on same incident
-  "Legal Notice" means legally accompanied notice
-  "Source Report" means from informant or intelligence tip
+  "Fresh Complaint" = brand new first-time complaint
+  "Repeat (Same Matter)" = re-filed on the same incident
+  "Legal Notice" = legally accompanied notice
+  "Source Report" = from informant or intelligence tip
 - complaintPurpose:
-  "Enquiry" means investigation request, fact-finding, NCR, preventive, lost and found, verification
-  "FIR Registration" means explicit demand for FIR or clear cognizable offence
+  "Enquiry" = investigation request, fact-finding, NCR, preventive action, lost/found, verification
+  "FIR Registration" = explicit demand for FIR or clear cognizable offence
 - typeOfComplainant:
-  "Private Person" means common citizen, victim, witness, family member
-  "Govt Official (Police department)" means police officer, SHO, constable
-  "Govt Official (other than police department)" means other government employee
-  "Court" means court-directed complaint
-  "Anonymous" means identity hidden or unknown
-  "Suo-Moto" means police registration on their own initiative
+  "Private Person" = common citizen, victim, witness, family member
+  "Govt Official (Police department)" = police officer, SHO, constable, DSP
+  "Govt Official (other than police department)" = other government employee
+  "Court" = court-directed complaint
+  "Anonymous" = identity hidden or unknown
+  "Suo-Moto" = police registration on their own initiative
 - isFirRegistered: "Yes" if FIR already exists, "No" if not yet, "Unknown" if unclear
 
 [9] SOURCE OF COMPLAINT (natureOfComplaint)
-- Identify the origin or channel of the complaint. Match to closest enum value.
-- Examples: direct citizen walk-in maps to "Citizen/General Public", letter from CM office maps to "CM Office", court order maps to "Court", police themselves maps to "Cognizance by Police", anonymous tip maps to "Anonymous/Informer/Tip/Source Report".
+- Identify the origin/channel of the complaint. Match to closest enum value.
+- Examples: direct citizen walk-in → "Citizen/General Public", CM office letter → "CM Office", court order → "Court", police themselves → "Cognizance by Police", anonymous tip → "Anonymous/Informer/Tip/Source Report", SP office referral → "SP Office".
 
 [10] MODE OF RECEIPT (modeOfReceipt)
-- Determine HOW this complaint was received or delivered. Match to the closest enum value:
-  * "In-Person/By Hand" → complainant came in person, handed over physically at police station
-  * "By Email" → complaint sent via email
-  * "By SMS" → complaint received via SMS/text message
-  * "Telephone/Mobile call" → complaint received over phone call
-  * "By Speed Post" → delivered by India Post speed post
-  * "By Registered Post/Courier" → sent via registered post or courier service
-  * "By Simple Post" → sent via ordinary post
-  * "By Official Dak" → received through official government dak/dispatch
-  * "CM Window" → received via Chief Minister's complaint window/portal
-  * "Wireless" → received via police wireless communication
-  * "Suo-Moto(Newspaper/Social Media/Internet etc)" → police took note from newspaper/social media/internet
-- If method is unclear or not mentioned, default to "In-Person/By Hand".
+- Determine HOW this complaint was physically received. Match to the closest enum value:
+  * "In-Person/By Hand" → complainant came in person / handed over at police station
+  * "By Email" → sent via email
+  * "By SMS" → received via SMS/text message
+  * "Telephone/Mobile call" → received over phone
+  * "By Speed Post" → India Post speed post
+  * "By Registered Post/Courier" → registered post or courier
+  * "By Simple Post" → ordinary post
+  * "By Official Dak" → official government dak/dispatch
+  * "CM Window" → Chief Minister complaint window/portal
+  * "Wireless" → police wireless
+  * "Suo-Moto(Newspaper/Social Media/Internet etc)" → police noticed via news/social media
+- If unclear or not mentioned, default to "In-Person/By Hand".
 
-[11] DESCRIPTION
-- Write a COMPREHENSIVE and DETAILED paragraph of minimum 6 to 8 sentences.
-- Cover: complainant identity, accused identity, what happened, when, where, amounts or losses involved, demands made, relevant background, and any evidence mentioned.
+[11] DESCRIPTION OF COMPLAINT — ENGLISH TRANSLATION RULE (MOST IMPORTANT)
+YOUR TASK: Extract the main body of the complaint and translate it accurately to English.
+
+EXACT RULES:
+- Find the main body of the complaint (the narrative section where the complainant describes what happened).
+- TRANSLATE IT TO ENGLISH — regardless of whether the original is in Hindi, Punjabi, Urdu, or any other language.
+- Keep the translation faithful and accurate — do not add, remove, or alter any facts.
+- Do NOT summarize. Include all details mentioned in the original complaint body.
+- Every time you process the same PDF, the translation must convey the same meaning consistently.
 
 [12] ADDRESS ANALYSIS (CRITICAL)
 - The complainant may have a Present/Current Address and a separate Permanent Address.
-- Read carefully to avoid hallucinations or mixing up the addresses.
-- If both are mentioned and are DIFFERENT, extract the Present Address into the regular address fields (houseNumber, villageTown, etc.) AND extract the Permanent Address strictly into the fields prefixed with 'perm' (permHouseNumber, permVillageTown, etc.).
-- If only one address is mentioned, or if it explicitly says "Present Address is same as Permanent Address", extract it to the regular address fields ONLY and leave ALL 'perm' prefixed fields as empty strings ("").
+- If both are mentioned and are DIFFERENT, extract the Present Address into the regular fields (houseNumber, villageTown, district, state, etc.) AND extract the Permanent Address into the 'perm' prefixed fields (permHouseNumber, permVillageTown, etc.).
+- If only one address is mentioned, or if "Present Address is same as Permanent Address" → extract only to regular fields. Leave ALL 'perm' fields as empty strings "".
 
 === OUTPUT RULES ===
 - Output ONLY raw JSON. No markdown, no backtick fences, no preamble, no explanation text.
-- ALL enum fields must use EXACTLY the values from the schema with no abbreviations and no translations.
-- ALL keys must be present in the output. Use empty string for unknown string fields. Use null for unknown date fields.
+- ALL enum fields must use EXACTLY the values from the schema — no abbreviations, no translations.
+- ALL keys must be present in the output. Use empty string "" for unknown string fields. Use null for unknown date fields.
+- For accusedList: if no accused is found, return an empty array [].
 
 Schema:
 ${schemaDefinition}
@@ -326,7 +447,7 @@ ${textToProcess}
       const limitedImages = visionImages ? visionImages.slice(0, 2) : null;
 
       const requestPayload = {
-        model: limitedImages ? "meta-llama/llama-4-scout-17b-16e-instruct" : "llama-3.3-70b-versatile",
+        model: limitedImages ? "meta-llama/llama-4-scout-17b-16e-instruct" : "meta-llama/llama-4-maverick-17b-128e-instruct",
         messages: [
           { 
             role: "user", 
@@ -359,6 +480,24 @@ ${textToProcess}
       // Guarantee JSON safety if Vision model adds markdown wrappers
       let cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
       let parsedData = JSON.parse(cleanJson);
+
+      // ─── POST-PROCESSING: Hard-coded lastName sanitization ───────────────
+      // Model ke return karne ke baad GUARANTEED fix — prompt pe depend nahi
+      // Agar lastName mein koi bhi relation word hai to use "" kar do
+      const RELATION_WORDS = [
+        'patni','patnee','wife','putra','putri','beti','beta','pita','mata',
+        'bahu','bhai','behan','devi','kumari',
+        's/o','w/o','d/o','c/o','son of','wife of','daughter of','husband of',
+        'पत्नी','पुत्र','पुत्री','बेटी','पिता','माता','बहू','भाई'
+      ];
+      if (parsedData.lastName) {
+        const lastNameLower = parsedData.lastName.trim().toLowerCase();
+        const isRelationWord = RELATION_WORDS.some(word => lastNameLower === word || lastNameLower.startsWith(word + ' ') || lastNameLower.endsWith(' ' + word));
+        if (isRelationWord) {
+          parsedData.lastName = '';
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────
       
       const hasPermAddress = Boolean(
         (parsedData.permVillageTown && parsedData.permVillageTown !== "") ||
@@ -402,6 +541,7 @@ ${textToProcess}
       }
 
       setExtractedData(parsedData); // Save to state to trigger useEffect auto-fill
+      localStorage.removeItem('complaint_formData');
       message.destroy('ai-process');
       setCurrentStep(2);
     } catch (error) {
@@ -415,20 +555,81 @@ ${textToProcess}
   // Old toggleRecording logic removed
 
   const onFinish = (values) => {
-    console.log('Submitted Data:', values);
-    setComplaintData(values);
-    
-    // Auto-select NCR template if the purpose is NCR
-    if (values.complaintPurpose === 'Non-Cognizable Report (NCR)') {
-      setSelectedTemplate('enquiry_ncr');
-      setDocumentText(generateTemplateText('enquiry_ncr', values));
-    } else {
-      setSelectedTemplate(null);
-      setDocumentText('');
+    const existing = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
+
+    // Check for duplicate complaint using a scoring system
+    const duplicate = existing.find(c => {
+      // 1. Check if Incident Class matches - Mandatory
+      if (!c.classOfIncident || !values.classOfIncident || c.classOfIncident !== values.classOfIncident) {
+        return false;
+      }
+      
+      const name1 = ((c.firstName || '') + ' ' + (c.lastName || '')).trim().toLowerCase();
+      const name2 = ((values.firstName || '') + ' ' + (values.lastName || '')).trim().toLowerCase();
+      const sameName = name1 && name2 && name1 === name2;
+
+      const date1 = c.dateOfIncident ? String(c.dateOfIncident) : '';
+      const date2 = values.dateOfIncident ? String(values.dateOfIncident) : '';
+      const sameDate = date1 && date2 && date1 === date2;
+
+      const place1 = (c.placeOfIncident || '').trim().toLowerCase();
+      const place2 = (values.placeOfIncident || '').trim().toLowerCase();
+      const samePlace = place1 && place2 && place1 === place2;
+
+      const accused1 = (c.accusedList || []).map(a => (a.name || '').toLowerCase().trim()).filter(Boolean);
+      const accused2 = (values.accusedList || []).map(a => (a.name || '').toLowerCase().trim()).filter(Boolean);
+      const sameAccused = accused1.length > 0 && accused1.some(a => accused2.includes(a));
+      
+      const sameMobile = c.mobileNumber && values.mobileNumber && c.mobileNumber === values.mobileNumber;
+
+      // Scoring Logic to handle typos (e.g. Kamlesh vs Kamalash)
+      let score = 0;
+      if (sameName) score += 2;
+      if (sameMobile) score += 3;
+      if (sameDate) score += 2;
+      if (samePlace) score += 2;
+      if (sameAccused) score += 2;
+
+      // Threshold is 4. This means we need at least two major fields to match 
+      // (e.g. Date + Place, or Name + Accused) to trigger the duplicate warning.
+      return score >= 4;
+    });
+
+    if (duplicate) {
+      setDuplicateModalData({ duplicate, values, existing });
+      return;
     }
-    
-    setCurrentStep(3);
+
+    proceedRegistration(values, existing);
   };
+
+  const proceedRegistration = (values, existing) => {
+    // Generate a unique complaint ID
+    const complaintId = 'C' + Math.floor(10000 + Math.random() * 90000);
+    const now = new Date();
+
+    // Build the complaint record to save
+    const complaintRecord = {
+      ...values,
+      id: complaintId,
+      registeredAt: now.toISOString(),
+      dateRegistered: now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+      status: 'Registered',
+      appliedTemplate: null,
+    };
+
+    existing.unshift(complaintRecord); // newest first
+    localStorage.setItem('registeredComplaints', JSON.stringify(existing));
+
+    message.success({ content: `Complaint ${complaintId} registered successfully!`, duration: 3 });
+
+    // Defer navigation: let React finish the form render cycle first, THEN navigate home
+    // (Calling onBack() synchronously here caused a mid-render crash caught by error boundary)
+    setTimeout(() => {
+      if (onBack) onBack(); // onBack clears wizard localStorage + sessionStorage + goes home
+    }, 100);
+  };
+
 
   const generateTemplateText = (templateType, data) => {
     const d = data || {};
@@ -439,8 +640,13 @@ ${textToProcess}
     const compPhone = d.mobileNumber || '[Complainant Mobile]';
     const compAddress = [d.houseNumber, d.streetName, d.colonyArea, d.villageTown, d.district, d.state, d.pinCode].filter(Boolean).join(', ') || '[Complainant Address]';
     
-    const accName = d.accusedName || '[Accused Name]';
-    const accAddress = d.accusedAddress || '[Accused Address]';
+    const accusedBlockNotice = d.accusedList && d.accusedList.length > 0
+      ? d.accusedList.map((acc, index) => `${d.accusedList.length > 1 ? `Accused ${index + 1}:\n` : ''}Name: ${acc.name || 'Unknown'}\nAddress: ${acc.address || 'Unknown'}`).join('\n\n')
+      : 'Name: [Accused Name]\nAddress: [Accused Address]';
+      
+    const accusedBlockInline = d.accusedList && d.accusedList.length > 0
+      ? d.accusedList.map((acc, index) => `${d.accusedList.length > 1 ? `${index + 1}. ` : ''}${acc.name || 'Unknown'} (R/o ${acc.address || 'Unknown'})`).join('\n')
+      : '[Accused Name], R/o [Accused Address]';
     
     const incidentClass = d.classOfIncident || '[Class of Incident]';
     const placeOfIncident = d.placeOfIncident || '[Place of Incident]';
@@ -451,22 +657,22 @@ ${textToProcess}
 
     switch (templateType) {
       case 'notice':
-        return `NOTICE FOR APPEARANCE\n\nNotice Number: _______\nDate: ${dateToday}\n\nTo,\nName: ${accName}\nAddress: ${accAddress}\n\nSubject: Notice for appearance regarding complaint filed by ${compName}.\n\nWHEREAS, a complaint has been registered against you at this Police Station by ${compName} (R/o ${compAddress}).\n\nBRIEF FACT OF COMPLAINT:\nThe complainant alleges that an incident of "${incidentClass}" occurred at ${placeOfIncident} on ${dateOfInc} around ${timeOfInc}. \n\nTherefore, in exercise of the powers conferred upon me, you are hereby directed to appear before the undersigned at the Police Station on __-__-____ at __:__ AM/PM for the purpose of further enquiry and to present your side of the facts along with relevant documents/evidence, if any.\n\nPlease note that failure to comply with the terms of this notice may render you liable for action under relevant provisions of law.\n\n\nSignature of Investigating Officer\nName: _______________\nDesignation: _______________\nPolice Station: _______________`;
+        return `NOTICE FOR APPEARANCE\n\nNotice Number: _______\nDate: ${dateToday}\n\nTo,\n${accusedBlockNotice}\n\nSubject: Notice for appearance regarding complaint filed by ${compName}.\n\nWHEREAS, a complaint has been registered against you at this Police Station by ${compName} (R/o ${compAddress}).\n\nBRIEF FACT OF COMPLAINT:\nThe complainant alleges that an incident of "${incidentClass}" occurred at ${placeOfIncident} on ${dateOfInc} around ${timeOfInc}. \n\nTherefore, in exercise of the powers conferred upon me, you are hereby directed to appear before the undersigned at the Police Station on __-__-____ at __:__ AM/PM for the purpose of further enquiry and to present your side of the facts along with relevant documents/evidence, if any.\n\nPlease note that failure to comply with the terms of this notice may render you liable for action under relevant provisions of law.\n\n\nSignature of Investigating Officer\nName: _______________\nDesignation: _______________\nPolice Station: _______________`;
         
       case 'email':
-        return `Subject: Status Update on Complaint Registration - ${incidentClass}\n\nDear Sir/Madam,\n\nThis is to officially inform you that we are in receipt of your complaint regarding the incident of "${incidentClass}".\n\nCOMPLAINT DETAILS:\n- Complainant Name: ${compName}\n- Complainant Contact: ${compPhone}\n- Accused Named: ${accName}\n- Alleged Incident Place: ${placeOfIncident}\n- Date of Occurrence: ${dateOfInc}\n\nWe have documented your submission and the matter is currently under preliminary enquiry. Our Investigating Officer will be reaching out to you shortly for any further clarifications or statements required as per the procedure.\n\nFor any interim query, you may contact the Helpdesk at the undersigned Police Station.\n\nSincerely,\n\nStation House Officer (SHO)\n[Police Station Name]\nDate: ${dateToday}`;
+        return `Subject: Status Update on Complaint Registration - ${incidentClass}\n\nDear Sir/Madam,\n\nThis is to officially inform you that we are in receipt of your complaint regarding the incident of "${incidentClass}".\n\nCOMPLAINT DETAILS:\n- Complainant Name: ${compName}\n- Complainant Contact: ${compPhone}\n- Accused Details:\n${accusedBlockInline}\n- Alleged Incident Place: ${placeOfIncident}\n- Date of Occurrence: ${dateOfInc}\n\nWe have documented your submission and the matter is currently under preliminary enquiry. Our Investigating Officer will be reaching out to you shortly for any further clarifications or statements required as per the procedure.\n\nFor any interim query, you may contact the Helpdesk at the undersigned Police Station.\n\nSincerely,\n\nStation House Officer (SHO)\n[Police Station Name]\nDate: ${dateToday}`;
 
       case 'enquiry_rajinama':
-        return `ENQUIRY REPORT - MUTUAL SETTLEMENT (RAJINAMA)\n\nDate: ${dateToday}\n\n1. REFERENCE COMPLAINT\nComplainant: ${compName}, R/o ${compAddress}, Ph: ${compPhone}\nAccused: ${accName}, R/o ${accAddress}\nNature of Incident: ${incidentClass}\nDate & Place of Occurrence: ${dateOfInc} at ${placeOfIncident}\n\n2. BRIEF ALLEGATIONS\nAs per the contents of the complaint, the complainant alleged that: \n"${actDescription}"\n\n3. PROCEEDINGS & FINDINGS\nDuring the course of the preliminary enquiry, both the complainant and the accused were summoned to the Police Station. After comprehensive discussions and in the presence of respectable persons from society, both parties have amicably resolved their differences.\n\nThe complainant (${compName}) has furnished a written statement stating that the matter has been resolved mutually without any coercion, threat, or undue influence. The complainant does not wish to pursue any further legal or police action regarding this matter.\n\n4. CONCLUSION & RECOMMENDATION\nSince the parties have arrived at a mutual compromise (Rajinama) and the complainant is no longer desirous of pursuing the case, no cognizable offence requiring police intervention survives.\n\nAccordingly, it is recommended to consign this complaint to the records (File / Filed without FIR).\n\n\nSubmitted by:\n[IO Signature]\nName/Rank: _______________`;
+        return `ENQUIRY REPORT - MUTUAL SETTLEMENT (RAJINAMA)\n\nDate: ${dateToday}\n\n1. REFERENCE COMPLAINT\nComplainant: ${compName}, R/o ${compAddress}, Ph: ${compPhone}\nAccused Details:\n${accusedBlockInline}\nNature of Incident: ${incidentClass}\nDate & Place of Occurrence: ${dateOfInc} at ${placeOfIncident}\n\n2. BRIEF ALLEGATIONS\nAs per the contents of the complaint, the complainant alleged that: \n"${actDescription}"\n\n3. PROCEEDINGS & FINDINGS\nDuring the course of the preliminary enquiry, both the complainant and the accused were summoned to the Police Station. After comprehensive discussions and in the presence of respectable persons from society, both parties have amicably resolved their differences.\n\nThe complainant (${compName}) has furnished a written statement stating that the matter has been resolved mutually without any coercion, threat, or undue influence. The complainant does not wish to pursue any further legal or police action regarding this matter.\n\n4. CONCLUSION & RECOMMENDATION\nSince the parties have arrived at a mutual compromise (Rajinama) and the complainant is no longer desirous of pursuing the case, no cognizable offence requiring police intervention survives.\n\nAccordingly, it is recommended to consign this complaint to the records (File / Filed without FIR).\n\n\nSubmitted by:\n[IO Signature]\nName/Rank: _______________`;
 
       case 'enquiry_civil':
-        return `ENQUIRY REPORT - PROCEEDING OF CIVIL NATURE\n\nDate: ${dateToday}\n\n1. REFERENCE COMPLAINT\nComplainant: ${compName}, R/o ${compAddress}, Ph: ${compPhone}\nAccused: ${accName}, R/o ${accAddress}\nSubject/Category: ${incidentClass}\nDate & Place of Incident: ${dateOfInc} at ${placeOfIncident}\n\n2. BRIEF OF COMPLAINT\nBriefly, the complainant states that: \n"${actDescription}"\n\n3. ENQUIRY CONDUCTED & FACTUAL POSITION\nAn extensive preliminary enquiry was conducted by the undersigned. The relevant documents submitted by the complainant and the statements of both parties were examined.\n\nThe scrutiny reveals that the crux of the dispute between the parties pertains to land, finances, or contractual obligations, which fundamentally falls within the contours of a Civil Dispute. The elements of mens rea (criminal intent) or a cognizable criminal offence under the BNS/LSL are entirely absent.\n\n4. CONCLUSION & RECOMMENDATION\nIn light of the Honourable Supreme Court guidelines preventing the criminalization of civil disputes, police interference in this matter is strictly unwarranted.\n\nThe complainant has been properly briefed and advised to approach the appropriate Honourable Civil Court / Revenue Authority for the redressal of the grievance.\n\nTherefore, it is recommended to file this complaint.\n\n\nSubmitted by:\n[IO Signature]\nName/Rank: _______________`;
+        return `ENQUIRY REPORT - PROCEEDING OF CIVIL NATURE\n\nDate: ${dateToday}\n\n1. REFERENCE COMPLAINT\nComplainant: ${compName}, R/o ${compAddress}, Ph: ${compPhone}\nAccused Details:\n${accusedBlockInline}\nSubject/Category: ${incidentClass}\nDate & Place of Incident: ${dateOfInc} at ${placeOfIncident}\n\n2. BRIEF OF COMPLAINT\nBriefly, the complainant states that: \n"${actDescription}"\n\n3. ENQUIRY CONDUCTED & FACTUAL POSITION\nAn extensive preliminary enquiry was conducted by the undersigned. The relevant documents submitted by the complainant and the statements of both parties were examined.\n\nThe scrutiny reveals that the crux of the dispute between the parties pertains to land, finances, or contractual obligations, which fundamentally falls within the contours of a Civil Dispute. The elements of mens rea (criminal intent) or a cognizable criminal offence under the BNS/LSL are entirely absent.\n\n4. CONCLUSION & RECOMMENDATION\nIn light of the Honourable Supreme Court guidelines preventing the criminalization of civil disputes, police interference in this matter is strictly unwarranted.\n\nThe complainant has been properly briefed and advised to approach the appropriate Honourable Civil Court / Revenue Authority for the redressal of the grievance.\n\nTherefore, it is recommended to file this complaint.\n\n\nSubmitted by:\n[IO Signature]\nName/Rank: _______________`;
 
       case 'enquiry_ncr':
-        return `NON-COGNIZABLE REPORT (NCR) / ENQUIRY REPORT\n\nDate: ${dateToday}\n\n1. COMPLAINANT DETAILS\nName: ${compName}\nAddress: ${compAddress}\nContact: ${compPhone}\n\n2. ACCUSED DETAILS\nName: ${accName}\nAddress: ${accAddress}\n\n3. INCIDENT DETAILS\nCategory: ${incidentClass}\nDate & Time: ${dateOfInc} | ${timeOfInc}\nPlace of Occurrence: ${placeOfIncident}\n\n4. FACTS OF THE COMPLAINT\nThe complainant has reported that: \n"${actDescription}"\n\n5. IO'S OPINION & ACTION TAKEN\nUpon careful perusal of the complaint and preliminary enquiry, it is concluded that the allegations raised by the complainant disclose the commission of a strictly Non-Cognizable Offence. \n\nAccordingly, the substance of the information has been duly entered into the Daily Diary Document (Rapt/DDR). The police cannot investigate a non-cognizable case without the order of a Magistrate having power to try such cases.\n\nThe complainant, ${compName}, has been properly informed and legally advised to approach the Honourable Magistrate under the relevant sections of the BNSS for further judicial remedy.\n\n\nPrepared by:\n[IO Signature]\nName/Rank: _______________`;
+        return `NON-COGNIZABLE REPORT (NCR) / ENQUIRY REPORT\n\nDate: ${dateToday}\n\n1. COMPLAINANT DETAILS\nName: ${compName}\nAddress: ${compAddress}\nContact: ${compPhone}\n\n2. ACCUSED DETAILS\n${accusedBlockNotice}\n\n3. INCIDENT DETAILS\nCategory: ${incidentClass}\nDate & Time: ${dateOfInc} | ${timeOfInc}\nPlace of Occurrence: ${placeOfIncident}\n\n4. FACTS OF THE COMPLAINT\nThe complainant has reported that: \n"${actDescription}"\n\n5. IO'S OPINION & ACTION TAKEN\nUpon careful perusal of the complaint and preliminary enquiry, it is concluded that the allegations raised by the complainant disclose the commission of a strictly Non-Cognizable Offence. \n\nAccordingly, the substance of the information has been duly entered into the Daily Diary Document (Rapt/DDR). The police cannot investigate a non-cognizable case without the order of a Magistrate having power to try such cases.\n\nThe complainant, ${compName}, has been properly informed and legally advised to approach the Honourable Magistrate under the relevant sections of the BNSS for further judicial remedy.\n\n\nPrepared by:\n[IO Signature]\nName/Rank: _______________`;
 
       case 'enquiry_fir':
-        return `ENQUIRY REPORT - FIR REGISTRATION RECOMMENDED\n\nDate: ${dateToday}\n\n1. REFERENCE\nSource of Complaint: Received from ${compName} (Ph: ${compPhone})\nComplainant Address: ${compAddress}\nAlleged Accused: ${accName}, R/o ${accAddress}\n\n2. INCIDENT PARTICULARS\nClassification: ${incidentClass}\nTime, Date & Place: ${timeOfInc} on ${dateOfInc} at ${placeOfIncident}\n\n3. GIST OF ALLEGATIONS\n"${actDescription}"\n\n4. ENQUIRY OBSERVATIONS\nDuring the preliminary enquiry, physical and documentary constraints were gathered. Based on the facts presented and the sequence of events outlined in the complaint, prime-facie, a cognizable offence is conclusively made out against the accused person(s).\n\n5. RECOMMENDATION\nSince the allegations disclose explicit commission of a Cognizable Offence, it is legally imperative to initiate investigation. Consequently, it is strongly recommended that a First Information Report (FIR) be registered without any delay under the relevant sections of BNS / Minor Acts.\n\nAfter registration of the FIR, the investigation file may kindly be handed over to the Investigating Officer for due procedures of law.\n\n\nSubmitted by:\n[IO Signature]\nName/Rank: _______________\n\nForwarded to SHO for approval / FIR Registration.`;
+        return `ENQUIRY REPORT - FIR REGISTRATION RECOMMENDED\n\nDate: ${dateToday}\n\n1. REFERENCE\nSource of Complaint: Received from ${compName} (Ph: ${compPhone})\nComplainant Address: ${compAddress}\nAlleged Accused Details:\n${accusedBlockInline}\n\n2. INCIDENT PARTICULARS\nClassification: ${incidentClass}\nTime, Date & Place: ${timeOfInc} on ${dateOfInc} at ${placeOfIncident}\n\n3. GIST OF ALLEGATIONS\n"${actDescription}"\n\n4. ENQUIRY OBSERVATIONS\nDuring the preliminary enquiry, physical and documentary constraints were gathered. Based on the facts presented and the sequence of events outlined in the complaint, prime-facie, a cognizable offence is conclusively made out against the accused person(s).\n\n5. RECOMMENDATION\nSince the allegations disclose explicit commission of a Cognizable Offence, it is legally imperative to initiate investigation. Consequently, it is strongly recommended that a First Information Report (FIR) be registered without any delay under the relevant sections of BNS / Minor Acts.\n\nAfter registration of the FIR, the investigation file may kindly be handed over to the Investigating Officer for due procedures of law.\n\n\nSubmitted by:\n[IO Signature]\nName/Rank: _______________\n\nForwarded to SHO for approval / FIR Registration.`;
 
       default:
         return '';
@@ -664,7 +870,7 @@ ${textToProcess}
 
       <div style={{ textAlign: 'right', marginTop: '30px' }}>
         <Space>
-          <Button onClick={() => setCurrentStep(2)}>Back</Button>
+          <Button icon={<ArrowLeftOutlined />} style={{ background: '#1f1f1f', color: '#177ddc', borderColor: '#303030', borderRadius: '8px', padding: '4px 16px', fontWeight: 500 }} onClick={() => setCurrentStep(2)}>Back</Button>
 
           <Button type="primary" size="large" icon={<CheckCircleOutlined />} onClick={handleFinalSubmit} loading={isProcessing}>
             Submit
@@ -715,15 +921,22 @@ ${textToProcess}
         </Col>
       </Row>
       <div style={{ marginTop: '40px' }}>
-        <Button 
-          type="primary" 
-          size="large" 
-          disabled={!mode} 
-          onClick={() => setCurrentStep(1)}
-          style={{ minWidth: '150px' }}
-        >
-          Proceed
-        </Button>
+        <Space>
+          {onBack && (
+            <Button size="large" onClick={onBack} style={{ minWidth: '120px' }}>
+              ← Back
+            </Button>
+          )}
+          <Button 
+            type="primary" 
+            size="large" 
+            disabled={!mode} 
+            onClick={() => setCurrentStep(1)}
+            style={{ minWidth: '150px' }}
+          >
+            Proceed
+          </Button>
+        </Space>
       </div>
     </div>
   );
@@ -815,7 +1028,7 @@ ${textToProcess}
 
       <div style={{ textAlign: 'center', marginTop: '30px' }}>
         <Space>
-          <Button onClick={() => setCurrentStep(0)}>Back</Button>
+          <Button icon={<ArrowLeftOutlined />} style={{ background: '#1f1f1f', color: '#177ddc', borderColor: '#303030', borderRadius: '8px', padding: '4px 16px', fontWeight: 500 }} onClick={() => setCurrentStep(0)}>Back</Button>
           <Button 
             type="primary" 
             size="large" 
@@ -831,7 +1044,7 @@ ${textToProcess}
   );
 
   const renderForm = () => (
-    <Form layout="vertical" form={form} onFinish={onFinish}>
+    <Form layout="vertical" form={form} onFinish={onFinish} requiredMark={false} onValuesChange={onValuesChange}>
       <Card 
         title={<span style={{ color: '#ffffff' }}>Complainant Details</span>}
         style={{ marginBottom: '20px' }}
@@ -840,23 +1053,23 @@ ${textToProcess}
         <Title level={5} style={{ color: '#096dd9' }}>Personal Information</Title>
         <Row gutter={16}>
           <Col span={12}>
-            <Form.Item name="firstName" label="First Name" rules={[{ required: true, message: 'Please enter First Name' }]}>
-              <Input />
+            <Form.Item name="firstName" label="First Name">
+              <Input className={getHighlightClass('firstName')} />
             </Form.Item>
           </Col>
           <Col span={12}>
             <Form.Item name="lastName" label="Last Name">
-              <Input />
+              <Input className={getHighlightClass('lastName')} />
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="mobileNumber" label="Mobile Number" rules={[{ required: true, message: 'Please enter Mobile Number' }]}>
-              <Input />
+            <Form.Item name="mobileNumber" label="Mobile Number">
+              <Input className={getHighlightClass('mobileNumber')} />
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="gender" label="Gender" rules={[{ required: true, message: 'Please select Gender' }]}>
-              <Select placeholder="Select Gender" placement="bottomLeft">
+            <Form.Item name="gender" label="Gender">
+              <Select className={getHighlightClass('gender')} placeholder="Select Gender" placement="bottomLeft">
                 <Option value="Male">Male</Option>
                 <Option value="Female">Female</Option>
                 <Option value="Transgender">Transgender</Option>
@@ -864,8 +1077,8 @@ ${textToProcess}
             </Form.Item>
           </Col>
           <Col span={24}>
-            <Form.Item name="natureOfComplaint" label="Source of Complaint" rules={[{ required: true, message: 'Please select Source of Complaint' }]}>
-              <Select placeholder="Select Source of Complaint" showSearch optionFilterProp="children" placement="bottomLeft">
+            <Form.Item name="natureOfComplaint" label="Source of Complaint">
+              <Select className={getHighlightClass('natureOfComplaint')} placeholder="Select Source of Complaint" showSearch optionFilterProp="children" placement="bottomLeft">
                 <Option value="ACS(H)">ACS(H)</Option>
                 <Option value="ADGP(HR&Lit)">ADGP(HR&Lit)</Option>
                 <Option value="ADGP L&O">ADGP L&O</Option>
@@ -928,8 +1141,8 @@ ${textToProcess}
             </Form.Item>
           </Col>
           <Col span={24}>
-            <Form.Item name="typeOfAccused" label="Type of Accused" rules={[{ required: true, message: 'Please select Type of Accused' }]}>
-              <Select placeholder="Select Type of Accused" placement="bottomLeft">
+            <Form.Item name="typeOfAccused" label="Type of Accused">
+              <Select className={getHighlightClass('typeOfAccused')} placeholder="Select Type of Accused" placement="bottomLeft">
                 <Option value="Against Army and Paramilitary Force">Against Army and Paramilitary Force</Option>
                 <Option value="Against Foreigner's">Against Foreigner's</Option>
                 <Option value="Against Organization / Department">Against Organization / Department</Option>
@@ -959,32 +1172,26 @@ ${textToProcess}
           </div>
         </Row>
         <Row gutter={16}>
-          <Col span={8}><Form.Item name="houseNumber" label="House Number"><Input /></Form.Item></Col>
-          <Col span={8}><Form.Item name="streetName" label="Street Name"><Input /></Form.Item></Col>
-          <Col span={8}><Form.Item name="colonyArea" label="Colony / Area"><Input /></Form.Item></Col>
-          <Col span={8}>
-            <Form.Item name="villageTown" label="Village / Town" rules={[{ required: true, message: 'Please enter Village/Town' }]}>
-              <Input />
+          <Col span={6}>
+            <Form.Item name="villageTown" label="Village / Town">
+              <Input className={getHighlightClass('villageTown')} />
             </Form.Item>
           </Col>
-          <Col span={8}><Form.Item name="tehsilBlock" label="Tehsil / Block / Mandal"><Input /></Form.Item></Col>
-          <Col span={8}>
-            <Form.Item name="country" label="Country" rules={[{ required: true, message: 'Please enter Country' }]}>
-              <Input />
+          <Col span={6}>
+            <Form.Item name="district" label="District">
+              <Input className={getHighlightClass('district')} />
             </Form.Item>
           </Col>
-          <Col span={8}>
-            <Form.Item name="state" label="State" rules={[{ required: true, message: 'Please enter State' }]}>
-              <Input />
+          <Col span={6}>
+            <Form.Item name="state" label="State">
+              <Input className={getHighlightClass('state')} />
             </Form.Item>
           </Col>
-          <Col span={8}>
-            <Form.Item name="district" label="District" rules={[{ required: true, message: 'Please enter District' }]}>
-              <Input />
+          <Col span={6}>
+            <Form.Item name="country" label="Country">
+              <Input className={getHighlightClass('country')} />
             </Form.Item>
           </Col>
-          <Col span={8}><Form.Item name="policeStation" label="Police Station"><Input /></Form.Item></Col>
-          <Col span={8}><Form.Item name="pinCode" label="Pin Code"><Input /></Form.Item></Col>
         </Row>
 
         {isSameAddress === 'no' && (
@@ -992,32 +1199,26 @@ ${textToProcess}
             <Divider />
             <Title level={5} style={{ color: '#096dd9' }}>Permanent Address</Title>
             <Row gutter={16}>
-              <Col span={8}><Form.Item name="permHouseNumber" label="House Number"><Input /></Form.Item></Col>
-              <Col span={8}><Form.Item name="permStreetName" label="Street Name"><Input /></Form.Item></Col>
-              <Col span={8}><Form.Item name="permColonyArea" label="Colony / Area"><Input /></Form.Item></Col>
-              <Col span={8}>
-                <Form.Item name="permVillageTown" label="Village / Town" rules={[{ required: true, message: 'Please enter Village/Town' }]}>
-                  <Input />
+              <Col span={6}>
+                <Form.Item name="permVillageTown" label="Village / Town">
+                  <Input className={getHighlightClass('permVillageTown')} />
                 </Form.Item>
               </Col>
-              <Col span={8}><Form.Item name="permTehsilBlock" label="Tehsil / Block / Mandal"><Input /></Form.Item></Col>
-              <Col span={8}>
-                <Form.Item name="permCountry" label="Country" rules={[{ required: true, message: 'Please enter Country' }]}>
-                  <Input />
+              <Col span={6}>
+                <Form.Item name="permDistrict" label="District">
+                  <Input className={getHighlightClass('permDistrict')} />
                 </Form.Item>
               </Col>
-              <Col span={8}>
-                <Form.Item name="permState" label="State" rules={[{ required: true, message: 'Please enter State' }]}>
-                  <Input />
+              <Col span={6}>
+                <Form.Item name="permState" label="State">
+                  <Input className={getHighlightClass('permState')} />
                 </Form.Item>
               </Col>
-              <Col span={8}>
-                <Form.Item name="permDistrict" label="District" rules={[{ required: true, message: 'Please enter District' }]}>
-                  <Input />
+              <Col span={6}>
+                <Form.Item name="permCountry" label="Country">
+                  <Input className={getHighlightClass('permCountry')} />
                 </Form.Item>
               </Col>
-              <Col span={8}><Form.Item name="permPoliceStation" label="Police Station"><Input /></Form.Item></Col>
-              <Col span={8}><Form.Item name="permPinCode" label="Pin Code"><Input /></Form.Item></Col>
             </Row>
           </>
         )}
@@ -1026,8 +1227,8 @@ ${textToProcess}
         <Title level={5} style={{ color: '#096dd9' }}>Identification</Title>
         <Row gutter={16}>
           <Col span={8}>
-            <Form.Item name="nationality" label="Country of Nationality" rules={[{ required: true, message: 'Please select Country of Nationality' }]}>
-              <Select placeholder="Select Country of Nationality" placement="bottomLeft">
+            <Form.Item name="nationality" label="Country of Nationality">
+              <Select className={getHighlightClass('nationality')} placeholder="Select Country of Nationality" placement="bottomLeft">
                 <Option value="Indian">Indian</Option>
                 <Option value="Nepalese">Nepalese</Option>
                 <Option value="Bhutanese">Bhutanese</Option>
@@ -1044,7 +1245,7 @@ ${textToProcess}
           </Col>
           <Col span={8}>
             <Form.Item name="idType" label="Identification Type">
-              <Select placeholder="Select Identification Type" placement="bottomLeft">
+              <Select className={getHighlightClass('idType')} placeholder="Select Identification Type" placement="bottomLeft">
                 <Option value="Aadhar Card">Aadhar Card</Option>
                 <Option value="Voter Card">Voter Card</Option>
                 <Option value="Income Tax (PAN Card)">Income Tax (PAN Card)</Option>
@@ -1058,7 +1259,7 @@ ${textToProcess}
             </Form.Item>
           </Col>
           <Col span={8}>
-            <Form.Item name="idNumber" label="Identification Number"><Input /></Form.Item>
+            <Form.Item name="idNumber" label="Identification Number"><Input className={getHighlightClass('idNumber')} /></Form.Item>
           </Col>
         </Row>
       </Card>
@@ -1068,18 +1269,42 @@ ${textToProcess}
         style={{ marginBottom: '20px' }}
         headStyle={{ backgroundColor: '#1890ff', borderBottom: 'none', fontSize: '18px' }}
       >
-        <Row gutter={16}>
-          <Col span={12}>
-            <Form.Item name="accusedName" label="Name" rules={[{ required: true, message: 'Please enter Accused Name' }]}>
-              <Input />
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <Form.Item name="accusedAddress" label="Address" rules={[{ required: true, message: 'Please enter Accused Address' }]}>
-              <Input />
-            </Form.Item>
-          </Col>
-        </Row>
+        <Form.List name="accusedList">
+          {(fields, { add, remove }) => (
+            <>
+              {fields.map(({ key, name, ...restField }) => (
+                <Row gutter={16} key={key} style={{ marginBottom: 8, alignItems: 'baseline' }}>
+                  <Col span={11}>
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'name']}
+                      label={name === 0 ? 'Name' : ''}
+                    >
+                      <Input className={extractedData?.accusedList?.length > 0 ? 'auto-filled-field' : ''} placeholder="Accused Name" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={11}>
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'address']}
+                      label={name === 0 ? 'Address' : ''}
+                    >
+                      <Input className={extractedData?.accusedList?.length > 0 ? 'auto-filled-field' : ''} placeholder="Accused Address" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={2}>
+                    <MinusCircleOutlined onClick={() => remove(name)} style={{ color: 'red', fontSize: '18px', marginTop: name === 0 ? '30px' : '0px' }} />
+                  </Col>
+                </Row>
+              ))}
+              <Form.Item>
+                <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />} style={{ marginTop: '10px' }}>
+                  Add Accused
+                </Button>
+              </Form.Item>
+            </>
+          )}
+        </Form.List>
       </Card>
 
       <Card 
@@ -1089,8 +1314,8 @@ ${textToProcess}
       >
         <Row gutter={16}>
           <Col span={12}>
-            <Form.Item name="classOfIncident" label="Class of Incident" rules={[{ required: true, message: 'Please select Class of Incident' }]}>
-              <Select placeholder="Select Class of Incident" placement="bottomLeft">
+            <Form.Item name="classOfIncident" label="Class of Incident">
+              <Select className={getHighlightClass('classOfIncident')} placeholder="Select Class of Incident" placement="bottomLeft">
                 <Option value="Cyber Crimes (other than financial fraud)">Cyber Crimes (other than financial fraud)</Option>
                 <Option value="Cyber Financial Fraud">Cyber Financial Fraud</Option>
                 <Option value="Other IPC/BNS Crimes">Other IPC/BNS Crimes</Option>
@@ -1117,18 +1342,18 @@ ${textToProcess}
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="placeOfIncident" label="Place of Incident" rules={[{ required: true, message: 'Please enter Place of Incident' }]}>
-              <Input />
+            <Form.Item name="placeOfIncident" label="Place of Incident">
+              <Input className={getHighlightClass('placeOfIncident')} />
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="dateOfIncident" label="Date of Incident" rules={[{ required: true, message: 'Please select Date' }]}>
-              <DatePicker style={{ width: '100%' }} placement="bottomLeft" />
+            <Form.Item name="dateOfIncident" label="Date of Incident">
+              <DatePicker className={getHighlightClass('dateOfIncident')} style={{ width: '100%' }} placement="bottomLeft" />
             </Form.Item>
           </Col>
           <Col span={12}>
             <Form.Item name="timeOfIncident" label="Time of Incident">
-              <TimePicker use12Hours format="hh:mm a" placeholder="Not mentioned" style={{ width: '100%' }} />
+              <TimePicker className={getHighlightClass('timeOfIncident')} use12Hours format="hh:mm a" placeholder="Not mentioned" style={{ width: '100%' }} />
             </Form.Item>
           </Col>
         </Row>
@@ -1141,8 +1366,8 @@ ${textToProcess}
       >
         <Row gutter={16}>
           <Col span={12}>
-            <Form.Item name="typeOfComplaint" label="Type of Complaint" rules={[{ required: true, message: 'Please select' }]}>
-              <Select placeholder="Select Type" placement="bottomLeft">
+            <Form.Item name="typeOfComplaint" label="Type of Complaint">
+              <Select className={getHighlightClass('typeOfComplaint')} placeholder="Select Type" placement="bottomLeft">
                 <Option value="Fresh Complaint">Fresh Complaint</Option>
                 <Option value="Repeat (Same Matter)">Repeat (Same Matter)</Option>
                 <Option value="Legal Notice">Legal Notice</Option>
@@ -1151,8 +1376,8 @@ ${textToProcess}
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="typeOfComplainant" label="Type of Complainant" rules={[{ required: true, message: 'Please select' }]}>
-              <Select placeholder="Select Type" placement="bottomLeft">
+            <Form.Item name="typeOfComplainant" label="Type of Complainant">
+              <Select className={getHighlightClass('typeOfComplainant')} placeholder="Select Type" placement="bottomLeft">
                 <Option value="Anonymous">Anonymous</Option>
                 <Option value="Court">Court</Option>
                 <Option value="Govt Official (other than police department)">Govt Official (other than police department)</Option>
@@ -1163,21 +1388,21 @@ ${textToProcess}
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="complaintPurpose" label="Complaint Purpose" rules={[{ required: true, message: 'Please select' }]}>
-              <Select placeholder="Select Purpose" placement="bottomLeft">
+            <Form.Item name="complaintPurpose" label="Complaint Purpose">
+              <Select className={getHighlightClass('complaintPurpose')} placeholder="Select Purpose" placement="bottomLeft">
                 <Option value="Enquiry">Enquiry</Option>
                 <Option value="FIR Registration">FIR Registration</Option>
               </Select>
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="dateOfComplaint" label="Date of Complaint" rules={[{ required: true, message: 'Please select Date of Complaint' }]}>
-              <DatePicker style={{ width: '100%' }} placement="bottomLeft" />
+            <Form.Item name="dateOfComplaint" label="Date of Complaint">
+              <DatePicker className={getHighlightClass('dateOfComplaint')} style={{ width: '100%' }} placement="bottomLeft" />
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="isFirRegistered" label="Is FIR Registered?" rules={[{ required: true, message: 'Please select FIR Status' }]}>
-              <Select placeholder="Select Status" placement="bottomLeft">
+            <Form.Item name="isFirRegistered" label="Is FIR Registered?">
+              <Select className={getHighlightClass('isFirRegistered')} placeholder="Select Status" placement="bottomLeft">
                 <Option value="Yes">Yes</Option>
                 <Option value="No">No</Option>
                 <Option value="Unknown">Unknown</Option>
@@ -1185,8 +1410,8 @@ ${textToProcess}
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="modeOfReceipt" label="Mode of Receipt" rules={[{ required: true, message: 'Please select Mode of Receipt' }]}>
-              <Select placeholder="Select Mode of Receipt" placement="bottomLeft" getPopupContainer={trigger => trigger.parentNode}>
+            <Form.Item name="modeOfReceipt" label="Mode of Receipt">
+              <Select className={getHighlightClass('modeOfReceipt')} placeholder="Select Mode of Receipt" placement="bottomLeft" getPopupContainer={trigger => trigger.parentNode}>
                 <Option value="By Email">By Email</Option>
                 <Option value="By Official Dak">By Official Dak</Option>
                 <Option value="By Registered Post/Courier">By Registered Post/Courier</Option>
@@ -1202,8 +1427,8 @@ ${textToProcess}
             </Form.Item>
           </Col>
           <Col span={24}>
-            <Form.Item name="descriptionOfComplaint" label="Description of Complaint" rules={[{ required: true, message: 'Please enter Description' }]}>
-              <TextArea rows={4} />
+            <Form.Item name="descriptionOfComplaint" label="Description of Complaint">
+              <TextArea className={getHighlightClass('descriptionOfComplaint')} rows={4} />
             </Form.Item>
           </Col>
         </Row>
@@ -1211,9 +1436,9 @@ ${textToProcess}
 
       <div style={{ textAlign: 'right', marginTop: '20px' }}>
         <Space>
-          <Button onClick={() => setCurrentStep(1)}>Back</Button>
+          <Button icon={<ArrowLeftOutlined />} style={{ background: '#1f1f1f', color: '#177ddc', borderColor: '#303030', borderRadius: '8px', padding: '4px 16px', fontWeight: 500 }} onClick={() => setCurrentStep(1)}>Back</Button>
           <Button type="primary" htmlType="submit" size="large" style={{ minWidth: '150px' }}>
-            Proceed
+            Register Complaint
           </Button>
         </Space>
       </div>
@@ -1221,43 +1446,124 @@ ${textToProcess}
   );
 
   return (
+    <>
     <Card bordered={false}>
-      {isSubmitted ? (
-        <Result
-          status="success"
-          title="Complaint Registered Successfully!"
-          subTitle="Your complaint has been processed and recorded in the system."
-          extra={[
-            <Button type="primary" key="console" onClick={() => {
-              setIsSubmitted(false);
-              setCurrentStep(0);
-              setMode(null);
-              setComplaintData(null);
-              setSelectedTemplate(null);
-              setDocumentText('');
-              setIsSameAddress('yes');
-              form.resetFields();
-            }}>
-              Register Another
-            </Button>
-          ]}
-        />
-      ) : (
-        <>
-          <div style={{ display: currentStep === 0 ? 'block' : 'none' }}>
-            {renderModeSelection()}
-          </div>
-          <div style={{ display: currentStep === 1 ? 'block' : 'none' }}>
-            {renderDataInput()}
-          </div>
-          <div style={{ display: currentStep === 2 ? 'block' : 'none' }}>
-            {renderForm()}
-          </div>
-          <div style={{ display: currentStep === 3 ? 'block' : 'none' }}>
-            {renderDocumentGeneration()}
-          </div>
-        </>
-      )}
+      <style>{`
+        .auto-extracted-field,
+        .auto-extracted-field.ant-select:not(.ant-select-customize-input) .ant-select-selector,
+        .auto-extracted-field.ant-picker {
+          background-color: rgba(24, 144, 255, 0.1) !important;
+          border: 2px solid #1890ff !important;
+          box-shadow: 0 0 8px rgba(24, 144, 255, 0.4) !important;
+        }
+        .auto-extracted-field input {
+          background-color: transparent !important;
+        }
+      `}</style>
+      {/* Only render the ACTIVE step — avoids cross-step render crashes */}
+      {currentStep === 0 && renderModeSelection()}
+      {currentStep === 1 && renderDataInput()}
+      {currentStep === 2 && renderForm()}
     </Card>
+
+    {/* ── Custom Duplicate Modal — fully dark, no Ant Design CSS-in-JS ── */}
+    {duplicateModalData && (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: 'rgba(0,0,0,0.65)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        backdropFilter: 'blur(2px)',
+      }}>
+        <div style={{
+          background: '#1e2130',
+          border: '1px solid #30363d',
+          borderRadius: '10px',
+          width: '420px',
+          maxWidth: '90vw',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+          overflow: 'hidden',
+        }}>
+          {/* Header */}
+          <div style={{
+            padding: '20px 24px 16px',
+            borderBottom: '1px solid #30363d',
+            display: 'flex', alignItems: 'center', gap: '12px',
+          }}>
+            <span style={{ fontSize: '22px' }}>⚠️</span>
+            <span style={{ color: '#f0f6fc', fontWeight: 700, fontSize: '16px' }}>
+              Duplicate Complaint Detected
+            </span>
+          </div>
+
+          {/* Body */}
+          <div style={{ padding: '20px 24px', color: '#c9d1d9', lineHeight: 1.7 }}>
+            <p style={{ marginBottom: '12px' }}>
+              This complaint appears to be already registered in the system.
+            </p>
+            <p style={{ margin: '4px 0' }}>
+              <span style={{ color: '#3b82f6', fontWeight: 600 }}>Complaint ID: </span>
+              {duplicateModalData.duplicate.id}
+            </p>
+            <p style={{ margin: '4px 0' }}>
+              <span style={{ color: '#3b82f6', fontWeight: 600 }}>Status: </span>
+              {duplicateModalData.duplicate.status}
+            </p>
+            <p style={{ margin: '4px 0' }}>
+              <span style={{ color: '#3b82f6', fontWeight: 600 }}>Assigned IO: </span>
+              {duplicateModalData.duplicate.assignedTo || 'Pending Assignment'}
+            </p>
+            <p style={{ margin: '4px 0' }}>
+              <span style={{ color: '#3b82f6', fontWeight: 600 }}>Date Registered: </span>
+              {duplicateModalData.duplicate.dateRegistered}
+            </p>
+            <p style={{ marginTop: '16px', color: '#c9d1d9' }}>
+              Do you still want to register this as a new complaint?
+            </p>
+          </div>
+
+          {/* Footer buttons */}
+          <div style={{
+            padding: '12px 24px 20px',
+            display: 'flex', justifyContent: 'flex-end', gap: '10px',
+          }}>
+            <button
+              onClick={() => setDuplicateModalData(null)}
+              style={{
+                padding: '7px 20px',
+                borderRadius: '6px',
+                border: '1px solid #30363d',
+                background: 'transparent',
+                color: '#3b82f6',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 500,
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                const { values, existing } = duplicateModalData;
+                setDuplicateModalData(null);
+                proceedRegistration(values, existing);
+              }}
+              style={{
+                padding: '7px 20px',
+                borderRadius: '6px',
+                border: 'none',
+                background: '#3b82f6',
+                color: '#ffffff',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 600,
+              }}
+            >
+              Register Anyway
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

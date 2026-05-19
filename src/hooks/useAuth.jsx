@@ -56,6 +56,8 @@ export const AuthProvider = ({ children }) => {
 
   const signOut = async () => {
     localStorage.removeItem('token');
+    // Clear session storage to reset all module views (e.g., Complaints home page)
+    sessionStorage.clear();
     setToken(null);
     setProfile(null);
   };
