@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Form, Typography, Input, message, Skeleton, List, Divider, Select } from 'antd';
+import { Card, Button, Form, Typography, Input, message, Skeleton, List, Divider } from 'antd';
 import { BookOutlined, AudioOutlined, PlusCircleOutlined } from '@ant-design/icons';
 import { useAuth } from '../../../hooks/useAuth';
 
@@ -11,6 +12,7 @@ export default function CaseDiaryManagement({ firId }) {
   const [adding, setAdding] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [dictationLang, setDictationLang] = useState('en-US');
+  const [translating, setTranslating] = useState(false);
   const { token } = useAuth();
   const [form] = Form.useForm();
 
@@ -59,12 +61,14 @@ export default function CaseDiaryManagement({ firId }) {
 
     const recognition = new SpeechRecognition();
     recognition.lang = dictationLang;
+    recognition.lang = 'hi-IN'; // Always Hindi
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
       setIsRecording(true);
       message.info("Listening... Speak your diary entry clearly.");
+      message.info("सुन रहा है... हिंदी में स्पष्ट रूप से बोलें।");
     };
 
     recognition.onresult = (event) => {
@@ -72,11 +76,13 @@ export default function CaseDiaryManagement({ firId }) {
       const currentVal = form.getFieldValue('entry_text') || '';
       form.setFieldsValue({ entry_text: currentVal ? `${currentVal} ${transcript}` : transcript });
       message.success("Speech captured!");
+      message.success("हिंदी में आवाज़ जोड़ी गई!");
     };
 
     recognition.onerror = (event) => {
       console.error(event.error);
       message.error("Microphone error or no speech detected.");
+      message.error("माइक्रोफोन में त्रुटि या आवाज़ नहीं सुनी।");
       setIsRecording(false);
     };
 
@@ -85,6 +91,31 @@ export default function CaseDiaryManagement({ firId }) {
     };
 
     recognition.start();
+  };
+
+  const handleTranslateToEnglish = async () => {
+    const hindiText = form.getFieldValue('entry_text');
+    if (!hindiText || !hindiText.trim()) {
+      message.warning('अनुवाद के लिए पहले हिंदी में कुछ लिखें या बोलें।');
+      return;
+    }
+    setTranslating(true);
+    try {
+      const res = await fetch(
+        `https://api.mymemory.translated.net/get?q=${encodeURIComponent(hindiText)}&langpair=hi|en`
+      );
+      const data = await res.json();
+      if (data.responseStatus === 200) {
+        form.setFieldsValue({ entry_text: data.responseData.translatedText });
+        message.success('हिंदी से अंग्रेज़ी में अनुवाद हो गया!');
+      } else {
+        throw new Error('Translation failed');
+      }
+    } catch {
+      message.error('अनुवाद में त्रुटि। कृपया पुनः प्रयास करें।');
+    } finally {
+      setTranslating(false);
+    }
   };
 
   return (
@@ -132,6 +163,19 @@ export default function CaseDiaryManagement({ firId }) {
               <Select.Option value="en-US">English</Select.Option>
               <Select.Option value="hi-IN">Hindi</Select.Option>
             </Select>
+          {/* Hindi Dictate + Translate buttons */}
+          <div style={{ marginTop: '-48px', marginBottom: '24px', marginLeft: '12px', zIndex: 1, position: 'relative', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <Button
+              type={isRecording ? 'primary' : 'default'}
+              shape="round"
+              icon={<AudioOutlined />}
+              {isRecording ? '🎙️ सुन रहा है...' : '🎙️ हिंदी में बोलें'}
+            <Button
+              shape="round"
+              loading={translating}
+              onClick={handleTranslateToEnglish}
+              style={{ background: '#1565c0', color: '#fff', border: 'none' }}
+              {translating ? 'Translating...' : '🌐 English में बदलें'}
           </div>
 
           <Button type="primary" htmlType="submit" size="large" loading={adding} icon={<PlusCircleOutlined />} style={{ width: '100%', marginTop: '16px' }}>

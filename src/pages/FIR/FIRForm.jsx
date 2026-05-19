@@ -3,11 +3,13 @@ import {
   Form, Input, Select, DatePicker, TimePicker, Button, Card,
   Typography, Row, Col, Divider, InputNumber, Radio,
   message, Alert, Tag, Space, Tooltip, Upload, Result,
+  message, Alert, Tag, Space, Tooltip, Upload, Result, Modal, Table, Badge,
 } from 'antd';
 import {
   PlusOutlined, DeleteOutlined, ArrowLeftOutlined,
   FileAddOutlined, InfoCircleOutlined, UploadOutlined, PrinterOutlined,
   AudioOutlined
+  AudioOutlined, FileSearchOutlined, CheckCircleOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -60,6 +62,195 @@ const OFFICER_RANKS = [
   'Head Constable (HC)', 'Constable', 'Other',
 ];
 
+  'Inspector', 'SI', 'ASI'
+// ─── HARYANA DISTRICTS & POLICE STATIONS ──────────────────────────────────────
+const HARYANA_DISTRICTS = {
+  'AMBALA': [
+    'AMBALA CANTT', 'AMBALA CITY', 'AMBALA SADAR', 'BALDEV NAGAR', 'BARARA',
+    'MAHESH NAGAR', 'MULLANA', 'NAGGAL', 'NARAINGARH', 'PANJOKHRA',
+    'PARAO AMBALA CANTT', 'SAHA', 'SECTOR-9 AMBALA CITY', 'SHAHZADPUR',
+    'WOMEN POLICE STATION NARAINGARH AMBALA', 'WOMEN POLICE STATION AMBALA',
+  ],
+  'BHIWANI': [
+    'BAWANI KHERA', 'BEHAL', 'BHIWANI CITY', 'BHIWANI CIVIL LINES', 'BHIWANI SADAR',
+    'BOND KALAN', 'DADRI CITY', 'DADRI SADAR', 'JUI KALAN PS BHIWANI',
+    'LOHARU', 'PS INDUSTRIAL AREA BHIWANI', 'SIWANI', 'TOSHAM',
+    'WOMEN POLICE STATION BHIWANI',
+  ],
+  'CHARKHI DADRI': [
+    'BADHRA', 'BOND KALAN', 'DADRI CITY', 'DADRI SADAR', 'JHOJHU KALAN',
+    'WOMEN POLICE STATION CHARKHI DADRI',
+  ],
+  'DABWALI': [
+    'BARAGUDHA', 'CITY MANDI DABWALI', 'DABWALI SADAR', 'KALAN WALI',
+    'ODHAN', 'RORI', 'WOMEN POLICE STATION DABWALI SIRSA',
+  ],
+  'FARIDABAD': [
+    'ADARSH NAGAR', 'BALLABHGARH CITY', 'BALLABHGARH SADAR', 'BHUPANI',
+    'CHHANSA', 'DABUA', 'DHAUJ', 'FARIDABAD CENTRAL', 'FARIDABAD KOTWALI',
+    'FARIDABAD N.I.T.', 'FARIDABAD OLD', 'KHERIPUL', 'METRO POLICE STATION FARIDABAD',
+    'MUJESAR', 'PALLA', 'POLICE STATION B.P.T.P.',
+    'S.G.M. NAGAR (SANJAY GANDHI MEMORIAL NAGAR)', 'SARAI KHAWAJA', 'SARAN',
+    'SECTOR-8', 'SECTOR-17', 'SECTOR-31 FARIDABAD', 'SECTOR-58', 'SURAJ KUND',
+    'TIGAON', 'WOMEN POLICE STATION BALLABGARH',
+    'WOMEN POLICE STATION NIT FARIDABAD', 'WOMEN POLICE STATION FARIDABAD',
+  ],
+  'FATEHABAD': [
+    'BHATTU KALAN', 'BHUNA', 'CITY FATEHABAD', 'CITY RATIA', 'CITY TOHANA',
+    'JAKHAL', 'SADAR FATEHABAD', 'SADAR RATTIA', 'SADAR TOHANA',
+    'WOMEN POLICE STATION FATEHABAD',
+  ],
+  'GURUGRAM': [
+    'BADSHAHPUR', 'BAJGHERA', 'BHONDSI', 'BILASPUR GURUGRAM', 'CITY SOHANA',
+    'CIVIL LINES GURGAON', 'DLF', 'DLF PH-3RD', 'DLF PHASE-1', 'DLF-II',
+    'FURRUKH NAGAR', 'GURGAON CITY', 'GURGAON SADAR',
+    'INDUSTRIAL SECTOR-7 MANESAR', 'KHEDKI DAULA', 'MANESAR', 'METRO',
+    'NEW COLONY', 'PALAM VIHAR', 'PATAUDI', 'PS CYBER MANESAR',
+    'PS CYBER SOUTH', 'PS CYBER WEST', 'RAJENDRA PARK', 'SECTOR-37',
+    'SECTOR-50', 'SECTOR-53', 'SECTOR-9A', 'SECTOR-10', 'SECTOR-14 GURUGRAM',
+    'SECTOR-17/18', 'SECTOR-40', 'SECTOR-5 GURGAON', 'SECTOR-56', 'SECTOR-65',
+    'SHIVAJI NAGAR', 'SOHNA', 'SPECIAL TASK FORCE CENTRAL UNIT GURUGRAM',
+    'SPECIAL TASK FORCE HEADQUARTERS GURUGRAM', 'SPECIAL TASK FORCE UNIT GURUGRAM',
+    'SUSHANT LOK', 'TRAFFIC-I', 'TRAFFIC-II', 'TRAFFIC PS KMP GURUGRAM',
+    'UDYOG VIHAR', 'WOMEN POLICE STATION MANESAR GURUGRAM',
+    'WOMEN POLICE STATION GURGAON', 'WOMEN WEST GURUGRAM',
+  ],
+  'HANSI': [
+    'BASS', 'HANSI CITY', 'HANSI SADAR', 'NARNAUND',
+    'PS CYBER CRIME HANSI', 'PS TRAFFIC HANSI', 'WOMEN POLICE STATION HANSI',
+  ],
+  'HISAR': [
+    'ADAMPUR', 'AGROHA', 'AZAD NAGAR HISAR', 'BARWALA',
+    'CYBER CRIME POLICE STATION HISAR', 'HISAR CITY', 'HISAR CIVIL LINES',
+    'HISAR SADAR', 'HTM HISAR', 'SPECIAL TASK FORCE UNIT HISAR',
+    'TRAFFIC', 'UKLANA', 'URBAN ESTATE HISAR', 'WOMEN POLICE STATION HISSAR',
+  ],
+  'HSENB': [
+    'HSENB POLICE STATION AMBALA', 'HSENB POLICE STATION FARIDABAD',
+    'HSENB POLICE STATION GURUGRAM', 'HSENB POLICE STATION HISAR',
+    'HSENB POLICE STATION JIND', 'HSENB POLICE STATION KARNAL',
+    'HSENB POLICE STATION REWARI', 'HSENB POLICE STATION ROHTAK',
+    'PS HSENB BHIWANI', 'PS HSENB CHARKHI DADRI', 'PS HSENB FATEHABAD',
+    'PS HSENB JHAJJAR', 'PS HSENB KAITHAL', 'PS HSENB KURUKSHETRA',
+    'PS HSENB MAHENDERGARH', 'PS HSENB NUH', 'PS HSENB PALWAL',
+    'PS HSENB PANCHKULA', 'PS HSENB PANIPAT', 'PS HSENB SIRSA',
+    'PS HSENB SONIPAT', 'PS HSENB YAMUNANAGAR',
+  ],
+  'HSNCB': [
+    'HSNCB UNIT AMBALA', 'HSNCB UNIT BHIWANI', 'HSNCB UNIT FARIDABAD',
+    'HSNCB UNIT FATEHABAD', 'HSNCB UNIT GURUGRAM', 'HSNCB UNIT HISAR',
+    'HSNCB UNIT KARNAL', 'HSNCB UNIT KURUKSHETRA', 'HSNCB UNIT REWARI',
+    'HSNCB UNIT ROHTAK', 'HSNCB UNIT SIRSA',
+  ],
+  'JHAJJAR': [
+    'ASAUDA', 'BADLI', 'BERI', 'CITY BAHADURGARH', 'CITY JHAJJAR', 'DUJANA',
+    'LINE PAR BAHADURGARH', 'MACHHROLI', 'PS CYBER JHAJJAR',
+    'SADAR BAHADURGARH', 'SADAR JHAJJAR', 'SAHLAWAS', 'SECTOR-06 BAHADURGARH',
+    'SPECIAL TASK FORCE UNIT BAHADURGARH', 'TRAFFIC BAHADURGARH',
+    'WOMEN POLICE STATION JHAJJAR', 'WOMEN PS BAHADURGARH JHAJJAR',
+  ],
+  'JIND': [
+    'ALEWA', 'CITY SAFIDON', 'CIVIL LINE JIND', 'GARHI', 'JIND CITY',
+    'JIND SADAR', 'JULANA', 'NARWANA CITY', 'NARWANA SADAR', 'PILLU KHERA',
+    'PS CYBER DISTRICT JIND', 'SAFIDON', 'TRAFFIC', 'UCHANA',
+    'WOMEN POLICE STATION JIND',
+  ],
+  'KAITHAL': [
+    'CYBER CRIME POLICE STATION KAITHAL', 'CHEEKA', 'CIVIL LINE KAITHAL',
+    'DHAND', 'GUHLA', 'KAITHAL CITY', 'KAITHAL SADAR', 'KALAYAT',
+    'PUNDRI', 'RAJAUND', 'SIWAN', 'TITRAM', 'TRAFFIC',
+    'WOMEN POLICE STATION KAITHAL',
+  ],
+  'KARNAL': [
+    'ASSANDH', 'BUTANA', 'CYBER CRIME POLICE STATION KARNAL', 'GHARAUNDA',
+    'INDRI', 'KARNAL CITY', 'KARNAL CIVIL LINES', 'KARNAL SADAR', 'KUNJPURA',
+    'MADHUBAN', 'MUNAK KARNAL', 'NIGDHU KARNAL', 'NISSING', 'RAM NAGAR KARNAL',
+    'SECTOR 32-33 KARNAL', 'SPECIAL TASK FORCE UNIT KARNAL', 'TARAORI',
+    'TRAFFIC', 'WOMEN POLICE STATION ASSAND KARNAL', 'WOMEN POLICE STATION KARNAL',
+  ],
+  'KURUKSHETRA': [
+    'BABAIN', 'CITY PEHOWA KURUKSHETRA', 'CYBER CRIME POLICE STATION KURUKSHETRA',
+    'ISMAILABAD', 'JHANSA', 'KRISHANA GATE THANASAR KURUKSHETRA',
+    'KURUKSHETRA UNIVERSITY', 'LADWA', 'PEHOWA', 'SHAHABAD',
+    'THANESAR CITY', 'THANESAR SADAR', 'TRAFFIC',
+    'WOMEN POLICE STATION KURUKSHETRA',
+  ],
+  'MAHENDERGARH': [
+    'ATELI', 'CITY KANINA', 'CITY MAHENDERGARH', 'CITY NARNAUL',
+    'CYBER POLICE STATION MAHENDERGARH', 'NANGAL CHAUDHRI', 'NIZAMPUR',
+    'SADAR KANINA', 'SADAR MAHENDERGARH', 'SADAR NARNAUL', 'SATNALI',
+    'TRAFFIC', 'WOMEN POLICE STATION NARNAUL',
+  ],
+  'NUH': [
+    'BICCHOR', 'CITY NUH', 'CITY TAURU', 'FEROZEPUR JHIRKA', 'NAGINA',
+    'PINANGWA', 'PS AKERA', 'PS CITY FIROZPUR JHIRKA', 'PS CITY PUNHANA',
+    'PS CYBER CRIME NUH (MEWAT)', 'PS MOHAMMADPUR AHIR',
+    'PS TRAFFIC (KMP) DHULAWAT', 'PUNHANA', 'ROZKA MEO', 'SADAR NUH',
+    'SADAR TAURU', 'TRAFFIC', 'WOMEN POLICE STATION MEWAT',
+  ],
+  'PALWAL': [
+    'BAHIN', 'CAMP PALWAL', 'CHAND HUT', 'CITY PALWAL', 'GADPURI',
+    'HASSANPUR', 'HATHIN', 'HODAL', 'MUNDKATI',
+    'PS CYBER CRIME DISTRICT PALWAL', 'SADAR PALWAL',
+    'SPECIAL TASK FORCE UNIT PALWAL', 'TRAFFIC', 'UTAWAR',
+    'WOMEN POLICE STATION PALWAL',
+  ],
+  'PANCHKULA': [
+    'CHANDIMANDIR', 'CYBER CRIME', 'KALKA', 'MANSA DEVI COMPLEX',
+    'PANCHKULA SECTOR-5', 'PINJORE', 'RAIPUR RANI', 'SECTOR-14 PANCHKULA',
+    'SECTOR-20', 'SECTOR-7 PANCHKULA', 'TRAFFIC',
+    'WOMEN POLICE STATION PANCHKULA',
+  ],
+  'PANIPAT': [
+    'BAPOLI', 'CHANDNIBAGH', 'CYBER CRIME POLICE STATION PANIPAT',
+    'INDUSTRIAL SECTOR 29 PANIPAT', 'ISRANA', 'MATLAUDA',
+    'MODEL TOWN PANIPAT', 'OLD INDUSTRIAL PANIPAT', 'PANIPAT CITY',
+    'PANIPAT SADAR', 'QUILLA PANIPAT', 'SAMALKHA', 'SANOLI',
+    'SECTOR 13/17 PANIPAT', 'TEHSIL CAMP PANIPAT', 'TRAFFIC',
+    'WOMEN POLICE STATION PANIPAT',
+  ],
+  'REWARI': [
+    'BAWAL', 'DHARUHERA', 'JATUSANA', 'KASOLA', 'KHOL', 'KOSLI',
+    'MODEL TOWN REWARI', 'POLICE STATION CYBER CRIME REWARI', 'RAMPURA',
+    'REWARI CITY', 'REWARI SADAR', 'ROHADAI', 'SEC-6 DHARUHERA',
+    'TRAFFIC', 'WOMEN POLICE STATION REWARI',
+  ],
+  'ROHTAK': [
+    'ARYA NAGAR ROHTAK', 'BAHUAKBARPUR', 'CYBER POLICE STATION ROHTAK',
+    'I.M.T. ROHTAK', 'KALANAUR', 'LAKHAN MAJRA', 'MEHAM',
+    'P.G.I.M.S. ROHTAK', 'PURANI SABZI MANDI ROHTAK', 'ROHTAK CITY',
+    'ROHTAK CIVIL LINES', 'ROHTAK SADAR', 'SAMPLA', 'SHIVAJI COLONY',
+    'SPECIAL TASK FORCE UNIT ROHTAK', 'TRAFFIC', 'URBAN ESTATE ROHTAK',
+    'WOMEN POLICE STATION ROHTAK',
+  ],
+  'SIRSA': [
+    'BARAGUDHA (SIRSA)', 'CITY MANDI DABWALI (SIRSA)',
+    'CYBER CRIME POLICE STATION SIRSA', 'DABWALI SADAR (SIRSA)', 'DING',
+    'ELLENABAD', 'KALAN WALI (SIRSA)', 'NATHU SARAI CHOPTA', 'ODHAN (SIRSA)',
+    'POLICE STATION CIVIL LINE SIRSA', 'RANIA', 'RORI (SIRSA)',
+    'SIRSA CITY', 'SIRSA SADAR', 'TRAFFIC',
+    'WOMEN POLICE STATION DABWALI (SIRSA)', 'WOMEN POLICE STATION SIRSA',
+  ],
+  'SONIPAT': [
+    'BAHALGARH', 'BARAUDA', 'CIVIL LINE SONIPAT', 'GANNAUR',
+    'GOHANA CITY', 'GOHANA SADAR', 'HSIDC BARHI', 'KHARKHODA', 'KUNDLI',
+    'MOOHANA', 'MURTHAL', 'PS CYBER SONIPAT', 'RAI', 'SECTOR-27 SONIPAT',
+    'SONIPAT CITY', 'SONIPAT SADAR', 'SPECIAL TASK FORCE UNIT SONIPAT',
+    'TRAFFIC', 'TRAFFIC MURTHAL', 'WOMEN POLICE STATION SONIPAT',
+    'WOMEN PS GOHANA', 'WOMEN PS KHANPUR KALAN',
+  ],
+  'STATE CRIME BRANCH': [
+    'NODAL CYBER CRIME POLICE STATION HARYANA',
+  ],
+  'YAMUNANAGAR': [
+    'BILASPUR', 'BURIA', 'CHHACHHRAULI', 'CHHAPAR',
+    'CYBER CRIME POLICE STATION YAMUNANAGAR', 'FARAKPUR',
+    'GANDHI NAGAR YAMUNANAGAR', 'JAGADDHRI SADAR', 'JAGADHRI CITY',
+    'JATHLANA', 'PRATAP NAGAR', 'RADAUR', 'SADHAURA',
+    'SEC.17 HUDA JAGADHRI YAMUNANAGAR', 'TRAFFIC',
+    'WOMEN POLICE STATION YAMUNA NAGAR', 'YAMUNA NAGAR CITY', 'YAMUNA NAGAR SADAR',
+  ],
+};
 // ─── HELPER COMPONENTS ────────────────────────────────────────────────────────
 
 const SectionHeader = ({ number, title, subtitle }) => (
@@ -103,6 +294,7 @@ export default function FIRForm() {
   const [extractingContent, setExtractingContent] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [dictationLang, setDictationLang] = useState('hi-IN');
+  const [translating, setTranslating] = useState(false);
 
   React.useEffect(() => {
     // Check for query params passed from other modules (M1 Complaint, M8 GD)
@@ -139,6 +331,36 @@ export default function FIRForm() {
     }
   }, [location, form]);
 
+  // Auto-fill district, police_station, and officer details for SHO
+  React.useEffect(() => {
+    if (profile?.role === 'sho') {
+      const updates = {};
+
+      if (profile.full_name) updates.officer_name = profile.full_name;
+      if (profile.rank) updates.officer_rank = profile.rank;
+      if (profile.badge_number) updates.officer_no = profile.badge_number;
+
+      if (profile.station_id) {
+        let foundDistrict = null;
+        for (const [dist, stations] of Object.entries(HARYANA_DISTRICTS)) {
+          if (stations.includes(profile.station_id)) {
+            foundDistrict = dist;
+            break;
+          }
+        }
+        if (foundDistrict) {
+          updates.district = foundDistrict;
+          updates.police_station = profile.station_id;
+          setSelectedDistrict(foundDistrict);
+        }
+      }
+
+      if (Object.keys(updates).length > 0) {
+        form.setFieldsValue(updates);
+      }
+    }
+  }, [profile, form]);
+
   const handlePdfUpload = async (file) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -160,6 +382,7 @@ export default function FIRForm() {
       form.setFieldsValue(parsedData);
       setAutoFilledFields(Object.keys(parsedData));
       message.success('AI Auto-Fill complete. Please review the highlighted fields.');
+      message.success('Auto Fill complete. Please review the highlighted fields.');
     } catch (err) {
       message.error(err.message);
     } finally {
@@ -201,12 +424,14 @@ export default function FIRForm() {
     }
     const recognition = new SpeechRecognition();
     recognition.lang = dictationLang;
+    recognition.lang = 'hi-IN'; // Always Hindi
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
       setIsRecording(true);
       message.info("Listening... Speak your narrative clearly.");
+      message.info("सुन रहा है... हिंदी में स्पष्ट रूप से बोलें।");
     };
 
     recognition.onresult = (event) => {
@@ -214,11 +439,13 @@ export default function FIRForm() {
       const currentVal = form.getFieldValue('fir_content') || '';
       form.setFieldsValue({ fir_content: currentVal ? `${currentVal} ${transcript}` : transcript });
       message.success("Speech captured and added!");
+      message.success("हिंदी में आवाज़ जोड़ी गई!");
     };
 
     recognition.onerror = (event) => {
       console.error(event.error);
       message.error("Microphone error or no speech detected.");
+      message.error("माइक्रोफोन में त्रुटि या आवाज़ नहीं सुनी।");
       setIsRecording(false);
     };
 
@@ -229,12 +456,120 @@ export default function FIRForm() {
     recognition.start();
   };
 
+  const handleTranslateToEnglish = async () => {
+    const hindiText = form.getFieldValue('fir_content');
+    if (!hindiText || !hindiText.trim()) {
+      message.warning('अनुवाद के लिए पहले हिंदी में कुछ लिखें या बोलें।');
+      return;
+    }
+    setTranslating(true);
+    try {
+      const res = await fetch(
+        `https://api.mymemory.translated.net/get?q=${encodeURIComponent(hindiText)}&langpair=hi|en`
+      );
+      const data = await res.json();
+      if (data.responseStatus === 200) {
+        const translated = data.responseData.translatedText;
+        form.setFieldsValue({ fir_content: translated });
+        message.success('हिंदी से अंग्रेज़ी में अनुवाद हो गया!');
+      } else {
+        throw new Error('Translation failed');
+      }
+    } catch (err) {
+      message.error('अनुवाद में त्रुटि। कृपया पुनः प्रयास करें।');
+    } finally {
+      setTranslating(false);
+    }
+  };
+
   const handleValuesChange = (changedValues) => {
     const changedKeys = Object.keys(changedValues);
     setAutoFilledFields(prev => prev.filter(k => !changedKeys.includes(k)));
   };
 
   const getAiClass = (fieldName) => autoFilledFields.includes(fieldName) ? 'fir-ai-filled fir-ai-filled-label' : '';
+
+  // District-PS linked dropdown state
+  const [selectedDistrict, setSelectedDistrict] = useState(null);
+
+  // Complaint Selection Modal state
+  const [complaintModalOpen, setComplaintModalOpen] = useState(false);
+  const [complaints, setComplaints] = useState([]);
+  const [complaintsLoading, setComplaintsLoading] = useState(false);
+  const [complaintSearch, setComplaintSearch] = useState('');
+  const [fillingFromComplaint, setFillingFromComplaint] = useState(false);
+
+  const fetchComplaints = async (searchTerm = '') => {
+    setComplaintsLoading(true);
+    try {
+      const url = searchTerm
+        ? `${import.meta.env.VITE_API_URL}/complaints?q=${encodeURIComponent(searchTerm)}`
+        : `${import.meta.env.VITE_API_URL}/complaints`;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load complaints');
+      setComplaints(data);
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setComplaintsLoading(false);
+    }
+  };
+
+  const handleOpenComplaintModal = () => {
+    setComplaintModalOpen(true);
+    fetchComplaints();
+  };
+
+  const handleSelectComplaint = async (complaint) => {
+    setFillingFromComplaint(true);
+    try {
+      // Build the fields to set
+      const updates = {
+        complaint_id: complaint.id,
+        complainant_name: complaint.complainant_name || '',
+        complainant_father_name: complaint.complainant_father_name || '',
+        complainant_dob: complaint.complainant_dob || '',
+        complainant_nationality: complaint.complainant_nationality || 'INDIA',
+        complainant_phone: complaint.complainant_phone || '',
+        complainant_occupation: complaint.complainant_occupation || '',
+        complainant_present_address: complaint.complainant_present_address || '',
+        complainant_permanent_address: complaint.complainant_permanent_address || '',
+        complainant_uid: complaint.complainant_uid || '',
+        place_address: complaint.incident_place || '',
+        fir_content: complaint.complaint_text || '',
+      };
+
+      // Handle district + PS dropdown
+      if (complaint.district) {
+        updates.district = complaint.district;
+        setSelectedDistrict(complaint.district);
+      }
+      if (complaint.police_station) {
+        updates.police_station = complaint.police_station;
+      }
+
+      form.setFieldsValue(updates);
+      const filledKeys = Object.keys(updates);
+      setAutoFilledFields(prev => [...new Set([...prev, ...filledKeys])]);
+
+      // Mark complaint as converted
+      await fetch(`${import.meta.env.VITE_API_URL}/complaints/${complaint.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: 'converted_to_fir' }),
+      });
+
+      setComplaintModalOpen(false);
+      message.success(`Complaint ${complaint.complaint_number} se data auto-fill ho gaya! highlighted fields check karein.`);
+    } catch (err) {
+      message.error('Auto-fill mein error aaya: ' + err.message);
+    } finally {
+      setFillingFromComplaint(false);
+    }
+  };
 
   // Dynamic table states
   const [actsSections, setActsSections] = useState([{ act: '', sections: '' }]);
@@ -403,6 +738,24 @@ export default function FIRForm() {
     );
   }
 
+  // ── Role Guard: Only SHO / Admin can register FIR ───────────────────────────
+  if (profile && profile.role === 'io') {
+    return (
+      <div className="fir-form-container">
+        <Result
+          status="403"
+          title="Access Denied — अनुमति नहीं"
+          subTitle="केवल SHO या Admin ही नई FIR दर्ज कर सकते हैं। IO को SHO द्वारा FIR assign की जाती है।"
+          extra={
+            <Button type="primary" onClick={() => navigate('/fir')}>
+              FIR List पर वापस जाएं
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="fir-form-container no-print">
 
@@ -457,6 +810,154 @@ export default function FIRForm() {
           </div>
         </Card>
 
+        {/* ── AUTO-FILL OPTIONS CARD ── */}
+          <Row gutter={[16, 12]} align="middle">
+            <Col xs={24} md={12}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: 10, background: 'rgba(82,196,26,0.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                }}>
+                  <UploadOutlined style={{ color: '#52c41a', fontSize: 18 }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: '#e6f7ff', fontWeight: 600, fontSize: 14 }}>Auto Fill — PDF / Image</div>
+                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>Complaint document upload karein, AI fields fill karega</div>
+                </div>
+                <Upload beforeUpload={handlePdfUpload} showUploadList={false} accept=".pdf,image/*">
+                  <Button
+                    type="primary"
+                    icon={<UploadOutlined />}
+                    loading={extracting}
+                    style={{ backgroundColor: '#52c41a', borderColor: '#52c41a', whiteSpace: 'nowrap' }}
+                  >
+                    {extracting ? 'Extracting...' : 'Upload & Fill'}
+                  </Button>
+                </Upload>
+              </div>
+            </Col>
+            <Col xs={24} md={1} style={{ display: 'flex', justifyContent: 'center' }}>
+              <Divider type="vertical" style={{ height: 40, borderColor: 'rgba(255,255,255,0.12)' }} />
+            </Col>
+            <Col xs={24} md={11}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: 10, background: 'rgba(24,144,255,0.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                }}>
+                  <FileSearchOutlined style={{ color: '#1890ff', fontSize: 18 }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: '#e6f7ff', fontWeight: 600, fontSize: 14 }}>Registered Complaint se Fill</div>
+                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>Complaint module ki list se complaint chunein</div>
+                </div>
+                <Button
+                  type="primary"
+                  icon={<FileSearchOutlined />}
+                  onClick={handleOpenComplaintModal}
+                  loading={fillingFromComplaint}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  Select Complaint
+                </Button>
+              </div>
+            </Col>
+          </Row>
+        {/* ── COMPLAINT SELECTION MODAL ── */}
+        <Modal
+          title={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <FileSearchOutlined style={{ color: '#1890ff' }} />
+              <span>Registered Complaint Select Karein</span>
+          }
+          open={complaintModalOpen}
+          onCancel={() => setComplaintModalOpen(false)}
+          footer={null}
+          width={900}
+          styles={{ body: { padding: '16px 24px' } }}
+        >
+          <Input.Search
+            placeholder="Naam, complaint no., district, phone se dhundhein..."
+            allowClear
+            size="large"
+            style={{ marginBottom: 16 }}
+            value={complaintSearch}
+            onChange={e => setComplaintSearch(e.target.value)}
+            onSearch={val => fetchComplaints(val)}
+            enterButton
+          />
+          <Table
+            dataSource={complaints}
+            rowKey="id"
+            loading={complaintsLoading}
+            size="small"
+            pagination={{ pageSize: 8, showSizeChanger: false }}
+            onRow={(record) => ({
+              style: { cursor: 'pointer' },
+              onClick: () => handleSelectComplaint(record),
+            })}
+            columns={[
+              {
+                title: 'Complaint No.',
+                dataIndex: 'complaint_number',
+                width: 150,
+                render: (val) => <Tag color="blue" style={{ fontWeight: 600 }}>{val}</Tag>,
+              },
+              {
+                title: 'Shikayatkartha (Complainant)',
+                dataIndex: 'complainant_name',
+                render: (name, rec) => (
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{name}</div>
+                    <div style={{ color: '#888', fontSize: 12 }}>{rec.complainant_phone}</div>
+                  </div>
+                ),
+              },
+              {
+                title: 'District / P.S.',
+                render: (_, rec) => (
+                  <div>
+                    <div style={{ fontWeight: 500 }}>{rec.district}</div>
+                    <div style={{ color: '#888', fontSize: 12 }}>{rec.police_station}</div>
+                  </div>
+                ),
+              },
+              {
+                title: 'Ghatna Sthal',
+                dataIndex: 'incident_place',
+                ellipsis: true,
+              },
+              {
+                title: 'Status',
+                dataIndex: 'status',
+                width: 130,
+                render: (s) => (
+                  <Badge
+                    status={s === 'pending' ? 'warning' : s === 'converted_to_fir' ? 'success' : 'default'}
+                    text={s === 'pending' ? 'Pending' : s === 'converted_to_fir' ? 'FIR Darj' : s}
+                  />
+                ),
+              },
+              {
+                title: '',
+                width: 80,
+                render: (_, rec) => (
+                  <Button
+                    type="primary"
+                    size="small"
+                    icon={<CheckCircleOutlined />}
+                    onClick={(e) => { e.stopPropagation(); handleSelectComplaint(rec); }}
+                    loading={fillingFromComplaint}
+                  >
+                    Select
+                  </Button>
+                ),
+              },
+            ]}
+          />
+          <div style={{ color: 'rgba(0,0,0,0.4)', fontSize: 12, marginTop: 8 }}>
+            💡 Kisi bhi row par click karein ya "Select" button dabayen — form automatically fill ho jaayega.
+        </Modal>
         {/* ══════════════════════════════════════════════════════════════
             SECTION 1 — Basic FIR Details
         ══════════════════════════════════════════════════════════════ */}
@@ -475,6 +976,21 @@ export default function FIRForm() {
                 className={getAiClass('district')}
               >
                 <Input placeholder="e.g. PANIPAT" size="large" />
+                <Select
+                  placeholder="-- Select District --"
+                  size="large"
+                  showSearch
+                  optionFilterProp="children"
+                  disabled={profile?.role === 'sho'}
+                  onChange={(val) => {
+                    setSelectedDistrict(val);
+                    form.setFieldValue('police_station', undefined);
+                  }}
+                >
+                  {Object.keys(HARYANA_DISTRICTS).sort().map(d => (
+                    <Option key={d} value={d}>{d}</Option>
+                  ))}
+                </Select>
               </Form.Item>
             </Col>
             <Col xs={24} sm={8}>
@@ -485,6 +1001,18 @@ export default function FIRForm() {
                 className={getAiClass('police_station')}
               >
                 <Input placeholder="e.g. SAMALKHA" size="large" />
+                <Select
+                  placeholder={selectedDistrict ? '-- Select Police Station --' : 'Pehle District chunein'}
+                  size="large"
+                  showSearch
+                  optionFilterProp="children"
+                  disabled={!selectedDistrict || profile?.role === 'sho'}
+                  notFoundContent="Koi police station nahi mili"
+                >
+                  {(selectedDistrict ? HARYANA_DISTRICTS[selectedDistrict] : []).map(ps => (
+                    <Option key={ps} value={ps}>{ps}</Option>
+                  ))}
+                </Select>
               </Form.Item>
             </Col>
             <Col xs={24} sm={8}>
@@ -1076,6 +1604,19 @@ export default function FIRForm() {
               <Option value="en-US">English</Option>
               <Option value="hi-IN">Hindi</Option>
             </Select>
+
+            <Button
+              type={isRecording ? 'primary' : 'default'}
+              shape="round"
+              icon={<AudioOutlined />}
+              {isRecording ? '🎙️ सुन रहा है...' : '🎙️ हिंदी में बोलें (Dictate)'}
+
+            <Button
+              shape="round"
+              loading={translating}
+              onClick={handleTranslateToEnglish}
+              style={{ background: '#1565c0', color: '#fff', border: 'none' }}
+              {translating ? 'Translating...' : '🌐 English में बदलें'}
           </div>
 
           <Form.Item

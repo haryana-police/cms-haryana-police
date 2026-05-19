@@ -13,7 +13,8 @@ import {
   DashboardOutlined,
   LogoutOutlined,
   UserOutlined,
-  MenuOutlined
+  MenuOutlined,
+  TeamOutlined,
 } from '@ant-design/icons';
 import '../../styles/appshell.css';
 
@@ -63,7 +64,8 @@ export default function AppShell() {
     { key: '/analysis', icon: <LineChartOutlined />, label: 'Analysis' },
     { key: '/search', icon: <SearchOutlined />, label: 'Smart Search' },
     { key: '/crime-map', icon: <EnvironmentOutlined />, label: 'Crime Map' },
-    { key: '/gd', icon: <FileTextOutlined />, label: 'Smart GD' },
+    { key: '/gd', icon: <BookOutlined />, label: 'Smart GD' },
+    ...(profile?.role === 'admin' ? [{ key: '/admin/users', icon: <TeamOutlined />, label: 'User Management' }] : []),
   ];
 
   return (

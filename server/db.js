@@ -88,6 +88,7 @@ db.exec(`
     fir_content TEXT NOT NULL,
 
     -- Section 13: Action Taken
+    io_id TEXT,
     io_name TEXT,
     io_rank TEXT,
     io_no TEXT,
@@ -104,7 +105,7 @@ db.exec(`
     dispatch_date_time TEXT,
 
     -- Meta
-    status TEXT DEFAULT 'registered',
+    status TEXT DEFAULT 'under_investigation',
     registered_by TEXT NOT NULL,
     complaint_id TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -167,6 +168,28 @@ db.exec(`
     entry_text TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(fir_id) REFERENCES firs(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS complaints (
+    id TEXT PRIMARY KEY,
+    complaint_number TEXT UNIQUE NOT NULL,
+    complainant_name TEXT NOT NULL,
+    complainant_father_name TEXT,
+    complainant_dob TEXT,
+    complainant_nationality TEXT DEFAULT 'INDIA',
+    complainant_phone TEXT,
+    complainant_occupation TEXT,
+    complainant_present_address TEXT,
+    complainant_permanent_address TEXT,
+    complainant_uid TEXT,
+    district TEXT,
+    police_station TEXT,
+    complaint_text TEXT,
+    incident_place TEXT,
+    incident_date TEXT,
+    status TEXT DEFAULT 'pending',
+    registered_by TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
 
@@ -319,6 +342,11 @@ try {
     db.exec(`ALTER TABLE firs ADD COLUMN complaint_id TEXT;`);
     console.log('Added complaint_id column to firs table.');
   }
+  const hasIoId = tableInfo.some(col => col.name === 'io_id');
+  if (!hasIoId) {
+    db.exec(`ALTER TABLE firs ADD COLUMN io_id TEXT;`);
+    console.log('Added io_id column to firs table.');
+  }
   const evidenceTableInfo = db.pragma('table_info(evidences)');
   const hasMediaFile = evidenceTableInfo.some(col => col.name === 'media_file');
   if (!hasMediaFile) {
@@ -344,7 +372,6 @@ try {
   console.log('Migration note:', err.message);
 }
 
-
 // Seed profiles
 const profileCount = db.prepare('SELECT COUNT(*) as c FROM profiles').get().c;
 if (profileCount === 0) {
@@ -361,7 +388,7 @@ if (profileCount === 0) {
   console.log('Seed profiles created.');
 }
 
-// â”€â”€â”€ Seed analysis data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Seed analysis data ---
 const caseCount = db.prepare('SELECT COUNT(*) as c FROM cases').get().c;
 if (caseCount === 0) {
   // Insert cases
@@ -651,6 +678,98 @@ if (bankCount === 0) {
   db.transaction(rows => rows.forEach(r => insertCont.run(...r)))(contradictions);
 
   console.log('âœ… Bank transactions, IP records, leads, and contradictions seeded.');
+}
+
+// Insert seed complaints if complaints table is empty
+const complaintCount = db.prepare('SELECT COUNT(*) as c FROM complaints').get().c;
+if (complaintCount === 0) {
+  const insertComplaint = db.prepare(`
+    INSERT INTO complaints (
+      id, complaint_number, complainant_name, complainant_father_name, complainant_dob,
+      complainant_nationality, complainant_phone, complainant_occupation,
+      complainant_present_address, complainant_permanent_address, complainant_uid,
+      district, police_station, complaint_text, incident_place, incident_date, status
+    ) VALUES (
+      @id, @complaint_number, @complainant_name, @complainant_father_name, @complainant_dob,
+      @complainant_nationality, @complainant_phone, @complainant_occupation,
+      @complainant_present_address, @complainant_permanent_address, @complainant_uid,
+      @district, @police_station, @complaint_text, @incident_place, @incident_date, @status
+    )
+  `);
+
+  const seedComplaints = [
+    {
+      id: 'cmp-001', complaint_number: 'CMP/2026/0001',
+      complainant_name: 'Ramesh Kumar Sharma', complainant_father_name: 'Suresh Kumar Sharma',
+      complainant_dob: '15/04/1985', complainant_nationality: 'INDIA',
+      complainant_phone: '9876543210', complainant_occupation: 'Farmer',
+      complainant_present_address: 'H.No. 45, Village Samalkha, Panipat, Haryana',
+      complainant_permanent_address: 'H.No. 45, Village Samalkha, Panipat, Haryana',
+      complainant_uid: '123456789012',
+      district: 'PANIPAT', police_station: 'SAMALKHA',
+      complaint_text: 'Complainant Ramesh Kumar Sharma states that on the night of 20/04/2026, unknown persons broke into his house and stole cash of Rs. 50,000, gold jewellery worth Rs. 2,00,000 and a mobile phone. The incident occurred while the family was away. He requests registration of FIR and investigation of the matter.',
+      incident_place: 'H.No. 45, Village Samalkha, Panipat, Haryana', incident_date: '2026-04-20',
+      status: 'pending'
+    },
+    {
+      id: 'cmp-002', complaint_number: 'CMP/2026/0002',
+      complainant_name: 'Sunita Devi', complainant_father_name: 'Mohan Lal',
+      complainant_dob: '1978', complainant_nationality: 'INDIA',
+      complainant_phone: '8765432109', complainant_occupation: 'Housewife',
+      complainant_present_address: 'Ward No. 5, Rohtak City, Haryana',
+      complainant_permanent_address: 'Ward No. 5, Rohtak City, Haryana',
+      complainant_uid: '987654321098',
+      district: 'ROHTAK', police_station: 'ROHTAK CITY',
+      complaint_text: 'Complainant Sunita Devi states that her neighbour Dinesh Kumar has been harassing her family for the past 3 months regarding a property dispute. On 21/04/2026, he along with 2 other persons came to her house and abused and threatened her. She seeks police action against the accused persons.',
+      incident_place: 'Ward No. 5, Near Bus Stand, Rohtak', incident_date: '2026-04-21',
+      status: 'pending'
+    },
+    {
+      id: 'cmp-003', complaint_number: 'CMP/2026/0003',
+      complainant_name: 'Harpal Singh', complainant_father_name: 'Gurdev Singh',
+      complainant_dob: '03/07/1979', complainant_nationality: 'INDIA',
+      complainant_phone: '7654321098', complainant_occupation: 'Shopkeeper',
+      complainant_present_address: 'Shop No. 12, Model Town, Ambala City, Haryana',
+      complainant_permanent_address: 'H.No. 78, Sector-9, Ambala City, Haryana',
+      complainant_uid: '456789012345',
+      district: 'AMBALA', police_station: 'AMBALA CITY',
+      complaint_text: 'Complainant Harpal Singh states that he runs a general store in Model Town Ambala. On 22/04/2026 at around 11:30 PM, two unknown persons came on a motorcycle and snatched his bag containing Rs. 35,000 cash and important documents near Model Town market. He could not identify the accused as they were wearing helmets.',
+      incident_place: 'Near Model Town Market, Ambala City', incident_date: '2026-04-22',
+      status: 'pending'
+    },
+    {
+      id: 'cmp-004', complaint_number: 'CMP/2026/0004',
+      complainant_name: 'Vijay Kumar Yadav', complainant_father_name: 'Ram Kishore Yadav',
+      complainant_dob: '1990', complainant_nationality: 'INDIA',
+      complainant_phone: '9988776655', complainant_occupation: 'Driver',
+      complainant_present_address: 'Village Kundli, Sonipat, Haryana',
+      complainant_permanent_address: 'Village Kundli, Sonipat, Haryana',
+      complainant_uid: '321654987012',
+      district: 'SONIPAT', police_station: 'KUNDLI',
+      complaint_text: 'Complainant Vijay Kumar Yadav states that he was driving his truck (HR 01 GA 1234) when a group of 5 persons blocked his way near HSIDC area at night and forcibly took away goods worth Rs. 1,50,000 from his truck at gunpoint on 23/04/2026. He managed to escape and inform police.',
+      incident_place: 'HSIDC Industrial Area, Kundli, Sonipat', incident_date: '2026-04-23',
+      status: 'pending'
+    },
+    {
+      id: 'cmp-005', complaint_number: 'CMP/2026/0005',
+      complainant_name: 'Meena Kumari Agarwal', complainant_father_name: 'Shyam Lal Agarwal',
+      complainant_dob: '22/11/1995', complainant_nationality: 'INDIA',
+      complainant_phone: '9123456780', complainant_occupation: 'Teacher',
+      complainant_present_address: 'Flat No. 303, Sector-14, Gurugram, Haryana',
+      complainant_permanent_address: 'H.No. 5, Lajpat Nagar, Jind, Haryana',
+      complainant_uid: '654321987654',
+      district: 'GURUGRAM', police_station: 'SECTOR-14 GURUGRAM',
+      complaint_text: 'Complainant Meena Kumari Agarwal states that she received a call from an unknown number claiming to be a bank official. The caller fraudulently obtained her ATM card details and OTP and transferred Rs. 75,000 from her savings account on 20/04/2026. She has bank transaction proof and call records available.',
+      incident_place: 'Flat No. 303, Sector-14, Gurugram (Online Fraud)', incident_date: '2026-04-20',
+      status: 'pending'
+    },
+  ];
+
+  const txn = db.transaction((complaints) => {
+    for (const c of complaints) insertComplaint.run(c);
+  });
+  txn(seedComplaints);
+  console.log('Seed complaints created.');
 }
 
 export default db;

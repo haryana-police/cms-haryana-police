@@ -10,6 +10,7 @@ export default function ChallanGeneration({ firId }) {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [translating, setTranslating] = useState(false);
   const { token } = useAuth();
   const [form] = Form.useForm();
 
@@ -50,6 +51,7 @@ export default function ChallanGeneration({ firId }) {
   };
 
   // Voice to Text Feature using Web Speech API
+  // Voice to Text — always Hindi
   const handleVoiceToText = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -59,12 +61,14 @@ export default function ChallanGeneration({ firId }) {
 
     const recognition = new SpeechRecognition();
     recognition.lang = 'en-US'; // Can be changed or made dynamic (e.g. hi-IN for Hindi)
+    recognition.lang = 'hi-IN'; // Always Hindi
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
       setIsRecording(true);
       message.info("Listening... Speak your notes clearly.");
+      message.info("सुन रहा है... हिंदी में स्पष्ट रूप से बोलें।");
     };
 
     recognition.onresult = (event) => {
@@ -72,11 +76,13 @@ export default function ChallanGeneration({ firId }) {
       const currentVal = form.getFieldValue('io_notes') || '';
       form.setFieldsValue({ io_notes: currentVal ? `${currentVal} ${transcript}` : transcript });
       message.success("Speech captured!");
+      message.success("हिंदी में आवाज़ जोड़ी गई!");
     };
 
     recognition.onerror = (event) => {
       console.error(event.error);
       message.error("Microphone error or no speech detected.");
+      message.error("माइक्रोफोन में त्रुटि या आवाज़ नहीं सुनी।");
       setIsRecording(false);
     };
 
@@ -85,6 +91,31 @@ export default function ChallanGeneration({ firId }) {
     };
 
     recognition.start();
+  };
+
+  const handleTranslateToEnglish = async () => {
+    const hindiText = form.getFieldValue('io_notes');
+    if (!hindiText || !hindiText.trim()) {
+      message.warning('अनुवाद के लिए पहले हिंदी में कुछ लिखें या बोलें।');
+      return;
+    }
+    setTranslating(true);
+    try {
+      const res = await fetch(
+        `https://api.mymemory.translated.net/get?q=${encodeURIComponent(hindiText)}&langpair=hi|en`
+      );
+      const data = await res.json();
+      if (data.responseStatus === 200) {
+        form.setFieldsValue({ io_notes: data.responseData.translatedText });
+        message.success('हिंदी से अंग्रेज़ी में अनुवाद हो गया!');
+      } else {
+        throw new Error('Translation failed');
+      }
+    } catch {
+      message.error('अनुवाद में त्रुटि। कृपया पुनः प्रयास करें।');
+    } finally {
+      setTranslating(false);
+    }
   };
 
   return (
@@ -117,6 +148,20 @@ export default function ChallanGeneration({ firId }) {
               size="small"
             >
               {isRecording ? "Listening..." : "Dictate Notes (Voice-to-Text)"}
+          {/* Hindi Dictate + Translate buttons */}
+          <div style={{ marginTop: '-48px', marginBottom: '24px', marginLeft: '12px', zIndex: 1, position: 'relative', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <Button
+              type={isRecording ? 'primary' : 'default'}
+              shape="round"
+              icon={<AudioOutlined />}
+              {isRecording ? '🎙️ सुन रहा है...' : '🎙️ हिंदी में बोलें'}
+            </Button>
+            <Button
+              shape="round"
+              loading={translating}
+              onClick={handleTranslateToEnglish}
+              style={{ background: '#1565c0', color: '#fff', border: 'none' }}
+              {translating ? 'Translating...' : '🌐 English में बदलें'}
             </Button>
           </div>
 

@@ -173,6 +173,7 @@ export default function EvidenceManagement({ firId, firData }) {
 
   const [isRecording, setIsRecording] = useState(false);
   const [dictationLang, setDictationLang] = useState('hi-IN');
+  const [translating, setTranslating] = useState(false);
 
   const { token } = useAuth();
   const [noticeForm] = Form.useForm();
@@ -253,12 +254,14 @@ export default function EvidenceManagement({ firId, firData }) {
     }
     const recognition = new SpeechRecognition();
     recognition.lang = dictationLang;
+    recognition.lang = 'hi-IN'; // Always Hindi
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
       setIsRecording(true);
       message.info("Listening... Speak your narrative clearly.");
+      message.info("सुन रहा है... हिंदी में स्पष्ट रूप से बोलें।");
     };
 
     recognition.onresult = (event) => {
@@ -266,11 +269,13 @@ export default function EvidenceManagement({ firId, firData }) {
       const currentVal = evidenceForm.getFieldValue('seizure_narrative') || '';
       evidenceForm.setFieldsValue({ seizure_narrative: currentVal ? `${currentVal} ${transcript}` : transcript });
       message.success("Speech captured and added!");
+      message.success("हिंदी में आवाज़ जोड़ी गई!");
     };
 
     recognition.onerror = (event) => {
       console.error(event.error);
       message.error("Microphone error or no speech detected.");
+      message.error("माइक्रोफोन में त्रुटि या आवाज़ नहीं सुनी।");
       setIsRecording(false);
     };
 
@@ -279,6 +284,31 @@ export default function EvidenceManagement({ firId, firData }) {
     };
 
     recognition.start();
+  };
+
+  const handleTranslateToEnglish = async () => {
+    const hindiText = evidenceForm.getFieldValue('seizure_narrative');
+    if (!hindiText || !hindiText.trim()) {
+      message.warning('अनुवाद के लिए पहले हिंदी में कुछ लिखें या बोलें।');
+      return;
+    }
+    setTranslating(true);
+    try {
+      const res = await fetch(
+        `https://api.mymemory.translated.net/get?q=${encodeURIComponent(hindiText)}&langpair=hi|en`
+      );
+      const data = await res.json();
+      if (data.responseStatus === 200) {
+        evidenceForm.setFieldsValue({ seizure_narrative: data.responseData.translatedText });
+        message.success('हिंदी से अंग्रेज़ी में अनुवाद हो गया!');
+      } else {
+        throw new Error('Translation failed');
+      }
+    } catch {
+      message.error('अनुवाद में त्रुटि। कृपया पुनः प्रयास करें।');
+    } finally {
+      setTranslating(false);
+    }
   };
 
   /* Print handler */
@@ -420,6 +450,28 @@ export default function EvidenceManagement({ firId, firData }) {
                 >
                   {isRecording ? "Listening..." : "Dictate (Voice)"}
                 </Button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Button
+                    type={isRecording ? 'primary' : 'default'}
+                    danger={isRecording}
+                    shape="round"
+                    icon={<AudioOutlined />}
+                    onClick={handleVoiceToText}
+                    size="small"
+                  >
+                    {isRecording ? '🎙️ सुन रहा है...' : '🎙️ हिंदी में बोलें'}
+                  </Button>
+                  <Button
+                    shape="round"
+                    size="small"
+                    loading={translating}
+                    onClick={handleTranslateToEnglish}
+                    style={{ background: '#1565c0', color: '#fff', border: 'none' }}
+                  >
+                    {translating ? 'Translating...' : '🌐 English में बदलें'}
+                  </Button>
+                </div>
               </div>
 
               <Form.Item
@@ -589,6 +641,8 @@ export default function EvidenceManagement({ firId, firData }) {
       >
         <div style={{ background: '#f5f5f5', padding: '24px', borderRadius: '8px', minHeight: '300px', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
           {docContent}
+        <div style={{ background: '#f5f5f5', color: '#000', padding: '24px', borderRadius: '8px', minHeight: '300px', whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.6' }}>
+          {typeof docContent === 'string' ? docContent.replace(/\\n/g, '\n') : docContent}
         </div>
       </Modal>
     </div>

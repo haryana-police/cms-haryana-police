@@ -12,10 +12,11 @@ import dns from 'dns';
 import db from './db.js';
 import FormData from 'form-data';
 import nodeFetch from 'node-fetch';
+import { Groq } from 'groq-sdk';
 import analysisRouter from './routes/analysis.js';
  
 
-// â”€â”€â”€ Override DNS to use Google DNS (8.8.8.8) â€” bypasses ISP DNS blocks â”€â”€â”€â”€â”€â”€
+// --- Override DNS to use Google DNS (8.8.8.8) --- bypasses ISP DNS blocks ---
 dns.setDefaultResultOrder('ipv4first');
 dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
 
@@ -27,16 +28,16 @@ const pdfParse = typeof pdfParseModule === 'function'
   ? pdfParseModule
   : (pdfParseModule.default || pdfParseModule);
 
-// â”€â”€â”€ Server-side PDF â†’ Image using pdfjs-dist + canvas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// NOTE: Disabled on Windows â€” native canvas crashes process during PDF render.
+// --- Server-side PDF -> Image using pdfjs-dist + canvas ---
+// NOTE: Disabled on Windows — native canvas crashes process during PDF render.
 // Frontend browser canvas handles OCR for scanned PDFs instead.
 let pdfjsLib = null;
 let NodeCanvasFactory = null;
-console.log('â„¹ï¸  Server-side PDF canvas rendering disabled (Windows compatibility). Frontend canvas OCR active.');
+console.log('Server-side PDF canvas rendering disabled (Windows compatibility). Frontend canvas OCR active.');
 
 dotenv.config();
 
-// â”€â”€â”€ Multer Config: Accept up to 10 files â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Multer Config: Accept up to 10 files ---
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads/'),
   filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
@@ -79,9 +80,14 @@ const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
   if (token == null) return res.sendStatus(401);
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  jwt.verify(token, JWT_SECRET, (err, decodedUser) => {
     if (err) return res.sendStatus(403);
-    req.user = user;
+    
+    // Fetch user from DB to get the latest station_id and role (handles old tokens)
+    const dbUser = db.prepare('SELECT id, username, role, station_id FROM profiles WHERE id = ?').get(decodedUser.id);
+    if (!dbUser) return res.sendStatus(403);
+    
+    req.user = dbUser;
     next();
   });
 };
@@ -90,6 +96,26 @@ const authenticateToken = (req, res, next) => {
 app.get('/api', (req, res) => {
   res.json({ status: 'ok', message: 'HP CMS Backend API is running', version: '1.0.0' });
 });
+
+// Middleware: Access Control (IO sees only assigned FIRs, SHO sees only their station's FIRs)
+const checkFirAccess = (req, res, next) => {
+  const firId = req.params.id || req.params.fir_id;
+  if (!firId) return next();
+
+  if (req.user.role === 'io' || req.user.role === 'sho') {
+    const fir = db.prepare('SELECT io_id, police_station FROM firs WHERE id = ?').get(firId);
+    if (!fir) return res.status(404).json({ error: 'FIR not found' });
+    
+    if (req.user.role === 'io' && fir.io_id !== req.user.id) {
+      return res.status(403).json({ error: 'Aap ko yeh FIR access karne ki permission nahi hai' });
+    }
+    
+    if (req.user.role === 'sho' && req.user.station_id && fir.police_station !== req.user.station_id) {
+      return res.status(403).json({ error: 'Aap keval apne police station ki FIR access kar sakte hain' });
+    }
+  }
+  next();
+};
 
 // Login Route
 app.post('/api/login', (req, res) => {
@@ -131,7 +157,7 @@ app.get('/api/users/ios', authenticateToken, (req, res) => {
   }
 });
 
-// â”€â”€â”€ Groq API Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Groq API Helper ---
 async function callGroqAPI(messages, jsonMode = false, model = "llama-3.3-70b-versatile") {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("GROQ_API_KEY not found in .env");
@@ -154,7 +180,7 @@ async function callGroqAPI(messages, jsonMode = false, model = "llama-3.3-70b-ve
   return data.choices[0].message.content;
 }
 
-// â”€â”€â”€ Groq Whisper Audio Transcription Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Groq Whisper Audio Transcription Helper ---
 async function callGroqWhisper(filePath) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("GROQ_API_KEY not found in .env");
@@ -181,7 +207,7 @@ async function callGroqWhisper(filePath) {
   return data.text;
 }
 
-// â”€â”€â”€ OCR Helper: Extract text from image file â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- OCR Helper: Extract text from image file ---
 async function extractTextFromImage(filePath, lang = 'eng+hin') {
   try {
     const { data: { text, confidence } } = await Tesseract.recognize(filePath, lang, {
@@ -195,7 +221,7 @@ async function extractTextFromImage(filePath, lang = 'eng+hin') {
   }
 }
 
-// â”€â”€â”€ OCR Helper: Extract text from base64 image (for scanned PDFs) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- OCR Helper: Extract text from base64 image (for scanned PDFs) ---
 async function extractTextFromBase64(base64Data) {
   const tmpPath = `uploads/tmp_${Date.now()}.png`;
   try {
@@ -211,7 +237,7 @@ async function extractTextFromBase64(base64Data) {
   }
 }
 
-// â”€â”€â”€ Process a single uploaded file and return extracted text â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Process a single uploaded file and return extracted text ---
 async function processFile(file, imageFallback = null) {
   const { path: filePath, mimetype, originalname } = file;
   let extractedText = '';
@@ -220,9 +246,9 @@ async function processFile(file, imageFallback = null) {
 
   try {
     if (mimetype === 'application/pdf') {
-      console.log(`ðŸ“„ Processing PDF: "${originalname}"`);
+      console.log(`Processing PDF: "${originalname}"`);
 
-      // â”€â”€ Strategy 1: Direct text extraction (works for digital PDFs) â”€â”€â”€â”€â”€â”€
+      // Strategy 1: Direct text extraction (works for digital PDFs)
       let pdfTextDirect = '';
       try {
         const dataBuffer = fs.readFileSync(filePath);
@@ -235,13 +261,13 @@ async function processFile(file, imageFallback = null) {
       }
 
       if (pdfTextDirect.length > 30) {
-        // Good digital PDF â€” text extracted directly
+        // Good digital PDF — text extracted directly
         extractedText = pdfTextDirect;
         method = 'pdf-text';
         confidence = 100;
-        console.log(`   âœ… Digital PDF text extracted: ${extractedText.length} chars`);
+        console.log(`   Digital PDF text extracted: ${extractedText.length} chars`);
       } else {
-        // â”€â”€ Strategy 2: Canvas image OCR (works for scanned/image PDFs) â”€â”€â”€â”€
+        // Strategy 2: Canvas image OCR (works for scanned/image PDFs)
         console.log(`   Strategy 1 insufficient (${pdfTextDirect.length} chars). Trying OCR...`);
         if (imageFallback) {
           const result = await extractTextFromBase64(imageFallback);
@@ -249,14 +275,14 @@ async function processFile(file, imageFallback = null) {
             extractedText = result.text.trim();
             confidence = result.confidence;
             method = 'pdf-ocr-canvas';
-            console.log(`   âœ… Canvas OCR extracted: ${extractedText.length} chars (conf: ${confidence}%)`);
+            console.log(`   Canvas OCR extracted: ${extractedText.length} chars (conf: ${confidence}%)`);
           } else {
             extractedText = pdfTextDirect || '[PDF scanned - OCR returned empty result. Upload as JPG for better results.]';
             method = 'pdf-ocr-empty';
-            console.log(`   âš ï¸  OCR returned empty. Using fallback message.`);
+            console.log(`   OCR returned empty. Using fallback message.`);
           }
         } else if (pdfjsLib && NodeCanvasFactory) {
-          // â”€â”€ Strategy 3: Server-side PDF canvas mapping (for scanned PDFs when frontend fails) â”€â”€â”€â”€
+          // Strategy 3: Server-side PDF canvas mapping (for scanned PDFs when frontend fails)
           console.log(`   Strategy 3 (Server OCR): Frontend fallback missing. Running server-side PDF-to-image OCR...`);
           try {
             const dataBuffer = fs.readFileSync(filePath);
@@ -297,57 +323,57 @@ async function processFile(file, imageFallback = null) {
               extractedText = result.text.trim();
               confidence = result.confidence;
               method = 'pdf-ocr-server';
-              console.log(`   âœ… Server Canvas OCR: ${extractedText.length} chars (conf: ${confidence}%)`);
+              console.log(`   Server Canvas OCR: ${extractedText.length} chars (conf: ${confidence}%)`);
             } else {
               throw new Error("Server OCR returned empty text");
             }
           } catch (serverOcrErr) {
-            console.log(`   âš ï¸ Server side OCR failed: ${serverOcrErr.message}. Falling back...`);
+            console.log(`   Server side OCR failed: ${serverOcrErr.message}. Falling back...`);
             if (pdfTextDirect.length > 0) {
               extractedText = pdfTextDirect;
               method = 'pdf-text-partial';
               confidence = 50;
-              console.log(`   âš ï¸  Using partial PDF text: ${extractedText.length} chars`);
+              console.log(`   Using partial PDF text: ${extractedText.length} chars`);
             } else {
               extractedText = '[Scanned PDF detected. No canvas fallback provided. Please re-upload as a JPG image for OCR analysis.]';
               method = 'pdf-no-fallback';
-              console.log(`   âŒ No fallback and no text. PDF is purely scanned.`);
+              console.log(`   No fallback and no text. PDF is purely scanned.`);
             }
           }
         } else {
-          // â”€â”€ Strategy 4: Fallback to partial text â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+          // Strategy 4: Fallback to partial text
           if (pdfTextDirect.length > 0) {
             extractedText = pdfTextDirect;
             method = 'pdf-text-partial';
             confidence = 50;
-            console.log(`   âš ï¸  Using partial PDF text: ${extractedText.length} chars`);
+            console.log(`   Using partial PDF text: ${extractedText.length} chars`);
           } else {
             extractedText = '[Scanned PDF detected. No canvas fallback provided. Please re-upload as a JPG image for OCR analysis.]';
             method = 'pdf-no-fallback';
-            console.log(`   âŒ No fallback and no text. PDF is purely scanned.`);
+            console.log(`   No fallback and no text. PDF is purely scanned.`);
           }
         }
       }
 
     } else if (mimetype.startsWith('image/')) {
-      // â”€â”€ Images: JPG, PNG, Handwritten docs, Photos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-      console.log(`ðŸ–¼ï¸  Running OCR on image: "${originalname}"`);
+      // Images: JPG, PNG, Handwritten docs, Photos
+      console.log(`Running OCR on image: "${originalname}"`);
       const result = await extractTextFromImage(filePath);
       extractedText = result.text;
       confidence = result.confidence;
       method = 'image-ocr';
-      console.log(`   âœ… Image OCR: ${extractedText.length} chars (conf: ${confidence}%)`);
+      console.log(`   Image OCR: ${extractedText.length} chars (conf: ${confidence}%)`);
     } else if (mimetype.startsWith('audio/') || mimetype.startsWith('video/')) {
-      // â”€â”€ Audio/Video Transcription â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-      console.log(`ðŸŽ¤ Running transcription on audio: "${originalname}"`);
+      // Audio/Video Transcription
+      console.log(`Running transcription on audio: "${originalname}"`);
       const text = await callGroqWhisper(filePath);
       extractedText = text;
       confidence = 100;
       method = 'audio-transcription';
-      console.log(`   âœ… Audio Transcription: ${extractedText.length} chars`);
+      console.log(`   Audio Transcription: ${extractedText.length} chars`);
     }
   } catch (e) {
-    console.error(`âŒ Error processing file "${originalname}":`, e.message);
+    console.error(`Error processing file "${originalname}":`, e.message);
     console.error(e.stack);
     extractedText = `[Error reading file: ${e.message}]`;
     method = 'error';
@@ -367,7 +393,7 @@ async function processFile(file, imageFallback = null) {
   };
 }
 
-// â”€â”€â”€ BNS Conversion Reference Table (used inside prompt) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- BNS Conversion Reference Table (used inside prompt) ---
 const BNS_REFERENCE = `
 MANDATORY BNS CONVERSION TABLE (Use ONLY these - NEVER use IPC numbers in "code" field):
 | Old IPC | New BNS | Crime |
@@ -423,11 +449,11 @@ BNSS (New CrPC) KEY SECTIONS:
 | CrPC 46 | BNSS 43 | Arrest procedure |
 `;
 
-// â”€â”€â”€ AI Prompt for Deep Analysis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- AI Prompt for Deep Analysis ---
 const ANALYSIS_SYSTEM_PROMPT = `You are an expert AI Legal Advisor for Haryana Police, India. 
 
 =========================================================
-âš ï¸ ABSOLUTE MANDATORY RULE - READ CAREFULLY:
+ABSOLUTE MANDATORY RULE - READ CAREFULLY:
 =========================================================
 India passed 3 new laws effective from July 1, 2024:
 1. BNS = Bharatiya Nyaya Sanhita (REPLACES IPC completely)
@@ -435,15 +461,15 @@ India passed 3 new laws effective from July 1, 2024:
 3. BSA = Bharatiya Sakshya Adhiniyam (REPLACES Indian Evidence Act)
 
 YOU MUST:
-âœ… Use BNS section numbers in the "code" field (e.g., "BNS 85", "BNS 303", "BNS 64")
-âœ… Put the old IPC number ONLY in "old_code" field as reference
-âœ… BNS sections are DIFFERENT numbers than IPC - use the mapping table below
+Use BNS section numbers in the "code" field (e.g., "BNS 85", "BNS 303", "BNS 64")
+Put the old IPC number ONLY in "old_code" field as reference
+BNS sections are DIFFERENT numbers than IPC - use the mapping table below
 
 YOU MUST NEVER:
-âŒ DO NOT write "IPC 498A" in the "code" field - write "BNS 85" instead
-âŒ DO NOT write "IPC 302" in the "code" field - write "BNS 101" instead  
-âŒ DO NOT write "IPC 420" in the "code" field - write "BNS 318" instead
-âŒ DO NOT suggest any IPC, CrPC, or IEA sections as primary recommendations
+DO NOT write "IPC 498A" in the "code" field - write "BNS 85" instead
+DO NOT write "IPC 302" in the "code" field - write "BNS 101" instead  
+DO NOT write "IPC 420" in the "code" field - write "BNS 318" instead
+DO NOT suggest any IPC, CrPC, or IEA sections as primary recommendations
 =========================================================
 
 ${BNS_REFERENCE}
@@ -556,7 +582,7 @@ FINAL STRICT RULES:
 7. Evidence checklist must be crime-specific and actionable.`;
 
 
-// â”€â”€â”€ Recursive File Reader Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Recursive File Reader Helper ---
 const getAllFiles = (dirPath, arrayOfFiles) => {
   const files = fs.readdirSync(dirPath);
   arrayOfFiles = arrayOfFiles || [];
@@ -570,7 +596,7 @@ const getAllFiles = (dirPath, arrayOfFiles) => {
   return arrayOfFiles;
 };
 
-// â”€â”€â”€ SOP â†’ Crime Type Mapping Table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- SOP -> Crime Type Mapping Table ---
 const SOP_CRIME_MAP = [
   {
     keywords: ['rape', 'sexual assault', 'bns 63', 'bns 64', 'bns 66', 'bns 70', 'bns 65', 'bns 71', 'pocso', 'gang rape', 'sexual offence'],
@@ -614,7 +640,7 @@ const SOP_CRIME_MAP = [
   }
 ];
 
-// â”€â”€â”€ Load Relevant SOPs based on detected crime context â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Load Relevant SOPs based on detected crime context ---
 const getRelevantSOPs = async (crimeContext = '') => {
   const kbPath = path.join(process.cwd(), 'user_knowledge_base');
   let sopContent = '';
@@ -629,9 +655,9 @@ const getRelevantSOPs = async (crimeContext = '') => {
           const dataBuffer = fs.readFileSync(filePath);
           const pdfData = await pdfParse(dataBuffer);
           sopContent += `\n\n=== OFFICIAL HARYANA POLICE SOP: ${sop.label} ===\n${pdfData.text}\n${'='.repeat(60)}\n`;
-          console.log(`âœ… SOP Loaded for AI: ${sop.label}`);
+          console.log(`SOP Loaded for AI: ${sop.label}`);
         } catch (e) {
-          console.error(`âŒ Error loading SOP [${sop.label}]:`, e.message);
+          console.error(`Error loading SOP [${sop.label}]:`, e.message);
         }
       }
     }
@@ -639,7 +665,7 @@ const getRelevantSOPs = async (crimeContext = '') => {
   return sopContent;
 };
 
-// â”€â”€â”€ Load User Knowledge Base â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Load User Knowledge Base ---
 const getUserKnowledge = async () => {
   const kbPath = path.join(process.cwd(), 'user_knowledge_base');
   let kbContent = '';
@@ -668,7 +694,7 @@ const getUserKnowledge = async () => {
   return kbContent;
 };
 
-// â”€â”€â”€ List Saved Cases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- List Saved Cases ---
 app.get('/api/cases/list', authenticateToken, (req, res) => {
   try {
     const listFiles = (dir) => {
@@ -680,12 +706,136 @@ app.get('/api/cases/list', authenticateToken, (req, res) => {
       complaints: listFiles('complaints'),
       firs: listFiles('firs')
     });
+  } catch (error) {
+    console.error('Case List Error:', error);
+    res.status(500).json({ error: 'Failed to list cases' });
+  }
+});
+
+// =====================
+// ADMIN USER MANAGEMENT
+// =====================
+
+// Middleware: Admin only
+const requireAdmin = (req, res, next) => {
+  if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  next();
+};
+
+// GET /api/admin/users - List all users
+app.get('/api/admin/users', authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const { role, station_id, search } = req.query;
+    let query = 'SELECT id, username, full_name, role, rank, badge_number, station_id, status, created_at FROM profiles WHERE 1=1';
+    const params = [];
+    if (role) { query += ' AND role = ?'; params.push(role); }
+    if (station_id) { query += ' AND station_id = ?'; params.push(station_id); }
+    if (search) { query += ' AND (full_name LIKE ? OR username LIKE ? OR station_id LIKE ?)'; params.push('%'+search+'%','%'+search+'%','%'+search+'%'); }
+    query += ' ORDER BY role, station_id, username LIMIT 500';
+    const users = db.prepare(query).all(...params);
+    res.json(users);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/admin/users - Create new user
+app.post('/api/admin/users', authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const { username, password, full_name, role, rank, badge_number, station_id } = req.body;
+    if (!username || !password || !full_name || !role) return res.status(400).json({ error: 'username, password, full_name, role are required' });
+    const existing = db.prepare('SELECT id FROM profiles WHERE username = ?').get(username);
+    if (existing) return res.status(409).json({ error: 'Username already exists' });
+    const id = 'user-' + role.slice(0,3) + '-' + Date.now();
+    db.prepare('INSERT INTO profiles (id, username, password, role, full_name, rank, badge_number, station_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(id, username, password, role, full_name, rank||'', badge_number||'', station_id||'', 'active');
+    res.status(201).json({ id, message: 'User created successfully' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PATCH /api/admin/users/:id - Update user
+app.patch('/api/admin/users/:id', authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const { full_name, role, rank, badge_number, station_id, status, password } = req.body;
+    const user = db.prepare('SELECT id FROM profiles WHERE id = ?').get(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const fields = []; const params = [];
+    if (full_name !== undefined) { fields.push('full_name = ?'); params.push(full_name); }
+    if (role !== undefined) { fields.push('role = ?'); params.push(role); }
+    if (rank !== undefined) { fields.push('rank = ?'); params.push(rank); }
+    if (badge_number !== undefined) { fields.push('badge_number = ?'); params.push(badge_number); }
+    if (station_id !== undefined) { fields.push('station_id = ?'); params.push(station_id); }
+    if (status !== undefined) { fields.push('status = ?'); params.push(status); }
+    if (password) { fields.push('password = ?'); params.push(password); }
+    if (fields.length === 0) return res.status(400).json({ error: 'Nothing to update' });
+    params.push(req.params.id);
+    db.prepare('UPDATE profiles SET ' + fields.join(', ') + ' WHERE id = ?').run(...params);
+    res.json({ message: 'User updated successfully' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/admin/users/:id - Deactivate user
+app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const user = db.prepare('SELECT id, role FROM profiles WHERE id = ?').get(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.role === 'admin') return res.status(403).json({ error: 'Admin account cannot be deactivated' });
+    db.prepare("UPDATE profiles SET status = 'inactive' WHERE id = ?").run(req.params.id);
+    res.json({ message: 'User deactivated' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// =====================
+// FIR ROUTES
+// =====================
+
+// Helper: generate FIR number (e.g. 0175 for 175th FIR in year 2026)
+function generateFIRNumber(year) {
+  const count = db.prepare('SELECT COUNT(*) as c FROM firs WHERE year = ?').get(year)?.c || 0;
+  return String(count + 1).padStart(4, '0');
+}
+
+// GET /api/users - List users by role and optionally by station_id
+app.get('/api/users', authenticateToken, (req, res) => {
+  try {
+    const { role, station_id } = req.query;
+    let query = "SELECT id, full_name, rank, badge_number, station_id FROM profiles WHERE status = 'active'";
+    const params = [];
+    if (role) { query += ' AND role = ?'; params.push(role); }
+    if (station_id) { query += ' AND station_id = ?'; params.push(station_id); }
+    query += ' ORDER BY full_name';
+    const users = db.prepare(query).all(...params);
+    res.json(users);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// â”€â”€â”€ 1. Smart Multi-File Analysis Endpoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// GET /api/users/lookup-sho - Public endpoint: find SHO username by police station (no auth needed for login page)
+app.get('/api/users/lookup-sho', (req, res) => {
+  try {
+    const { station } = req.query;
+    if (!station) return res.status(400).json({ error: 'station is required' });
+
+    const sho = db.prepare(
+      `SELECT username, full_name, rank, badge_number, station_id
+       FROM profiles
+       WHERE role = 'sho' AND station_id = ? AND status = 'active'
+       LIMIT 1`
+    ).get(station);
+
+    if (!sho) return res.status(404).json({ error: 'SHO not found for this station' });
+
+    res.json({
+      username: sho.username,
+      full_name: sho.full_name,
+      rank: sho.rank,
+      badge_number: sho.badge_number,
+      station_id: sho.station_id,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- 1. Smart Multi-File Analysis Endpoint ---
 app.post('/api/ai/analyze-complaint', authenticateToken, upload.array('files', 10), async (req, res) => {
   try {
     let allExtractedTexts = [];
@@ -1226,14 +1376,14 @@ app.get('/api/health', (req, res) => res.json({
 
 // === FIR MODULE ROUTES ===
 
-// GET /api/firs - List all FIRs
+// GET /api/firs - List FIRs (IO only sees their assigned FIRs)
 app.get('/api/firs', authenticateToken, (req, res) => {
   try {
     const { status, district, complaint_id, gd_entry_no } = req.query;
     let query = `
       SELECT f.id, f.fir_number, f.district, f.police_station, f.year,
              f.date_time_of_fir, f.acts_sections, f.complainant_name,
-             f.place_address, f.status, f.io_name, f.io_rank,
+             f.place_address, f.status, f.io_name, f.io_rank, f.io_id,
              f.created_at, p.full_name as registered_by_name,
              f.complaint_id, f.gd_entry_no
       FROM firs f
@@ -1241,6 +1391,15 @@ app.get('/api/firs', authenticateToken, (req, res) => {
       WHERE 1=1
     `;
     const params = [];
+
+    // Role-based access: IO sees only assigned FIRs, SHO sees only their station's FIRs
+    if (req.user.role === 'io') {
+      query += ' AND f.io_id = ?';
+      params.push(req.user.id);
+    } else if (req.user.role === 'sho' && req.user.station_id) {
+      query += ' AND f.police_station = ?';
+      params.push(req.user.station_id);
+    }
 
     if (status) {
       query += ' AND f.status = ?';
@@ -1268,15 +1427,11 @@ app.get('/api/firs', authenticateToken, (req, res) => {
   }
 });
 
-const generateFIRNumber = (year) => {
-  return String(Math.floor(Math.random() * 9000) + 1000).padStart(4, '0');
-};
-
-// POST /api/firs - Register new FIR
+// POST /api/firs - Register new FIR (SHO / Admin only)
 app.post('/api/firs', authenticateToken, (req, res) => {
-  const allowed = ['io', 'sho', 'admin'];
+  const allowed = ['sho', 'admin'];
   if (!allowed.includes(req.user.role)) {
-    return res.status(403).json({ error: 'Only IO, SHO or Admin can register a FIR' });
+    return res.status(403).json({ error: 'Only SHO or Admin can register a FIR' });
   }
 
   const d = req.body;
@@ -1300,9 +1455,9 @@ app.post('/api/firs', authenticateToken, (req, res) => {
         total_property_value, fir_content, io_name, io_rank, io_no,
         refused_reason, transferred_ps, transferred_district,
         officer_name, officer_rank, officer_no, dispatch_date_time,
-        registered_by, complaint_id
+        registered_by, complaint_id, status
       ) VALUES (
-        ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+        ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
       )
     `).run(
       id, firNumber, d.district, d.police_station, year, d.date_time_of_fir,
@@ -1326,7 +1481,7 @@ app.post('/api/firs', authenticateToken, (req, res) => {
       d.io_name, d.io_rank, d.io_no,
       d.refused_reason, d.transferred_ps, d.transferred_district,
       d.officer_name, d.officer_rank, d.officer_no, d.dispatch_date_time,
-      req.user.id, d.complaint_id
+      req.user.id, d.complaint_id, 'under_investigation'
     );
 
     res.status(201).json({
@@ -1337,6 +1492,391 @@ app.post('/api/firs', authenticateToken, (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// PATCH /api/firs/:id/status - Update FIR status (sho/admin only)
+app.patch('/api/firs/:id/status', authenticateToken, (req, res) => {
+  if (!['sho', 'admin'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Only SHO or Admin can update FIR status' });
+  }
+  const { status } = req.body;
+  const validStatuses = ['under_investigation', 'chargesheeted', 'closed'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ error: 'Invalid status value' });
+  }
+  db.prepare('UPDATE firs SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(status, req.params.id);
+  res.json({ message: 'Status updated successfully' });
+});
+
+// POST /api/firs/extract-pdf - Extract FIR details from PDF/Image using Groq
+app.post('/api/firs/extract-pdf', authenticateToken, upload.single('file'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+
+  try {
+    let extractedText = '';
+
+    if (req.file.mimetype === 'application/pdf') {
+      const dataBuffer = fs.readFileSync(req.file.path);
+      const data = await pdfParse(dataBuffer);
+      extractedText = data.text;
+    } else if (req.file.mimetype.startsWith('image/')) {
+      const { data: { text } } = await Tesseract.recognize(req.file.path, 'eng+hin');
+      extractedText = text;
+    } else {
+      return res.status(400).json({ error: 'Unsupported file type. Please upload a PDF or Image.' });
+    }
+
+    if (!extractedText || extractedText.trim().length === 0) {
+      throw new Error("Could not extract any text from the document.");
+    }
+
+    // Now send the extracted text to Groq to format it into JSON
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    const extractionPrompt = `
+You are a police data extraction assistant. Extract the following fields from the given complaint text and return ONLY a valid JSON object. 
+If a field is not found, leave it empty or null.
+
+Fields to extract:
+- complainant_name (string)
+- complainant_father_name (string)
+- complainant_phone (string)
+- complainant_present_address (string)
+- district (string - try to guess from address if possible)
+- police_station (string - try to guess from text if possible)
+- place_address (string - the address where the incident occurred)
+- fir_content (string - a concise narrative summary of the complaint, translating to English if needed)
+- date_time_of_fir (string - ISO format of today's date)
+
+Text:
+"""
+${extractedText}
+"""
+`;
+
+    const jsonCompletion = await groq.chat.completions.create({
+      messages: [{ role: "user", content: extractionPrompt }],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0,
+      response_format: { type: "json_object" }
+    });
+
+    const parsedData = JSON.parse(jsonCompletion.choices[0].message.content);
+    // Ensure date_time_of_fir is set to now if not properly extracted
+    if (!parsedData.date_time_of_fir) {
+      parsedData.date_time_of_fir = new Date().toISOString();
+    }
+
+    res.json(parsedData);
+  } catch (error) {
+    console.error("Extraction error:", error);
+    res.status(500).json({ error: "Failed to extract data: " + error.message });
+  } finally {
+    if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+  }
+});
+
+// =====================
+// COMPLAINTS ROUTES
+// =====================
+
+// GET /api/complaints - List all complaints (searchable)
+app.get('/api/complaints', authenticateToken, (req, res) => {
+  try {
+    const { q, status } = req.query;
+    let query = `SELECT * FROM complaints WHERE 1=1`;
+    const params = [];
+
+    if (status) {
+      query += ' AND status = ?';
+      params.push(status);
+    }
+    if (q) {
+      query += ' AND (complainant_name LIKE ? OR complaint_number LIKE ? OR district LIKE ? OR complainant_phone LIKE ?)';
+      const term = `%${q}%`;
+      params.push(term, term, term, term);
+    }
+    query += ' ORDER BY created_at DESC';
+
+    const complaints = db.prepare(query).all(...params);
+    res.json(complaints);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/complaints/:id - Single complaint for auto-fill
+app.get('/api/complaints/:id', authenticateToken, (req, res) => {
+  try {
+    const complaint = db.prepare('SELECT * FROM complaints WHERE id = ?').get(req.params.id);
+    if (!complaint) return res.status(404).json({ error: 'Complaint not found' });
+    res.json(complaint);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/complaints/:id/status - Mark complaint as converted to FIR
+app.patch('/api/complaints/:id/status', authenticateToken, (req, res) => {
+  try {
+    const { status } = req.body;
+    db.prepare('UPDATE complaints SET status = ? WHERE id = ?').run(status, req.params.id);
+    res.json({ message: 'Complaint status updated' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// =====================
+// INVESTIGATION ROUTES
+// =====================
+
+// CDRs
+app.get('/api/firs/:id/cdrs', authenticateToken, checkFirAccess, (req, res) => {
+  try {
+    const cdrs = db.prepare('SELECT * FROM cdr_requests WHERE fir_id = ? ORDER BY updated_at DESC').all(req.params.id);
+    res.json(cdrs);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/firs/:id/cdrs', authenticateToken, checkFirAccess, (req, res) => {
+  try {
+    const { phone_number, tsp_name } = req.body;
+    const cid = `cdr-${Date.now()}`;
+    db.prepare(`
+      INSERT INTO cdr_requests (id, fir_id, phone_number, tsp_name, requested_by)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(cid, req.params.id, phone_number, tsp_name, req.user.id);
+    res.json({ id: cid, message: 'CDR Requested', status: 'requested' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.patch('/api/cdrs/:id/status', authenticateToken, (req, res) => {
+  try {
+    const { status } = req.body;
+    db.prepare('UPDATE cdr_requests SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(status, req.params.id);
+    res.json({ message: 'Status updated' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Arrests
+app.get('/api/firs/:id/arrests', authenticateToken, checkFirAccess, (req, res) => {
+  try {
+    const arrests = db.prepare('SELECT * FROM arrests WHERE fir_id = ? ORDER BY created_at DESC').all(req.params.id);
+    res.json(arrests);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/firs/:id/arrests', authenticateToken, checkFirAccess, (req, res) => {
+  try {
+    const {
+      accused_name,
+      accused_address,
+      date_of_arrest,
+      arrest_place,
+      arresting_officer_name,
+      arresting_officer_rank,
+      arresting_officer_badge,
+      arresting_officer_post,
+      informed_person_name,
+      informed_person_address,
+      informed_person_phone,
+      witness_name,
+      witness_post
+    } = req.body;
+
+    const aid = `arr-${Date.now()}`;
+
+    db.prepare(`
+      INSERT INTO arrests (
+        id, fir_id, accused_name, accused_address, date_of_arrest, arrest_place,
+        arresting_officer_name, arresting_officer_rank, arresting_officer_badge, arresting_officer_post,
+        informed_person_name, informed_person_address, informed_person_phone,
+        witness_name, witness_post
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      aid, req.params.id, accused_name, accused_address, date_of_arrest, arrest_place,
+      arresting_officer_name, arresting_officer_rank, arresting_officer_badge, arresting_officer_post,
+      informed_person_name, informed_person_address, informed_person_phone,
+      witness_name, witness_post
+    );
+
+    res.json({ id: aid, message: 'Arrest Recorded & Memo Generated' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Notices
+app.get('/api/firs/:id/notices', authenticateToken, checkFirAccess, (req, res) => {
+  try {
+    const notices = db.prepare('SELECT * FROM notices WHERE fir_id = ? ORDER BY created_at DESC').all(req.params.id);
+    res.json(notices);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/firs/:id/notices', authenticateToken, checkFirAccess, (req, res) => {
+  try {
+    const { notice_type, details } = req.body;
+    const nid = `not-${Date.now()}`;
+    
+    // Fetch FIR details for actual legal notice formatting
+    const fir = db.prepare(`SELECT * FROM firs WHERE id = ?`).get(req.params.id);
+    if (!fir) return res.status(404).json({ error: 'FIR not found' });
+    
+    let sections = '—';
+    try {
+      const parsed = JSON.parse(fir.acts_sections || '[]');
+      sections = parsed.map(s => `${s.sections} ${s.act}`).join(', ');
+    } catch (e) {}
+
+    let accusedStr = '—';
+    try {
+      const parsedAcc = JSON.parse(fir.accused_details || '[]');
+      if (parsedAcc.length > 0) {
+        accusedStr = parsedAcc.map(a => a.name).filter(Boolean).join(', ');
+      }
+    } catch (e) {}
+
+    const firDate = fir.date_time_of_fir ? new Date(fir.date_time_of_fir).toLocaleDateString('hi-IN') : '—';
+    const noticeDate = new Date().toLocaleDateString('hi-IN');
+    
+    const content = `तलाश वारंट / तलाशी व जब्ती नोटिस (धारा 93/94 B.N.S.S.)
+=========================================================
+
+थाना: ${fir.police_station || '—'}
+जिला: ${fir.district || '—'}
+FIR संख्या: ${fir.fir_number || '—'} / ${fir.year || '—'}
+दिनाँक: ${firDate}
+धाराएं: ${sections}
+
+मामले का विवरण:
+शिकायतकर्ता: ${fir.complainant_name || '—'}
+बनाम: ${accusedStr}
+
+नोटिस का प्रकार: ${notice_type.toUpperCase()}
+---------------------------------------------------------
+यह नोटिस निम्नलिखित स्थान/परिसर की तलाशी के संबंध में जारी किया जा रहा है:
+स्थान व विवरण: ${details}
+
+चूंकि ऊपर वर्णित मामले की जांच/अनुसंधान के लिए यह आवश्यक है कि उपर्युक्त स्थान की तलाशी ली जाए, अतः आपको सूचित किया जाता है कि पुलिस टीम द्वारा इस स्थान का निरीक्षण व तलाशी ली जाएगी। कृपया सहयोग करें।
+
+जारी करने की तिथि: ${noticeDate}
+
+अधिकारी के हस्ताक्षर: ____________________
+नाम/पद: ____________________
+`;
+
+    db.prepare(`
+      INSERT INTO notices (id, fir_id, notice_type, content)
+      VALUES (?, ?, ?, ?)
+    `).run(nid, req.params.id, notice_type, content);
+    
+    res.json({ id: nid, message: 'Notice Generated' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Evidences
+app.get('/api/firs/:id/evidences', authenticateToken, checkFirAccess, (req, res) => {
+  try {
+    const evidences = db.prepare('SELECT * FROM evidences WHERE fir_id = ? ORDER BY created_at DESC').all(req.params.id);
+    res.json(evidences);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/firs/:id/evidences', authenticateToken, checkFirAccess, (req, res) => {
+  try {
+    const {
+      description,
+      location,
+      extra_details,
+      media_file,
+      item_id,
+      seizure_date,
+      seizure_place,
+      witness_name,
+      witness_badge,
+      witness_post,
+      officer_post,
+      seizure_narrative
+    } = req.body;
+    const eid = `evd-${Date.now()}`;
+
+    // migrate new columns if not present
+    const tInfo = db.pragma('table_info(evidences)');
+    const cols = tInfo.map(c => c.name);
+    const newCols = [
+      ['item_id','TEXT'], ['seizure_date','TEXT'], ['seizure_place','TEXT'],
+      ['witness_name','TEXT'], ['witness_badge','TEXT'], ['witness_post','TEXT'],
+      ['officer_post','TEXT'], ['seizure_narrative','TEXT']
+    ];
+    for (const [col, type] of newCols) {
+      if (!cols.includes(col)) {
+        db.exec(`ALTER TABLE evidences ADD COLUMN ${col} ${type};`);
+      }
+    }
+
+    db.prepare(`
+      INSERT INTO evidences (
+        id, fir_id, description, location, extra_details, media_file,
+        item_id, seizure_date, seizure_place,
+        witness_name, witness_badge, witness_post,
+        officer_post, seizure_narrative
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      eid, req.params.id, description, location, extra_details, media_file,
+      item_id, seizure_date, seizure_place,
+      witness_name, witness_badge, witness_post,
+      officer_post, seizure_narrative
+    );
+    res.json({ id: eid, message: 'Evidence Recorded and Seizure Memo Generated' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Challans
+app.get('/api/firs/:id/challans', authenticateToken, checkFirAccess, (req, res) => {
+  try {
+    const challans = db.prepare('SELECT * FROM challans WHERE fir_id = ? ORDER BY generated_at DESC').all(req.params.id);
+    res.json(challans);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/firs/:id/challans', authenticateToken, checkFirAccess, (req, res) => {
+  try {
+    const { io_notes } = req.body;
+    const chid = `chal-${Date.now()}`;
+    const reportText = `FINAL REPORT UNDER SECTION 173 CRPC\nFIR ID: ${req.params.id}\nIO Remarks: ${io_notes}\nTimestamp: ${new Date().toISOString()}`;
+    db.prepare(`
+      INSERT INTO challans (id, fir_id, io_notes, final_report)
+      VALUES (?, ?, ?, ?)
+    `).run(chid, req.params.id, io_notes, reportText);
+    
+    // Auto-update FIR status to chargesheeted
+    db.prepare('UPDATE firs SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run('chargesheeted', req.params.id);
+    
+    res.json({ id: chid, message: 'Challan Generated successfully' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Case Diaries
+app.get('/api/firs/:id/case-diaries', authenticateToken, checkFirAccess, (req, res) => {
+  try {
+    const diaries = db.prepare('SELECT * FROM case_diaries WHERE fir_id = ? ORDER BY created_at DESC').all(req.params.id);
+    res.json(diaries);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/firs/:id/case-diaries', authenticateToken, checkFirAccess, (req, res) => {
+  try {
+    const { entry_text } = req.body;
+    const cdid = `cd-${Date.now()}`;
+    db.prepare(`
+      INSERT INTO case_diaries (id, fir_id, entry_text)
+      VALUES (?, ?, ?)
+    `).run(cdid, req.params.id, entry_text);
+    res.json({ id: cdid, message: 'Case Diary Entry Added Successfully' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // GET /api/firs/stats/summary - Summary stats for M5 Case Analysis
@@ -1427,7 +1967,101 @@ app.get('/api/firs/:id', authenticateToken, (req, res) => {
       WHERE f.id = ?
     `).get(req.params.id);
     if (!fir) return res.status(404).json({ error: 'FIR not found' });
+
+    // IO can only access FIRs assigned to them
+    if (req.user.role === 'io' && fir.io_id !== req.user.id) {
+      return res.status(403).json({ error: 'Aap ko yeh FIR access karne ki permission nahi hai' });
+    }
+
+    // SHO can only access FIRs of their police station
+    if (req.user.role === 'sho' && req.user.station_id && fir.police_station !== req.user.station_id) {
+      return res.status(403).json({ error: 'Aap keval apne police station ki FIR dekh sakte hain' });
+    }
+
     res.json(fir);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/firs/:id/sections - Edit Acts & Sections (sho/admin only)
+app.patch('/api/firs/:id/sections', authenticateToken, (req, res) => {
+  if (!['sho', 'admin'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Only SHO or Admin can edit Acts & Sections' });
+  }
+  const { acts_sections } = req.body;
+  if (!Array.isArray(acts_sections) || acts_sections.length === 0) {
+    return res.status(400).json({ error: 'At least one Act & Section entry is required' });
+  }
+  const valid = acts_sections.filter(r => r.act && r.act.trim());
+  if (valid.length === 0) {
+    return res.status(400).json({ error: 'At least one valid Act is required' });
+  }
+  try {
+    db.prepare(
+      'UPDATE firs SET acts_sections = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).run(JSON.stringify(valid), req.params.id);
+    res.json({ message: 'Acts & Sections updated successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/firs/:id/transfer - Transfer FIR to another police station (admin only)
+app.patch('/api/firs/:id/transfer', authenticateToken, (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Only Admin can transfer a FIR to another police station' });
+  }
+  const { district, police_station, transfer_reason } = req.body;
+  if (!district || !police_station) {
+    return res.status(400).json({ error: 'district and police_station are required' });
+  }
+  try {
+    // Ensure transfer columns exist (migrate on-the-fly for existing DBs)
+    const cols = db.pragma('table_info(firs)').map(c => c.name);
+    if (!cols.includes('transferred_from_district')) {
+      db.exec('ALTER TABLE firs ADD COLUMN transferred_from_district TEXT;');
+    }
+    if (!cols.includes('transferred_from_ps')) {
+      db.exec('ALTER TABLE firs ADD COLUMN transferred_from_ps TEXT;');
+    }
+    if (!cols.includes('transfer_reason')) {
+      db.exec('ALTER TABLE firs ADD COLUMN transfer_reason TEXT;');
+    }
+
+    // Fetch current location for audit trail
+    const current = db.prepare('SELECT district, police_station FROM firs WHERE id = ?').get(req.params.id);
+    if (!current) return res.status(404).json({ error: 'FIR not found' });
+
+    db.prepare(`
+      UPDATE firs
+      SET district = ?, police_station = ?,
+          transferred_from_district = ?, transferred_from_ps = ?,
+          transfer_reason = ?,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(district, police_station, current.district, current.police_station, transfer_reason || null, req.params.id);
+
+    res.json({ message: `FIR transferred to ${police_station}, ${district}` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/firs/:id/assign-io - Reassign Investigating Officer (sho/admin only)
+app.patch('/api/firs/:id/assign-io', authenticateToken, (req, res) => {
+  if (!['sho', 'admin'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Only SHO or Admin can change the Investigating Officer' });
+  }
+  const { io_id, io_name, io_rank, io_no } = req.body;
+  if (!io_name || !io_rank) {
+    return res.status(400).json({ error: 'IO name and rank are required' });
+  }
+  try {
+    db.prepare(
+      'UPDATE firs SET io_id = ?, io_name = ?, io_rank = ?, io_no = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).run(io_id || null, io_name, io_rank, io_no || null, req.params.id);
+    res.json({ message: 'Investigating Officer updated successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1439,7 +2073,7 @@ app.patch('/api/firs/:id/status', authenticateToken, (req, res) => {
     return res.status(403).json({ error: 'Only SHO or Admin can update FIR status' });
   }
   const { status } = req.body;
-  const validStatuses = ['registered', 'under_investigation', 'chargesheeted', 'closed'];
+  const validStatuses = ['under_investigation', 'chargesheeted', 'closed'];
   if (!validStatuses.includes(status)) {
     return res.status(400).json({ error: 'Invalid status value' });
   }
@@ -1447,27 +2081,122 @@ app.patch('/api/firs/:id/status', authenticateToken, (req, res) => {
   res.json({ message: 'Status updated successfully' });
 });
 
-// POST /api/firs/extract-pdf - Extract FIR details from PDF (Mocked)
-app.post('/api/firs/extract-pdf', authenticateToken, upload.single('file'), (req, res) => {
+// POST /api/firs/extract-pdf - Extract FIR details from PDF/Image using Groq
+app.post('/api/firs/extract-pdf', authenticateToken, upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
 
-  // Simulate AI processing delay
-  setTimeout(() => {
-    // Return dummy data auto-filled from the "AI"
-    res.json({
-      complainant_name: 'Rahul Sharma',
-      complainant_father_name: 'Ramesh Sharma',
-      complainant_phone: '9876543210',
-      complainant_present_address: 'House No 123, Model Town, Panipat, Haryana, INDIA',
-      district: 'PANIPAT',
-      police_station: 'MODEL TOWN',
-      place_address: 'Near Old Bus Stand, Panipat',
-      fir_content: 'This is an auto-generated narrative from the uploaded PDF document. A theft occurred at my residence...',
-      date_time_of_fir: new Date().toISOString()
+  try {
+    let extractedText = '';
+
+    if (req.file.mimetype === 'application/pdf') {
+      const data = await pdfParse(req.file.buffer);
+      extractedText = data.text;
+    } else if (req.file.mimetype.startsWith('image/')) {
+      // For images, we use tesseract.js to extract text
+      const tesseract = require('tesseract.js');
+      const { data: { text } } = await tesseract.recognize(req.file.buffer, 'eng+hin');
+      extractedText = text;
+    } else {
+      return res.status(400).json({ error: 'Unsupported file type. Please upload a PDF or Image.' });
+    }
+
+    if (!extractedText || extractedText.trim().length === 0) {
+      throw new Error("Could not extract any text from the document.");
+    }
+
+    // Now send the extracted text to Groq to format it into JSON
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    const extractionPrompt = `
+You are a police data extraction assistant. Extract the following fields from the given complaint text and return ONLY a valid JSON object. 
+If a field is not found, leave it empty or null.
+
+Fields to extract:
+- complainant_name (string)
+- complainant_father_name (string)
+- complainant_phone (string)
+- complainant_present_address (string)
+- district (string - try to guess from address if possible)
+- police_station (string - try to guess from text if possible)
+- place_address (string - the address where the incident occurred)
+- fir_content (string - a concise narrative summary of the complaint, translating to English if needed)
+- date_time_of_fir (string - ISO format of today's date)
+
+Text:
+"""
+${extractedText}
+"""
+`;
+
+    const jsonCompletion = await groq.chat.completions.create({
+      messages: [{ role: "user", content: extractionPrompt }],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0,
+      response_format: { type: "json_object" }
     });
-  }, 2000);
+    const parsedData = JSON.parse(jsonCompletion.choices[0].message.content);
+    // Ensure date_time_of_fir is set to now if not properly extracted
+    if (!parsedData.date_time_of_fir) {
+      parsedData.date_time_of_fir = new Date().toISOString();
+    }
+
+    res.json(parsedData);
+  } catch (error) {
+    console.error("Extraction error:", error);
+    res.status(500).json({ error: "Failed to extract data: " + error.message });
+  }
+});
+
+// =====================
+// COMPLAINTS ROUTES
+// =====================
+
+// GET /api/complaints - List all complaints (searchable)
+app.get('/api/complaints', authenticateToken, (req, res) => {
+  try {
+    const { q, status } = req.query;
+    let query = `SELECT * FROM complaints WHERE 1=1`;
+    const params = [];
+
+    if (status) {
+      query += ' AND status = ?';
+      params.push(status);
+    }
+    if (q) {
+      query += ' AND (complainant_name LIKE ? OR complaint_number LIKE ? OR district LIKE ? OR complainant_phone LIKE ?)';
+      const term = `%${q}%`;
+      params.push(term, term, term, term);
+    }
+    query += ' ORDER BY created_at DESC';
+
+    const complaints = db.prepare(query).all(...params);
+    res.json(complaints);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/complaints/:id - Single complaint for auto-fill
+app.get('/api/complaints/:id', authenticateToken, (req, res) => {
+  try {
+    const complaint = db.prepare('SELECT * FROM complaints WHERE id = ?').get(req.params.id);
+    if (!complaint) return res.status(404).json({ error: 'Complaint not found' });
+    res.json(complaint);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/complaints/:id/status - Mark complaint as converted to FIR
+app.patch('/api/complaints/:id/status', authenticateToken, (req, res) => {
+  try {
+    const { status } = req.body;
+    db.prepare('UPDATE complaints SET status = ? WHERE id = ?').run(status, req.params.id);
+    res.json({ message: 'Complaint status updated' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // =====================
@@ -1475,14 +2204,14 @@ app.post('/api/firs/extract-pdf', authenticateToken, upload.single('file'), (req
 // =====================
 
 // CDRs
-app.get('/api/firs/:id/cdrs', authenticateToken, (req, res) => {
+app.get('/api/firs/:id/cdrs', authenticateToken, checkFirAccess, (req, res) => {
   try {
     const cdrs = db.prepare('SELECT * FROM cdr_requests WHERE fir_id = ? ORDER BY updated_at DESC').all(req.params.id);
     res.json(cdrs);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/firs/:id/cdrs', authenticateToken, (req, res) => {
+app.post('/api/firs/:id/cdrs', authenticateToken, checkFirAccess, (req, res) => {
   try {
     const { phone_number, tsp_name } = req.body;
     const cid = `cdr-${Date.now()}`;
@@ -1503,14 +2232,14 @@ app.patch('/api/cdrs/:id/status', authenticateToken, (req, res) => {
 });
 
 // Arrests
-app.get('/api/firs/:id/arrests', authenticateToken, (req, res) => {
+app.get('/api/firs/:id/arrests', authenticateToken, checkFirAccess, (req, res) => {
   try {
     const arrests = db.prepare('SELECT * FROM arrests WHERE fir_id = ? ORDER BY created_at DESC').all(req.params.id);
     res.json(arrests);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/firs/:id/arrests', authenticateToken, (req, res) => {
+app.post('/api/firs/:id/arrests', authenticateToken, checkFirAccess, (req, res) => {
   try {
     const {
       accused_name,
@@ -1549,35 +2278,82 @@ app.post('/api/firs/:id/arrests', authenticateToken, (req, res) => {
 });
 
 // Notices
-app.get('/api/firs/:id/notices', authenticateToken, (req, res) => {
+app.get('/api/firs/:id/notices', authenticateToken, checkFirAccess, (req, res) => {
   try {
     const notices = db.prepare('SELECT * FROM notices WHERE fir_id = ? ORDER BY created_at DESC').all(req.params.id);
     res.json(notices);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/firs/:id/notices', authenticateToken, (req, res) => {
+app.post('/api/firs/:id/notices', authenticateToken, checkFirAccess, (req, res) => {
   try {
     const { notice_type, details } = req.body;
     const nid = `not-${Date.now()}`;
-    const content = `NOTICE OF ${notice_type.toUpperCase()}\\nDetails: ${details}\\nFIR ID: ${req.params.id}\\nGenerated at ${new Date().toISOString()}`;
+
+    // Fetch FIR details for actual legal notice formatting
+    const fir = db.prepare(`SELECT * FROM firs WHERE id = ?`).get(req.params.id);
+    if (!fir) return res.status(404).json({ error: 'FIR not found' });
+
+    let sections = '—';
+    try {
+      const parsed = JSON.parse(fir.acts_sections || '[]');
+      sections = parsed.map(s => `${s.sections} ${s.act}`).join(', ');
+    } catch (e) {}
+
+    let accusedStr = '—';
+    try {
+      const parsedAcc = JSON.parse(fir.accused_details || '[]');
+      if (parsedAcc.length > 0) {
+        accusedStr = parsedAcc.map(a => a.name).filter(Boolean).join(', ');
+      }
+    } catch (e) {}
+
+    const firDate = fir.date_time_of_fir ? new Date(fir.date_time_of_fir).toLocaleDateString('hi-IN') : '—';
+    const noticeDate = new Date().toLocaleDateString('hi-IN');
+    
+    const content = `तलाश वारंट / तलाशी व जब्ती नोटिस (धारा 93/94 B.N.S.S.)
+
+थाना: ${fir.police_station || '—'}
+जिला: ${fir.district || '—'}
+FIR संख्या: ${fir.fir_number || '—'} / ${fir.year || '—'}
+दिनाँक: ${firDate}
+धाराएं: ${sections}
+
+मामले का विवरण:
+शिकायतकर्ता: ${fir.complainant_name || '—'}
+बनाम: ${accusedStr}
+
+नोटिस का प्रकार: ${notice_type.toUpperCase()}
+---------------------------------------------------------
+यह नोटिस निम्नलिखित स्थान/परिसर की तलाशी के संबंध में जारी किया जा रहा है:
+स्थान व विवरण: ${details}
+
+चूंकि ऊपर वर्णित मामले की जांच/अनुसंधान के लिए यह आवश्यक है कि उपर्युक्त स्थान की तलाशी ली जाए, अतः आपको सूचित किया जाता है कि पुलिस टीम द्वारा इस स्थान का निरीक्षण व तलाशी ली जाएगी। कृपया सहयोग करें।
+
+जारी करने की तिथि: ${noticeDate}
+
+अधिकारी के हस्ताक्षर: ____________________
+नाम/पद: ____________________
+`;
+
     db.prepare(`
       INSERT INTO notices (id, fir_id, notice_type, content)
       VALUES (?, ?, ?, ?)
     `).run(nid, req.params.id, notice_type, content);
+    
     res.json({ id: nid, message: 'Notice Generated' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // Evidences
-app.get('/api/firs/:id/evidences', authenticateToken, (req, res) => {
+app.get('/api/firs/:id/evidences', authenticateToken, checkFirAccess, (req, res) => {
   try {
     const evidences = db.prepare('SELECT * FROM evidences WHERE fir_id = ? ORDER BY created_at DESC').all(req.params.id);
     res.json(evidences);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/firs/:id/evidences', authenticateToken, (req, res) => {
+app.post('/api/firs/:id/evidences', authenticateToken, checkFirAccess, (req, res) => {
   try {
     const {
       description,
@@ -1627,14 +2403,14 @@ app.post('/api/firs/:id/evidences', authenticateToken, (req, res) => {
 });
 
 // Challans
-app.get('/api/firs/:id/challans', authenticateToken, (req, res) => {
+app.get('/api/firs/:id/challans', authenticateToken, checkFirAccess, (req, res) => {
   try {
     const challans = db.prepare('SELECT * FROM challans WHERE fir_id = ? ORDER BY generated_at DESC').all(req.params.id);
     res.json(challans);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/firs/:id/challans', authenticateToken, (req, res) => {
+app.post('/api/firs/:id/challans', authenticateToken, checkFirAccess, (req, res) => {
   try {
     const { io_notes } = req.body;
     const chid = `chal-${Date.now()}`;
@@ -1652,14 +2428,14 @@ app.post('/api/firs/:id/challans', authenticateToken, (req, res) => {
 });
 
 // Case Diaries
-app.get('/api/firs/:id/case-diaries', authenticateToken, (req, res) => {
+app.get('/api/firs/:id/case-diaries', authenticateToken, checkFirAccess, (req, res) => {
   try {
     const diaries = db.prepare('SELECT * FROM case_diaries WHERE fir_id = ? ORDER BY created_at DESC').all(req.params.id);
     res.json(diaries);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/firs/:id/case-diaries', authenticateToken, (req, res) => {
+app.post('/api/firs/:id/case-diaries', authenticateToken, checkFirAccess, (req, res) => {
   try {
     const { entry_text } = req.body;
     const cdid = `cd-${Date.now()}`;
