@@ -1,0 +1,99 @@
+{
+  "case_summary": "A complaint was filed at Sanoli Police Station in Panipat, Haryana, regarding an incident that occurred on 11/03/2026 at 21:20 hrs. The complaint involves multiple accused and the complainant reported the incident immediately.",
+  "crime_type": "Assault/Culpable Homicide",
+  "severity": "HIGH",
+  "sections": [
+    {
+      "code": "BNS 115",
+      "old_code": "IPC 323",
+      "title": "Voluntarily causing hurt",
+      "description": "Whoever, except in the case provided for by section 334, voluntarily causes hurt, shall be punished with imprisonment of either description for a term which may extend to one year, or with fine which may extend to one thousand rupees, or with both.",
+      "relevance": "Primary",
+      "punishment": "Imprisonment up to 1 year + Fine up to Rs. 1000",
+      "page_number": "Page 7",
+      "file_url": "laws/BNS ACT 2023.pdf"
+    },
+    {
+      "code": "BNS 74",
+      "old_code": "IPC 354",
+      "title": "Assault on woman with intent to outrage modesty",
+      "description": "Assault or criminal force to woman with intent to outrage her modesty",
+      "relevance": "Relevant",
+      "punishment": "Imprisonment up to 2 years + Fine",
+      "page_number": "Page 6",
+      "file_url": "laws/BNS ACT 2023.pdf"
+    }
+  ],
+  "sop": [
+    {
+      "step": 1,
+      "action": "Register FIR immediately under BNSS Section 173",
+      "time_limit": "Within 24 hours",
+      "authority": "SHO",
+      "priority": "CRITICAL",
+      "page_number": "",
+      "file_url": "sop/Regulation No. 14 of 2024.GUIDLINE FOR EXPEDITIOUS  & FAIR INVESTIGATION OF RAPE CASES.pdf"
+    }
+  ],
+  "sc_judgments": [
+    {
+      "case_name": "Lalita Kumari vs Govt. of UP (2014)",
+      "court": "Supreme Court",
+      "year": "2014",
+      "citation": "AIR 2014 SC 187",
+      "guideline": "FIR must be registered immediately on receipt of cognizable offense",
+      "holding": "The Constitution Bench unanimously held that registration of FIR is mandatory under Section 154 CrPC (now BNSS 173) if the information discloses commission of a cognizable offence.",
+      "key_points": [
+        "FIR cannot be refused on any pretext for cognizable offences",
+        "Preliminary inquiry can only be done in cases like matrimonial disputes, commercial cases, medical negligence, corruption - not in serious crimes",
+        "Officer refusing to register FIR is liable under departmental action and contempt of court",
+        "Victim can approach SP or Magistrate if SHO refuses"
+      ],
+      "io_duty": "Mandatory - Register FIR immediately. No preliminary inquiry for cognizable offences. Non-compliance invites disciplinary action.",
+      "relevance": "Mandatory FIR registration",
+      "page_number": "",
+      "file_url": "judgements/Landmark Supreme Court Directives.pdf"
+    }
+  ],
+  "hc_judgments": [],
+  "special_laws": [],
+  "deadlines": [
+    {
+      "task": "Register FIR",
+      "days": 0,
+      "hours": 24,
+      "legal_basis": "BNSS Sec 173",
+      "authority": "SHO",
+      "priority": "CRITICAL"
+    },
+    {
+      "task": "File Charge Sheet",
+      "days": 60,
+      "hours": null,
+      "legal_basis": "BNSS Sec 193",
+      "authority": "IO",
+      "priority": "HIGH"
+    }
+  ],
+  "evidence_checklist": [
+    "Seize mobile phone - extract call records, WhatsApp messages",
+    "Photograph all visible injuries on victim",
+    "Record witness statements under BNSS Sec 180"
+  ],
+  "io_warnings": [
+    "MANDATORY: Do not refuse FIR - Lalita Kumari SC judgment applies",
+    "MANDATORY: Arrest must follow D.K. Basu SC guidelines"
+  ],
+  "_meta": {
+    "filesProcessed": 1,
+    "fileResults": [
+      {
+        "filename": "55-26.pdf",
+        "method": "pdf-text",
+        "confidence": 100,
+        "textLength": 6758
+      }
+    ],
+    "analysisDate": "2026-04-28T04:35:44.459Z"
+  }
+}

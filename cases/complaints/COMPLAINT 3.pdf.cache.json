@@ -1,0 +1,25 @@
+{
+  "case_summary": "A complainant, 1222407, filed a complaint with reference number 26.",
+  "crime_type": "Unknown",
+  "severity": "LOW",
+  "sections": [],
+  "sop": [],
+  "sc_judgments": [],
+  "hc_judgments": [],
+  "special_laws": [],
+  "deadlines": [],
+  "evidence_checklist": [],
+  "io_warnings": [],
+  "_meta": {
+    "filesProcessed": 1,
+    "fileResults": [
+      {
+        "filename": "COMPLAINT 3.pdf",
+        "method": "pdf-ocr-canvas",
+        "confidence": 31,
+        "textLength": 947
+      }
+    ],
+    "analysisDate": "2026-04-28T07:20:11.715Z"
+  }
+}

@@ -12,6 +12,8 @@ import FIRListPage from './pages/FIR/FIRListPage';
 import FIRForm from './pages/FIR/FIRForm';
 import FIRDetail from './pages/FIR/FIRDetail';
 import UserManagement from './pages/Admin/UserManagement';
+import LawLibrary from './pages/LawLibrary';
+import AiChat from './pages/AiChat';
 
 // Module Placeholders
 const Placeholder = ({ title }) => (
@@ -35,6 +37,8 @@ export default function App() {
               <Route path="/fir" element={<FIRListPage />} />
               <Route path="/fir/new" element={<FIRForm />} />
               <Route path="/fir/:id" element={<FIRDetail />} />
+              <Route path="/complaints" element={<Placeholder title="M1: Complaints" />} />
+              <Route path="/fir" element={<Placeholder title="M2: FIRs" />} />
               <Route path="/investigation" element={<Investigation />} />
               <Route path="/hc-reply" element={<Placeholder title="M4: HC Reply" />} />
               <Route path="/analysis" element={<AnalysisPage />} />

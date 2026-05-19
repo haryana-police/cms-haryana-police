@@ -15,6 +15,8 @@ import {
   UserOutlined,
   MenuOutlined,
   TeamOutlined,
+  RobotOutlined,
+  ReadOutlined
 } from '@ant-design/icons';
 import '../../styles/appshell.css';
 
@@ -66,6 +68,7 @@ export default function AppShell() {
     { key: '/crime-map', icon: <EnvironmentOutlined />, label: 'Crime Map' },
     { key: '/gd', icon: <BookOutlined />, label: 'Smart GD' },
     ...(profile?.role === 'admin' ? [{ key: '/admin/users', icon: <TeamOutlined />, label: 'User Management' }] : []),
+    { key: '/gd', icon: <FileTextOutlined />, label: 'Smart GD' },
   ];
 
   return (
