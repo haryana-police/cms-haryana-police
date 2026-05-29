@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Typography, Card, Descriptions, Tag, Button, Spin, message, Tabs, Space } from 'antd';
-import { ArrowLeftOutlined, EyeOutlined, BuildOutlined, PrinterOutlined } from '@ant-design/icons';
 import {
   Typography, Card, Descriptions, Tag, Button, Spin, message,
   Tabs, Modal, Form, Input, Select, Tooltip, Space,
@@ -115,7 +113,9 @@ export default function FIRDetail() {
     return <div>FIR not found</div>;
   }
 
-  const isIO = profile?.role === 'io' || profile?.role === 'sho' || profile?.role === 'admin';
+  const isIO   = profile?.role === 'io'  || profile?.role === 'sho' || profile?.role === 'admin';
+  const isSHO  = profile?.role === 'sho' || profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin';
 
   // IO Change Modal state
   const [ioModalOpen, setIoModalOpen] = useState(false);
@@ -327,26 +327,9 @@ export default function FIRDetail() {
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '24px', gap: '16px', flexWrap: 'wrap' }}>
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/fir')} shape="circle" />
         <Title level={2} style={{ margin: 0 }}>FIR {fir.fir_number} / {fir.year}</Title>
-        <Tag color={fir.status === 'closed' ? 'green' : fir.status === 'chargesheeted' ? 'purple' : 'blue'}>
+        <Tag color={fir.status === 'closed' ? 'green' : fir.status === 'chargesheeted' ? 'purple' : fir.status === 'under_investigation' ? 'orange' : 'blue'}>
           {fir.status.toUpperCase().replace('_', ' ')}
         </Tag>
-        <div style={{ marginLeft: 'auto' }}>
-  // ── Guards ───────────────────────────────────────────────────────────────────
-  if (loading) {
-    return <div style={{ textAlign: 'center', padding: '100px' }}><Spin size="large" /></div>;
-  }
-
-  if (!fir) {
-    return <div>FIR not found</div>;
-  }
-
-  const isIO   = profile?.role === 'io'  || profile?.role === 'sho' || profile?.role === 'admin';
-  const isSHO  = profile?.role === 'sho' || profile?.role === 'admin';
-  const isAdmin = profile?.role === 'admin';
-
-  // ── Render ───────────────────────────────────────────────────────────────────
-      {/* ── Header ── */}
-        <Tag color={fir.status === 'closed' ? 'green' : fir.status === 'chargesheeted' ? 'purple' : fir.status === 'under_investigation' ? 'orange' : 'blue'}>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {isSHO && (
             <Tooltip title="SHO: IO badlein is FIR ke liye">
@@ -420,8 +403,6 @@ export default function FIRDetail() {
         <FIRPrintDocument fir={fir} />
       </div>
 
-      <Tabs 
-        defaultActiveKey="1" 
       {/* ── Change IO Modal ── */}
       <Modal
         open={ioModalOpen}
@@ -742,13 +723,8 @@ export default function FIRDetail() {
                   <Descriptions.Item label="Date of Registration">{new Date(fir.date_time_of_fir).toLocaleString()}</Descriptions.Item>
                   <Descriptions.Item label="Complainant">{fir.complainant_name}</Descriptions.Item>
                   <Descriptions.Item label="Place of Occurrence">{fir.place_address || 'N/A'}</Descriptions.Item>
-                  <Descriptions.Item label="Investigating Officer">{fir.io_name || 'Unassigned'} ({fir.io_rank})</Descriptions.Item>
                   <Descriptions.Item label="Registered By">{fir.registered_by_name}</Descriptions.Item>
                   
-                  <Descriptions.Item label="Acts & Sections" span={3}>
-                    {fir.acts_sections?.map((act, i) => (
-                      <Tag key={i} color="geekblue" style={{ marginBottom: 4 }}>{act.act} - Sec {act.sections}</Tag>
-                    ))}
                   <Descriptions.Item label="Investigating Officer">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                       <span>

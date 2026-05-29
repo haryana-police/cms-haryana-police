@@ -137,30 +137,25 @@ export default function ChallanGeneration({ firId }) {
               style={{ paddingBottom: '40px' }}
             />
           </Form.Item>
-          {/* Voice to text button absolutely positioned inside the text area visual space */}
-          <div style={{ marginTop: '-48px', marginBottom: '24px', marginLeft: '12px', zIndex: 1, position: 'relative' }}>
-            <Button 
-              type={isRecording ? "primary" : "default"} 
-              danger={isRecording}
-              shape="round" 
-              icon={<AudioOutlined />} 
-              onClick={handleVoiceToText}
-              size="small"
-            >
-              {isRecording ? "Listening..." : "Dictate Notes (Voice-to-Text)"}
           {/* Hindi Dictate + Translate buttons */}
           <div style={{ marginTop: '-48px', marginBottom: '24px', marginLeft: '12px', zIndex: 1, position: 'relative', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <Button
               type={isRecording ? 'primary' : 'default'}
+              danger={isRecording}
               shape="round"
               icon={<AudioOutlined />}
+              onClick={handleVoiceToText}
+              size="small"
+            >
               {isRecording ? '🎙️ सुन रहा है...' : '🎙️ हिंदी में बोलें'}
             </Button>
             <Button
               shape="round"
+              size="small"
               loading={translating}
               onClick={handleTranslateToEnglish}
               style={{ background: '#1565c0', color: '#fff', border: 'none' }}
+            >
               {translating ? 'Translating...' : '🌐 English में बदलें'}
             </Button>
           </div>

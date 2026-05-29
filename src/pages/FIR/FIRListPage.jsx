@@ -26,7 +26,6 @@ export default function FIRListPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const { token } = useAuth();
   const navigate = useNavigate();
   const { token, profile } = useAuth();
   const isSHO = profile?.role === 'sho' || profile?.role === 'admin';
@@ -135,7 +134,6 @@ export default function FIRListPage() {
       key: 'status',
       width: 160,
       render: (status) => {
-        const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.registered;
         const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.under_investigation;
         return <Tag color={cfg.color} icon={cfg.icon}>{cfg.label}</Tag>;
       },
@@ -188,10 +186,9 @@ export default function FIRListPage() {
           >
             Register New FIR
           </Button>
+        )}
         </RoleGate>
       </div>
-
-        )}
       {/* IO Info Banner */}
       {isIO && (
         <div style={{
@@ -220,9 +217,8 @@ export default function FIRListPage() {
           { title: 'Registered', value: counts.registered, color: '#1890ff' },
           { title: 'Under Investigation', value: counts.investigating, color: '#fa8c16' },
           { title: 'Closed', value: counts.closed, color: '#52c41a' },
-        ].map((s, i) => (
-          <Col xs={12} sm={6} key={i}>
           { title: 'Chargesheeted', value: counts.chargesheeted, color: '#722ed1' },
+        ].map((s, i) => (
           <Col xs={12} sm={12} md={6} style={{ flex: 1 }} key={i}>
             <Card className="fir-stat-card" bordered={false}>
               <Statistic

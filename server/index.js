@@ -549,20 +549,6 @@ BNSS (New CrPC) KEY SECTIONS:
 `;
 
 // --- AI Prompt for Deep Analysis ---
-const ANALYSIS_SYSTEM_PROMPT = `You are an expert AI Legal Advisor for Haryana Police, India. 
-
-ABSOLUTE MANDATORY RULE - READ CAREFULLY:
-// ─── BNS Conversion Reference Table (used inside prompt) ─────────────────────
-MANDATORY IPC TO BNS MAPPING (Use ONLY these BNS numbers - NEVER use IPC numbers in "code" field):
-302->BNS 101, 304->BNS 105, 304A->BNS 106, 307->BNS 109, 308->BNS 110, 319->BNS 114, 320->BNS 115, 323->BNS 115(2), 324->BNS 117, 325->BNS 116, 326->BNS 118, 327->BNS 122, 341->BNS 126, 342->BNS 127, 354->BNS 74, 354A->BNS 75, 354B->BNS 76, 354C->BNS 77, 354D->BNS 78, 363->BNS 137, 364->BNS 139, 365->BNS 140, 366->BNS 141, 375/376->BNS 63/64, 376A->BNS 66, 376AB->BNS 65, 376D->BNS 70, 376DA->BNS 71, 377->BNS 100, 378/379->BNS 303, 380->BNS 305, 381->BNS 306, 382->BNS 304, 383/384->BNS 308, 390/392->BNS 309, 395->BNS 310, 396->BNS 311, 405/406/409->BNS 316, 415/420->BNS 318, 425/426/427->BNS 324, 428/429->BNS 325, 441/448->BNS 329, 447->BNS 333, 452->BNS 330, 494/495->BNS 82, 496->BNS 83, 497->BNS 84, 498A->BNS 85, 499/500->BNS 356, 503/506->BNS 351, 504->BNS 352, 509->BNS 79, 34->BNS 3(5), 120B->BNS 61, 107->BNS 45, 109->BNS 48.
-CrPC 154 -> BNSS 173 (FIR Registration)
-CrPC 161 -> BNSS 180 (Witness Statement)
-CrPC 164 -> BNSS 183 (Statement before Magistrate)
-CrPC 167 -> BNSS 187 (Remand)
-CrPC 173 -> BNSS 193 (Charge Sheet)
-CrPC 41 -> BNSS 35 (Arrest)
-`;
-
 const SPECIAL_LAWS_REFERENCE = `
 AVAILABLE SPECIAL LAWS IN KNOWLEDGE BASE:
 - IT Act 2000
@@ -586,8 +572,10 @@ AVAILABLE SPECIAL LAWS IN KNOWLEDGE BASE:
 - National Security Act 1980
 - Child Marriage Prohibition Act 2006
 - Public Gambling Act 1867
-YOU MUST NOT SUGGEST ANY SPECIAL LAW THAT IS NOT IN THIS LIST. If a crime does not fall under these, DO NOT hallucinate a special law. Leave the special_laws array empty [].
-// ─── AI Prompt for Deep Analysis ──────────────────────────────────────────────
+YOU MUST NOT SUGGEST ANY SPECIAL LAW THAT IS NOT IN THIS LIST. If a crime does not fall under these, DO NOT hallucinate a special law. Leave the special_laws array empty [].`;
+
+const ANALYSIS_SYSTEM_PROMPT = `You are an expert AI Legal Advisor for Haryana Police, India. 
+
 ⚠️ ABSOLUTE MANDATORY RULE - READ CAREFULLY:
 =========================================================
 India passed 3 new laws effective from July 1, 2024:
@@ -596,27 +584,20 @@ India passed 3 new laws effective from July 1, 2024:
 3. BSA = Bharatiya Sakshya Adhiniyam (REPLACES Indian Evidence Act)
 
 YOU MUST:
-Use BNS section numbers in the "code" field (e.g., "BNS 85", "BNS 303", "BNS 64")
-Put the old IPC number ONLY in "old_code" field as reference
-BNS sections are DIFFERENT numbers than IPC - use the mapping table below
-
-YOU MUST NEVER:
-DO NOT write "IPC 498A" in the "code" field - write "BNS 85" instead
-DO NOT write "IPC 302" in the "code" field - write "BNS 101" instead  
-DO NOT write "IPC 420" in the "code" field - write "BNS 318" instead
-DO NOT suggest any IPC, CrPC, or IEA sections as primary recommendations
 ✅ Use BNS section numbers in the "code" field (e.g., "BNS 85", "BNS 303", "BNS 64")
 ✅ Put the old IPC number ONLY in "old_code" field as reference
 ✅ BNS sections are DIFFERENT numbers than IPC - use the mapping table below
+
+YOU MUST NEVER:
 ❌ DO NOT write "IPC 498A" in the "code" field - write "BNS 85" instead
 ❌ DO NOT write "IPC 302" in the "code" field - write "BNS 101" instead  
 ❌ DO NOT write "IPC 420" in the "code" field - write "BNS 318" instead
 ❌ DO NOT suggest any IPC, CrPC, or IEA sections as primary recommendations
 =========================================================
 
-${BNS_REFERENCE}
+\${BNS_REFERENCE}
 
-${SPECIAL_LAWS_REFERENCE}
+\${SPECIAL_LAWS_REFERENCE}
 
 Your task: Analyze the complaint/document and return EXACTLY this JSON structure:
 

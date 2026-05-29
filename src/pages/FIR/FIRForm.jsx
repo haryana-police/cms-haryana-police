@@ -2,13 +2,11 @@ import React, { useState, useRef } from 'react';
 import {
   Form, Input, Select, DatePicker, TimePicker, Button, Card,
   Typography, Row, Col, Divider, InputNumber, Radio,
-  message, Alert, Tag, Space, Tooltip, Upload, Result,
   message, Alert, Tag, Space, Tooltip, Upload, Result, Modal, Table, Badge,
 } from 'antd';
 import {
   PlusOutlined, DeleteOutlined, ArrowLeftOutlined,
   FileAddOutlined, InfoCircleOutlined, UploadOutlined, PrinterOutlined,
-  AudioOutlined
   AudioOutlined, FileSearchOutlined, CheckCircleOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -62,7 +60,6 @@ const OFFICER_RANKS = [
   'Head Constable (HC)', 'Constable', 'Other',
 ];
 
-  'Inspector', 'SI', 'ASI'
 // ─── HARYANA DISTRICTS & POLICE STATIONS ──────────────────────────────────────
 const HARYANA_DISTRICTS = {
   'AMBALA': [
@@ -869,6 +866,7 @@ export default function FIRForm() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <FileSearchOutlined style={{ color: '#1890ff' }} />
               <span>Registered Complaint Select Karein</span>
+            </div>
           }
           open={complaintModalOpen}
           onCancel={() => setComplaintModalOpen(false)}
@@ -957,6 +955,7 @@ export default function FIRForm() {
           />
           <div style={{ color: 'rgba(0,0,0,0.4)', fontSize: 12, marginTop: 8 }}>
             💡 Kisi bhi row par click karein ya "Select" button dabayen — form automatically fill ho jaayega.
+          </div>
         </Modal>
         {/* ══════════════════════════════════════════════════════════════
             SECTION 1 — Basic FIR Details
@@ -1586,37 +1585,25 @@ export default function FIRForm() {
               </Button>
             </Upload>
             
-            <Button 
-              type={isRecording ? "primary" : "default"} 
-              danger={isRecording}
-              shape="round" 
-              icon={<AudioOutlined />} 
-              onClick={handleVoiceToText}
-            >
-              {isRecording ? "Listening..." : "Dictate"}
-            </Button>
-            <Select 
-              value={dictationLang} 
-              onChange={setDictationLang} 
-              style={{ width: 100 }}
-              disabled={isRecording}
-            >
-              <Option value="en-US">English</Option>
-              <Option value="hi-IN">Hindi</Option>
-            </Select>
-
             <Button
               type={isRecording ? 'primary' : 'default'}
+              danger={isRecording}
               shape="round"
               icon={<AudioOutlined />}
-              {isRecording ? '🎙️ सुन रहा है...' : '🎙️ हिंदी में बोलें (Dictate)'}
-
+              onClick={handleVoiceToText}
+              size="small"
+            >
+              {isRecording ? '🎙️ सुन रहा है...' : '🎙️ हिंदी में बोलें'}
+            </Button>
             <Button
               shape="round"
+              size="small"
               loading={translating}
               onClick={handleTranslateToEnglish}
               style={{ background: '#1565c0', color: '#fff', border: 'none' }}
+            >
               {translating ? 'Translating...' : '🌐 English में बदलें'}
+            </Button>
           </div>
 
           <Form.Item
