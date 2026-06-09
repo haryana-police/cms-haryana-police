@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Typography, Row, Col, Card, Button, Alert } from 'antd';
+import { Typography, Row, Col, Card, Button, Alert, Spin } from 'antd';
 import { SearchOutlined, FormOutlined, FileTextOutlined, SwapOutlined } from '@ant-design/icons';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import ComplaintWizard from '../components/complaints/ComplaintWizard';
 import Enquiry from '../components/complaints/Enquiry';
 import SearchComplaints from '../components/complaints/SearchComplaints';
@@ -15,7 +15,7 @@ class WizardErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false }; }
   static getDerivedStateFromError() { return { hasError: true }; }
 
-  componentDidCatch(error, info) {
+  componentDidCatch() {
     // Get where the user was before the crash
     const crashedStep = parseInt(localStorage.getItem('complaint_currentStep') || '0', 10);
 
@@ -61,9 +61,38 @@ class WizardErrorBoundary extends React.Component {
 
 
 export default function Complaints() {
-  const { profile } = useAuth();
+  const { token, profile } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const urlView = searchParams.get('view');
+  const [syncVersion, setSyncVersion] = useState(0);
+  const [complaints, setComplaints] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchComplaints = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch complaints');
+      const data = await res.json();
+      setComplaints(data);
+    } catch (err) {
+      console.error('Error fetching complaints:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    // Clear old localStorage complaints to start fresh
+    localStorage.removeItem('registeredComplaints');
+    
+    if (token) {
+      fetchComplaints();
+    }
+  }, [token, syncVersion]);
 
   // RULE: sessionStorage stores THE LAST VIEW the user was on (including 'register', 'enquiry').
   // This means navigating to FIR module and back will ALWAYS restore the same page.
@@ -103,28 +132,63 @@ export default function Complaints() {
   const handleBackFromEnquiry = () => {
     // Clear saved enquiry ID when going back to home
     sessionStorage.removeItem('complaintsEnquiryId');
+    setSyncVersion(v => v + 1); // trigger refresh
     setCurrentView('home');
   };
 
   const renderHome = () => {
-    // Read local stats
-    // Read local stats
-    let saved = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
+    // Read complaints from state
+    let saved = complaints;
     
-    // If the user is an IO, only show complaints assigned to them
+    // Filter by role/station
     if (profile?.role === 'io') {
       saved = saved.filter(c => String(c.assignedIoId).trim() === String(profile?.id).trim());
+    } else if (profile?.role === 'sho') {
+      saved = saved.filter(c => {
+        const station = c.policeStation || 'SAMALKHA';
+        const origStation = c.originalStation || 'SAMALKHA';
+        return station === profile?.station_id || (origStation === profile?.station_id && c.ioStatus === 'Transferred');
+      });
     }
 
-    const total = saved.length;
-    const pendingEnquiry = saved.filter(c => !c.ioStatus || c.ioStatus === 'Pending' || c.ioStatus === 'Pending SHO Approval').length;
-    const underInvestigation = saved.filter(c => c.ioStatus === 'Under Investigation').length;
-    const disposed = saved.filter(c => c.ioStatus === 'Disposed').length;
-    const convertToFir = saved.filter(c => c.ioStatus === 'Convert to FIR').length;
-    const transferred = saved.filter(c => c.ioStatus === 'Transferred').length;
+    const myStation = profile?.station_id;
+    const isAdmin = profile?.role === 'admin';
+
+    // Helper: complaint is currently AT this station (destination or originally registered here)
+    const atMyStation = (c) => isAdmin || (c.policeStation || 'SAMALKHA') === myStation;
+
+    // Helper: complaint was SENT AWAY from this station to another station
+    const sentFromMyStation = (c) =>
+      c.ioStatus === 'Transferred' &&
+      (isAdmin || ((c.originalStation || 'SAMALKHA') === myStation && (c.policeStation || 'SAMALKHA') !== myStation));
+
+    // Helper: complaint was RECEIVED by this station (transferred IN from another station, no action yet)
+    const receivedAtMyStation = (c) =>
+      c.ioStatus === 'Transferred' &&
+      !isAdmin &&
+      (c.policeStation || 'SAMALKHA') === myStation &&
+      (c.originalStation || 'SAMALKHA') !== myStation;
+
+    const total = saved.filter(c => atMyStation(c)).length;
+    const pendingEnquiry = saved.filter(c =>
+      atMyStation(c) &&
+      (!c.ioStatus || c.ioStatus === 'Pending' || c.ioStatus === 'Pending SHO Approval' || receivedAtMyStation(c))
+    ).length;
+    const underInvestigation = saved.filter(c =>
+      atMyStation(c) && c.ioStatus === 'Under Investigation'
+    ).length;
+    const disposed = saved.filter(c =>
+      atMyStation(c) && c.ioStatus === 'Disposed'
+    ).length;
+    const convertToFir = saved.filter(c =>
+      atMyStation(c) && c.ioStatus === 'Convert to FIR'
+    ).length;
+    // Transferred = complaints WE sent away to another station
+    const transferred = saved.filter(c => sentFromMyStation(c)).length;
 
     return (
       <div style={{ padding: '0px' }}>
+        {loading && <Spin style={{ display: 'block', margin: '20px auto' }} />}
         {/* Header Section */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div>
@@ -172,9 +236,19 @@ export default function Complaints() {
             </Card>
           </Col>
           <Col style={{ flex: 1, minWidth: '180px' }}>
-            <Card style={{ borderRadius: '12px', background: '#141414', borderColor: '#303030' }} bodyStyle={{ padding: '16px 20px' }}>
-              <Paragraph type="secondary" style={{ margin: 0, marginBottom: '4px' }}>Convert To FIR</Paragraph>
-              <Title level={2} style={{ margin: 0 }}>{convertToFir}</Title>
+            <Card
+              onClick={() => navigate('/fir')}
+              style={{
+                borderRadius: '12px',
+                background: 'rgba(255,77,79,0.08)',
+                borderColor: '#ff4d4f',
+                cursor: 'pointer',
+                transition: 'box-shadow 0.2s',
+              }}
+              bodyStyle={{ padding: '16px 20px' }}
+            >
+              <Paragraph type="secondary" style={{ margin: 0, marginBottom: '4px', color: '#ff7875' }}>Convert To FIR</Paragraph>
+              <Title level={2} style={{ margin: 0, color: '#ff4d4f' }}>{convertToFir}</Title>
             </Card>
           </Col>
           {profile?.role !== 'io' && (
@@ -190,6 +264,7 @@ export default function Complaints() {
         {/* Embedded Unified Search and Data Table */}
         <div style={{ background: '#141414', borderRadius: '12px', padding: '16px', border: '1px solid #303030' }}>
           <SearchComplaints 
+            key={syncVersion}
             onBack={() => {}} 
             onStartEnquiry={handleStartEnquiry}
             hideHeader={true}
@@ -210,6 +285,7 @@ export default function Complaints() {
           </div>
           <WizardErrorBoundary>
             <ComplaintWizard
+              profile={profile}
               onBack={() => {
                 // Called on: (a) Back from Step 0 (explicit exit), (b) After successful registration
                 // Both cases: clear wizard state and go to home to see the updated complaint list
@@ -237,6 +313,7 @@ export default function Complaints() {
 
       {currentView === 'search' && (
         <SearchComplaints
+          key={syncVersion}
           onBack={() => setCurrentView('home')}
           onStartEnquiry={handleStartEnquiry}
         />

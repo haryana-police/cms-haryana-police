@@ -70,6 +70,10 @@ const insertStmt = db.prepare(`
 let created = 0;
 let skipped = 0;
 
+const existingShoStations = new Set(
+  db.prepare("SELECT station_id FROM profiles WHERE role = 'sho' AND station_id IS NOT NULL").all().map(r => r.station_id)
+);
+
 // Pre-load existing SHO usernames so we don't collide
 const existingUsernames = db.prepare(`SELECT username FROM profiles WHERE role = 'sho'`).all().map(r => r.username);
 existingUsernames.forEach(u => seenUsernames.add(u));
@@ -80,8 +84,7 @@ const seedTx = db.transaction(() => {
       const baseUsername = toUsername(district, station);
       
       // Skip if this station_id already has a SHO
-      const existingSHO = db.prepare(`SELECT id FROM profiles WHERE role = 'sho' AND station_id = ?`).get(station);
-      if (existingSHO) {
+      if (existingShoStations.has(station)) {
         skipped++;
         continue;
       }

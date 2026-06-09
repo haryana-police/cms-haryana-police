@@ -14,7 +14,7 @@ const { Dragger } = Upload;
 const { TextArea } = Input;
 const { Option } = Select;
 
-export default function ComplaintWizard({ onBack }) {
+export default function ComplaintWizard({ onBack, profile }) {
   const [currentStep, setCurrentStep] = useState(() => {
     try {
       const saved = localStorage.getItem('complaint_currentStep');
@@ -57,8 +57,9 @@ export default function ComplaintWizard({ onBack }) {
   // Safe auto-fill execution when Form successfully mounts in Step 2
   React.useEffect(() => {
     if (currentStep === 2) {
+      const justExtracted = sessionStorage.getItem('just_extracted') === 'true';
       const savedForm = localStorage.getItem('complaint_formData');
-      if (savedForm) {
+      if (savedForm && !justExtracted) {
         try {
           const parsed = JSON.parse(savedForm);
           if (parsed.dateOfIncident) parsed.dateOfIncident = dayjs(parsed.dateOfIncident);
@@ -67,7 +68,18 @@ export default function ComplaintWizard({ onBack }) {
           form.setFieldsValue(parsed);
         } catch { localStorage.removeItem('complaint_formData'); }
       } else if (extractedData) {
-        form.setFieldsValue(extractedData);
+        const normalized = { ...extractedData };
+        if (normalized.dateOfIncident && typeof normalized.dateOfIncident === 'string') {
+          normalized.dateOfIncident = dayjs(normalized.dateOfIncident);
+        }
+        if (normalized.timeOfIncident && typeof normalized.timeOfIncident === 'string') {
+          normalized.timeOfIncident = dayjs(normalized.timeOfIncident);
+        }
+        if (normalized.dateOfComplaint && typeof normalized.dateOfComplaint === 'string') {
+          normalized.dateOfComplaint = dayjs(normalized.dateOfComplaint);
+        }
+        form.setFieldsValue(normalized);
+        sessionStorage.removeItem('just_extracted');
       }
     }
   }, [currentStep, extractedData, form]);
@@ -161,9 +173,9 @@ export default function ComplaintWizard({ onBack }) {
       return;
     }
 
-    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-    if (!apiKey) {
-      message.error('VITE_GROQ_API_KEY not found in .env! Cannot process with AI.');
+    const token = localStorage.getItem('token');
+    if (!token) {
+      message.error('You must be logged in to perform AI extraction.');
       return;
     }
 
@@ -202,16 +214,24 @@ export default function ComplaintWizard({ onBack }) {
         formData.append('file', uploadedFile);
         formData.append('model', 'whisper-large-v3');
 
-        const audioResponse = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+        const audioResponse = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints/transcribe`, {
           method: 'POST',
           headers: { 
-            'Authorization': `Bearer ${apiKey}`
+            'Authorization': `Bearer ${token}`
           },
           body: formData
         });
 
+        if (!audioResponse.ok) {
+          if (audioResponse.status === 401 || audioResponse.status === 403) {
+            throw new Error('Your session has expired or is unauthorized. Please log out and log in again.');
+          }
+          const errText = await audioResponse.text();
+          throw new Error(errText || `Server returned status ${audioResponse.status}`);
+        }
+
         const audioData = await audioResponse.json();
-        if (audioData.error) throw new Error(audioData.error.message || 'Groq Audio Error');
+        if (audioData.error) throw new Error(typeof audioData.error === 'string' ? audioData.error : (audioData.error.message || 'Groq Audio Error'));
 
         textToProcess = audioData.text;
         
@@ -447,7 +467,7 @@ ${textToProcess}
       const limitedImages = visionImages ? visionImages.slice(0, 2) : null;
 
       const requestPayload = {
-        model: limitedImages ? "meta-llama/llama-4-scout-17b-16e-instruct" : "meta-llama/llama-4-maverick-17b-128e-instruct",
+        model: limitedImages ? "meta-llama/llama-4-scout-17b-16e-instruct" : "llama-3.3-70b-versatile",
         messages: [
           { 
             role: "user", 
@@ -464,17 +484,25 @@ ${textToProcess}
         requestPayload.response_format = { type: "json_object" };
       }
 
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints/extract`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(requestPayload)
       });
 
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          throw new Error('Your session has expired or is unauthorized. Please log out and log in again.');
+        }
+        const errText = await response.text();
+        throw new Error(errText || `Server returned status ${response.status}`);
+      }
+
       const data = await response.json();
-      if (data.error) throw new Error(data.error.message || 'Groq API Error');
+      if (data.error) throw new Error(typeof data.error === 'string' ? data.error : (data.error.message || 'Groq API Error'));
       
       const responseText = data.choices[0].message.content;
       // Guarantee JSON safety if Vision model adds markdown wrappers
@@ -540,8 +568,10 @@ ${textToProcess}
         parsedData.dateOfComplaint = null;
       }
 
-      setExtractedData(parsedData); // Save to state to trigger useEffect auto-fill
+      sessionStorage.setItem('just_extracted', 'true');
       localStorage.removeItem('complaint_formData');
+      setExtractedData(parsedData); // Save to state to trigger useEffect auto-fill
+      form.setFieldsValue(parsedData); // Set directly in form store
       message.destroy('ai-process');
       setCurrentStep(2);
     } catch (error) {
@@ -554,56 +584,89 @@ ${textToProcess}
 
   // Old toggleRecording logic removed
 
-  const onFinish = (values) => {
-    const existing = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
+  // Helper: compute why two complaints are duplicates
+  const getDuplicateReasons = (c, values) => {
+    const reasons = [];
+    const mobile1 = (c.mobileNumber || '').replace(/\D/g, '');
+    const mobile2 = (values.mobileNumber || '').replace(/\D/g, '');
+    if (mobile1.length >= 10 && mobile1 === mobile2) reasons.push({ label: 'Mobile Number', value: c.mobileNumber, severity: 'high' });
 
-    // Check for duplicate complaint using a scoring system
-    const duplicate = existing.find(c => {
-      // 1. Check if Incident Class matches - Mandatory
-      if (!c.classOfIncident || !values.classOfIncident || c.classOfIncident !== values.classOfIncident) {
-        return false;
+    const name1 = ((c.firstName || '') + ' ' + (c.lastName || '')).trim().toLowerCase();
+    const name2 = ((values.firstName || '') + ' ' + (values.lastName || '')).trim().toLowerCase();
+    if (name1 && name2 && name1 === name2) reasons.push({ label: 'Complainant Name', value: `${c.firstName || ''} ${c.lastName || ''}`.trim(), severity: 'high' });
+
+    const date1 = c.dateOfIncident ? String(c.dateOfIncident).slice(0, 10) : '';
+    const date2 = values.dateOfIncident ? String(values.dateOfIncident).slice(0, 10) : '';
+    if (date1 && date2 && date1 === date2) reasons.push({ label: 'Incident Date', value: date1, severity: 'medium' });
+
+    const place1 = (c.placeOfIncident || '').trim().toLowerCase();
+    const place2 = (values.placeOfIncident || '').trim().toLowerCase();
+    if (place1.length > 2 && place2.length > 2 && place1 === place2) reasons.push({ label: 'Place of Incident', value: c.placeOfIncident, severity: 'medium' });
+
+    const accused1 = (c.accusedList || []).map(a => (a.name || '').toLowerCase().trim()).filter(n => n && n !== 'unknown');
+    const accused2 = (values.accusedList || []).map(a => (a.name || '').toLowerCase().trim()).filter(n => n && n !== 'unknown');
+    const matchedAccused = accused1.filter(a => accused2.includes(a));
+    if (matchedAccused.length > 0) reasons.push({ label: 'Accused Name', value: matchedAccused.join(', '), severity: 'medium' });
+
+    if ((c.classOfIncident || '') === (values.classOfIncident || '') && c.classOfIncident) {
+      reasons.push({ label: 'Incident Class', value: c.classOfIncident, severity: 'low' });
+    }
+    return reasons;
+  };
+
+  const onFinish = async (values) => {
+    let existing = [];
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        existing = await res.json();
       }
-      
+    } catch (e) {
+      console.error("Error fetching complaints for duplicate check:", e);
+    }
+
+    // STRICT duplicate detection — find all matching complaints
+    const duplicates = existing.filter(c => {
+      // Rule 1: Same mobile number → always a duplicate (strongest signal)
+      const mobile1 = (c.mobileNumber || '').replace(/\D/g, '');
+      const mobile2 = (values.mobileNumber || '').replace(/\D/g, '');
+      if (mobile1.length >= 10 && mobile1 === mobile2) return true;
+
+      // Rule 2: Scoring for other fields (classOfIncident is no longer mandatory)
+      let score = 0;
       const name1 = ((c.firstName || '') + ' ' + (c.lastName || '')).trim().toLowerCase();
       const name2 = ((values.firstName || '') + ' ' + (values.lastName || '')).trim().toLowerCase();
-      const sameName = name1 && name2 && name1 === name2;
+      if (name1 && name2 && name1 === name2) score += 3;
 
-      const date1 = c.dateOfIncident ? String(c.dateOfIncident) : '';
-      const date2 = values.dateOfIncident ? String(values.dateOfIncident) : '';
-      const sameDate = date1 && date2 && date1 === date2;
+      const date1 = c.dateOfIncident ? String(c.dateOfIncident).slice(0, 10) : '';
+      const date2 = values.dateOfIncident ? String(values.dateOfIncident).slice(0, 10) : '';
+      if (date1 && date2 && date1 === date2) score += 2;
 
       const place1 = (c.placeOfIncident || '').trim().toLowerCase();
       const place2 = (values.placeOfIncident || '').trim().toLowerCase();
-      const samePlace = place1 && place2 && place1 === place2;
+      if (place1.length > 2 && place2.length > 2 && place1 === place2) score += 2;
 
-      const accused1 = (c.accusedList || []).map(a => (a.name || '').toLowerCase().trim()).filter(Boolean);
-      const accused2 = (values.accusedList || []).map(a => (a.name || '').toLowerCase().trim()).filter(Boolean);
-      const sameAccused = accused1.length > 0 && accused1.some(a => accused2.includes(a));
-      
-      const sameMobile = c.mobileNumber && values.mobileNumber && c.mobileNumber === values.mobileNumber;
+      const accused1 = (c.accusedList || []).map(a => (a.name || '').toLowerCase().trim()).filter(n => n && n !== 'unknown');
+      const accused2 = (values.accusedList || []).map(a => (a.name || '').toLowerCase().trim()).filter(n => n && n !== 'unknown');
+      if (accused1.length > 0 && accused1.some(a => accused2.includes(a))) score += 2;
 
-      // Scoring Logic to handle typos (e.g. Kamlesh vs Kamalash)
-      let score = 0;
-      if (sameName) score += 2;
-      if (sameMobile) score += 3;
-      if (sameDate) score += 2;
-      if (samePlace) score += 2;
-      if (sameAccused) score += 2;
+      if ((c.classOfIncident || '') === (values.classOfIncident || '') && c.classOfIncident) score += 1;
 
-      // Threshold is 4. This means we need at least two major fields to match 
-      // (e.g. Date + Place, or Name + Accused) to trigger the duplicate warning.
       return score >= 4;
     });
 
-    if (duplicate) {
-      setDuplicateModalData({ duplicate, values, existing });
+    if (duplicates.length > 0) {
+      setDuplicateModalData({ duplicates, values, existing });
       return;
     }
 
     proceedRegistration(values, existing);
   };
 
-  const proceedRegistration = (values, existing) => {
+  const proceedRegistration = async (values, existing) => {
     // Generate a unique complaint ID
     const complaintId = 'C' + Math.floor(10000 + Math.random() * 90000);
     const now = new Date();
@@ -615,19 +678,38 @@ ${textToProcess}
       registeredAt: now.toISOString(),
       dateRegistered: now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
       status: 'Registered',
+      ioStatus: 'Pending',
       appliedTemplate: null,
+      policeStation: profile?.station_id || values.policeStation || 'SAMALKHA',
+      originalStation: profile?.station_id || values.policeStation || 'SAMALKHA',
     };
 
-    existing.unshift(complaintRecord); // newest first
-    localStorage.setItem('registeredComplaints', JSON.stringify(existing));
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(complaintRecord)
+      });
 
-    message.success({ content: `Complaint ${complaintId} registered successfully!`, duration: 3 });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to register complaint');
+      }
 
-    // Defer navigation: let React finish the form render cycle first, THEN navigate home
-    // (Calling onBack() synchronously here caused a mid-render crash caught by error boundary)
-    setTimeout(() => {
-      if (onBack) onBack(); // onBack clears wizard localStorage + sessionStorage + goes home
-    }, 100);
+      message.success({ content: `Complaint ${complaintId} registered successfully!`, duration: 3 });
+
+      // Defer navigation: let React finish the form render cycle first, THEN navigate home
+      setTimeout(() => {
+        if (onBack) onBack(); // onBack clears wizard localStorage + sessionStorage + goes home
+      }, 100);
+    } catch (err) {
+      console.error(err);
+      message.error(`Registration failed: ${err.message}`);
+    }
   };
 
 
@@ -665,8 +747,14 @@ ${textToProcess}
       case 'enquiry_rajinama':
         return `ENQUIRY REPORT - MUTUAL SETTLEMENT (RAJINAMA)\n\nDate: ${dateToday}\n\n1. REFERENCE COMPLAINT\nComplainant: ${compName}, R/o ${compAddress}, Ph: ${compPhone}\nAccused Details:\n${accusedBlockInline}\nNature of Incident: ${incidentClass}\nDate & Place of Occurrence: ${dateOfInc} at ${placeOfIncident}\n\n2. BRIEF ALLEGATIONS\nAs per the contents of the complaint, the complainant alleged that: \n"${actDescription}"\n\n3. PROCEEDINGS & FINDINGS\nDuring the course of the preliminary enquiry, both the complainant and the accused were summoned to the Police Station. After comprehensive discussions and in the presence of respectable persons from society, both parties have amicably resolved their differences.\n\nThe complainant (${compName}) has furnished a written statement stating that the matter has been resolved mutually without any coercion, threat, or undue influence. The complainant does not wish to pursue any further legal or police action regarding this matter.\n\n4. CONCLUSION & RECOMMENDATION\nSince the parties have arrived at a mutual compromise (Rajinama) and the complainant is no longer desirous of pursuing the case, no cognizable offence requiring police intervention survives.\n\nAccordingly, it is recommended to consign this complaint to the records (File / Filed without FIR).\n\n\nSubmitted by:\n[IO Signature]\nName/Rank: _______________`;
 
-      case 'enquiry_civil':
-        return `ENQUIRY REPORT - PROCEEDING OF CIVIL NATURE\n\nDate: ${dateToday}\n\n1. REFERENCE COMPLAINT\nComplainant: ${compName}, R/o ${compAddress}, Ph: ${compPhone}\nAccused Details:\n${accusedBlockInline}\nSubject/Category: ${incidentClass}\nDate & Place of Incident: ${dateOfInc} at ${placeOfIncident}\n\n2. BRIEF OF COMPLAINT\nBriefly, the complainant states that: \n"${actDescription}"\n\n3. ENQUIRY CONDUCTED & FACTUAL POSITION\nAn extensive preliminary enquiry was conducted by the undersigned. The relevant documents submitted by the complainant and the statements of both parties were examined.\n\nThe scrutiny reveals that the crux of the dispute between the parties pertains to land, finances, or contractual obligations, which fundamentally falls within the contours of a Civil Dispute. The elements of mens rea (criminal intent) or a cognizable criminal offence under the BNS/LSL are entirely absent.\n\n4. CONCLUSION & RECOMMENDATION\nIn light of the Honourable Supreme Court guidelines preventing the criminalization of civil disputes, police interference in this matter is strictly unwarranted.\n\nThe complainant has been properly briefed and advised to approach the appropriate Honourable Civil Court / Revenue Authority for the redressal of the grievance.\n\nTherefore, it is recommended to file this complaint.\n\n\nSubmitted by:\n[IO Signature]\nName/Rank: _______________`;
+      case 'enquiry_civil_land':
+        return `ENQUIRY REPORT - PROCEEDING OF CIVIL NATURE (LAND DISPUTE)\n\nDate: ${dateToday}\n\n1. REFERENCE COMPLAINT\nComplainant: ${compName}, R/o ${compAddress}, Ph: ${compPhone}\nAccused Details:\n${accusedBlockInline}\nSubject/Category: Land Dispute (${incidentClass})\nDate & Place of Incident: ${dateOfInc} at ${placeOfIncident}\n\n2. BRIEF OF COMPLAINT\nBriefly, the complainant states that: \n"${actDescription}"\n\n3. ENQUIRY CONDUCTED & FACTUAL POSITION\nAn extensive preliminary enquiry was conducted by the undersigned. The relevant land ownership records, revenue mutation documents, and possession status of the disputed property were examined. Statements of both parties and boundary witnesses were duly recorded.\n\nThe scrutiny of the revenue records and statements reveals that the dispute between the parties is purely civil in nature, pertaining to the demarcation of boundaries, title clearance, or possession of land. No criminal intent (mens rea) or cognizable offence is made out under the current laws.\n\n4. CONCLUSION & RECOMMENDATION\nIn light of legal precedents and guidelines, police intervention is not warranted in property disputes of a civil nature.\n\nThe complainant has been properly briefed and advised to approach the appropriate Revenue Court / Civil Authority for boundary demarcation or partition of the land.\n\nTherefore, it is recommended to file this complaint.\n\n\nSubmitted by:\n[IO Signature]\nName/Rank: _______________`;
+
+      case 'enquiry_civil_finance':
+        return `ENQUIRY REPORT - PROCEEDING OF CIVIL NATURE (FINANCIAL DISPUTE)\n\nDate: ${dateToday}\n\n1. REFERENCE COMPLAINT\nComplainant: ${compName}, R/o ${compAddress}, Ph: ${compPhone}\nAccused Details:\n${accusedBlockInline}\nSubject/Category: Financial Dispute (${incidentClass})\nDate & Place of Incident: ${dateOfInc} at ${placeOfIncident}\n\n2. BRIEF OF COMPLAINT\nBriefly, the complainant states that: \n"${actDescription}"\n\n3. ENQUIRY CONDUCTED & FACTUAL POSITION\nAn extensive preliminary enquiry was conducted by the undersigned. The financial ledgers, bank transactions, promissory notes, and business agreements between the parties were examined.\n\nThe scrutiny of the financial transactions and agreements reveals that the dispute arises from a commercial contract, non-payment of dues, or monetary settlement issues. The dispute is fundamentally a breach of contract and falls within the contours of a Civil Dispute, lacking any criminal breach of trust or cheating elements at this stage.\n\n4. CONCLUSION & RECOMMENDATION\nIn accordance with judicial guidelines, civil disputes arising out of monetary transactions should not be given a criminal color.\n\nThe complainant has been advised to approach the competent Civil Court / Arbitrator for recovery of dues.\n\nTherefore, it is recommended to file this complaint.\n\n\nSubmitted by:\n[IO Signature]\nName/Rank: _______________`;
+
+      case 'enquiry_transfer':
+        return `ENQUIRY REPORT - TRANSFER OF COMPLAINT TO OTHER POLICE STATION\n\nDate: ${dateToday}\n\n1. REFERENCE COMPLAINT\nComplainant: ${compName}, R/o ${compAddress}, Ph: ${compPhone}\nAccused Details:\n${accusedBlockInline}\nSubject/Category: Transfer Request (${incidentClass})\nDate & Place of Incident: ${dateOfInc} at ${placeOfIncident}\n\n2. BRIEF OF COMPLAINT\nBriefly, the complainant states that: \n"${actDescription}"\n\n3. ENQUIRY CONDUCTED & JURISDICTIONAL FINDINGS\nA preliminary enquiry was conducted. Factual verification of the place of occurrence of the alleged incident was carried out.\n\nThe spot verification and facts gathered reveal that the entire occurrence took place within the territorial jurisdiction of Police Station ____________, District ____________. No part of the cause of action or incident occurred within the territorial jurisdiction of this Police Station.\n\n4. CONCLUSION & RECOMMENDATION\nIn view of territorial jurisdiction regulations, this Police Station cannot register or investigate this matter. It is legally appropriate to transfer this complaint along with all relevant documents to the concerned Police Station.\n\nTherefore, it is recommended to transfer this complaint to Police Station ____________, District ____________ for further legal proceedings under BNSS.\n\n\nSubmitted by:\n[IO Signature]\nName/Rank: _______________`;
 
       case 'enquiry_ncr':
         return `NON-COGNIZABLE REPORT (NCR) / ENQUIRY REPORT\n\nDate: ${dateToday}\n\n1. COMPLAINANT DETAILS\nName: ${compName}\nAddress: ${compAddress}\nContact: ${compPhone}\n\n2. ACCUSED DETAILS\n${accusedBlockNotice}\n\n3. INCIDENT DETAILS\nCategory: ${incidentClass}\nDate & Time: ${dateOfInc} | ${timeOfInc}\nPlace of Occurrence: ${placeOfIncident}\n\n4. FACTS OF THE COMPLAINT\nThe complainant has reported that: \n"${actDescription}"\n\n5. IO'S OPINION & ACTION TAKEN\nUpon careful perusal of the complaint and preliminary enquiry, it is concluded that the allegations raised by the complainant disclose the commission of a strictly Non-Cognizable Offence. \n\nAccordingly, the substance of the information has been duly entered into the Daily Diary Document (Rapt/DDR). The police cannot investigate a non-cognizable case without the order of a Magistrate having power to try such cases.\n\nThe complainant, ${compName}, has been properly informed and legally advised to approach the Honourable Magistrate under the relevant sections of the BNSS for further judicial remedy.\n\n\nPrepared by:\n[IO Signature]\nName/Rank: _______________`;
@@ -742,9 +830,11 @@ ${textToProcess}
         notice: 'Notice',
         email: 'Email_Update',
         enquiry_rajinama: 'Enquiry_Rajinama',
-        enquiry_civil: 'Enquiry_Civil',
+        enquiry_civil_land: 'Enquiry_Civil_Land',
+        enquiry_civil_finance: 'Enquiry_Civil_Finance',
         enquiry_ncr: 'Enquiry_NCR',
         enquiry_fir: 'Enquiry_FIR',
+        enquiry_transfer: 'Enquiry_Transfer_PS',
       };
       const fileName = `Complaint_${templateNames[selectedTemplate] || 'Document'}.docx`;
       saveAs(blob, fileName);
@@ -810,11 +900,18 @@ ${textToProcess}
                 Rajinama (Mutual Settlement)
               </Button>
               <Button 
-                type={selectedTemplate === 'enquiry_civil' ? 'primary' : 'dashed'} 
+                type={selectedTemplate === 'enquiry_civil_land' ? 'primary' : 'dashed'} 
                 block 
-                onClick={() => handleTemplateSelect('enquiry_civil')}
+                onClick={() => handleTemplateSelect('enquiry_civil_land')}
               >
-                Civil Nature (Land/Financial)
+                Civil Nature (Land Dispute)
+              </Button>
+              <Button 
+                type={selectedTemplate === 'enquiry_civil_finance' ? 'primary' : 'dashed'} 
+                block 
+                onClick={() => handleTemplateSelect('enquiry_civil_finance')}
+              >
+                Civil Nature (Financial Dispute)
               </Button>
               <Button 
                 type={selectedTemplate === 'enquiry_ncr' ? 'primary' : 'dashed'} 
@@ -829,6 +926,13 @@ ${textToProcess}
                 onClick={() => handleTemplateSelect('enquiry_fir')}
               >
                 FIR Registered
+              </Button>
+              <Button 
+                type={selectedTemplate === 'enquiry_transfer' ? 'primary' : 'dashed'} 
+                block 
+                onClick={() => handleTemplateSelect('enquiry_transfer')}
+              >
+                Transfer to other Police Station
               </Button>
               <Button 
                 type={selectedTemplate === 'none' ? 'primary' : 'dashed'} 
@@ -1466,100 +1570,169 @@ ${textToProcess}
       {currentStep === 2 && renderForm()}
     </Card>
 
-    {/* ── Custom Duplicate Modal — fully dark, no Ant Design CSS-in-JS ── */}
+    {/* ── Custom Duplicate Modal — fully dark, shows all matched complaints ── */}
     {duplicateModalData && (
       <div style={{
         position: 'fixed', inset: 0, zIndex: 9999,
-        background: 'rgba(0,0,0,0.65)',
+        background: 'rgba(0,0,0,0.72)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        backdropFilter: 'blur(2px)',
+        backdropFilter: 'blur(3px)',
       }}>
         <div style={{
-          background: '#1e2130',
-          border: '1px solid #30363d',
-          borderRadius: '10px',
-          width: '420px',
-          maxWidth: '90vw',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+          background: '#1a1f2e',
+          border: '1px solid #3d2b00',
+          borderRadius: '12px',
+          width: '580px',
+          maxWidth: '95vw',
+          maxHeight: '85vh',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 12px 40px rgba(0,0,0,0.7)',
           overflow: 'hidden',
         }}>
           {/* Header */}
           <div style={{
-            padding: '20px 24px 16px',
-            borderBottom: '1px solid #30363d',
-            display: 'flex', alignItems: 'center', gap: '12px',
+            padding: '18px 24px 14px',
+            borderBottom: '1px solid #3d2b00',
+            background: 'linear-gradient(135deg, #2d1b00 0%, #1a1200 100%)',
+            display: 'flex', alignItems: 'flex-start', gap: '12px',
+            flexShrink: 0,
           }}>
-            <span style={{ fontSize: '22px' }}>⚠️</span>
-            <span style={{ color: '#f0f6fc', fontWeight: 700, fontSize: '16px' }}>
-              Duplicate Complaint Detected
-            </span>
+            <span style={{ fontSize: '24px', marginTop: '2px' }}>🚨</span>
+            <div>
+              <div style={{ color: '#ffd666', fontWeight: 700, fontSize: '16px' }}>
+                Duplicate Complaint Alert
+              </div>
+              <div style={{ color: '#c9962a', fontSize: '13px', marginTop: '2px' }}>
+                {duplicateModalData.duplicates.length} similar complaint{duplicateModalData.duplicates.length > 1 ? 's' : ''} already registered in the system.
+              </div>
+            </div>
           </div>
 
-          {/* Body */}
-          <div style={{ padding: '20px 24px', color: '#c9d1d9', lineHeight: 1.7 }}>
-            <p style={{ marginBottom: '12px' }}>
-              This complaint appears to be already registered in the system.
-            </p>
-            <p style={{ margin: '4px 0' }}>
-              <span style={{ color: '#3b82f6', fontWeight: 600 }}>Complaint ID: </span>
-              {duplicateModalData.duplicate.id}
-            </p>
-            <p style={{ margin: '4px 0' }}>
-              <span style={{ color: '#3b82f6', fontWeight: 600 }}>Status: </span>
-              {duplicateModalData.duplicate.status}
-            </p>
-            <p style={{ margin: '4px 0' }}>
-              <span style={{ color: '#3b82f6', fontWeight: 600 }}>Assigned IO: </span>
-              {duplicateModalData.duplicate.assignedTo || 'Pending Assignment'}
-            </p>
-            <p style={{ margin: '4px 0' }}>
-              <span style={{ color: '#3b82f6', fontWeight: 600 }}>Date Registered: </span>
-              {duplicateModalData.duplicate.dateRegistered}
-            </p>
-            <p style={{ marginTop: '16px', color: '#c9d1d9' }}>
-              Do you still want to register this as a new complaint?
-            </p>
+          {/* Scrollable Body */}
+          <div style={{ padding: '16px 24px', overflowY: 'auto', flexGrow: 1 }}>
+            {duplicateModalData.duplicates.map((dup, idx) => {
+              const reasons = getDuplicateReasons(dup, duplicateModalData.values);
+              const dupName = `${dup.firstName || ''} ${dup.lastName || ''}`.trim() || 'Unknown';
+              return (
+                <div key={dup.id} style={{
+                  background: '#111827',
+                  border: '1px solid #30363d',
+                  borderRadius: '8px',
+                  padding: '14px 16px',
+                  marginBottom: idx < duplicateModalData.duplicates.length - 1 ? '12px' : 0,
+                }}>
+                  {/* Complaint header row */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ color: '#60a5fa', fontWeight: 700, fontSize: '15px' }}>{dup.id}</span>
+                    <span style={{
+                      background: dup.ioStatus === 'Under Investigation' ? '#1d4ed8' :
+                                  dup.ioStatus === 'Disposed' ? '#6b21a8' :
+                                  dup.ioStatus === 'Convert to FIR' ? '#991b1b' : '#92400e',
+                      color: '#ffffff',
+                      borderRadius: '12px',
+                      padding: '2px 10px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                    }}>
+                      {dup.ioStatus || 'Registered'}
+                    </span>
+                  </div>
+
+                  {/* Details */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '12px', color: '#8b949e' }}>Complainant</div>
+                    <div style={{ fontSize: '13px', color: '#e6edf3', fontWeight: 500 }}>{dupName}</div>
+
+                    <div style={{ fontSize: '12px', color: '#8b949e' }}>Mobile</div>
+                    <div style={{ fontSize: '13px', color: '#e6edf3' }}>{dup.mobileNumber || '—'}</div>
+
+                    <div style={{ fontSize: '12px', color: '#8b949e' }}>Incident Class</div>
+                    <div style={{ fontSize: '13px', color: '#e6edf3' }}>{dup.classOfIncident || '—'}</div>
+
+                    <div style={{ fontSize: '12px', color: '#8b949e' }}>Registered On</div>
+                    <div style={{ fontSize: '13px', color: '#e6edf3' }}>{dup.dateRegistered || '—'}</div>
+
+                    <div style={{ fontSize: '12px', color: '#8b949e' }}>Assigned IO</div>
+                    <div style={{ fontSize: '13px', color: '#e6edf3' }}>{dup.assignedIoName || 'Unassigned'}</div>
+                  </div>
+
+                  {/* Match reasons */}
+                  <div style={{ borderTop: '1px solid #21262d', paddingTop: '8px' }}>
+                    <div style={{ fontSize: '11px', color: '#8b949e', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Matched Fields</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {reasons.map((r, i) => (
+                        <span key={i} style={{
+                          background: r.severity === 'high' ? 'rgba(239,68,68,0.15)' : r.severity === 'medium' ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.15)',
+                          border: `1px solid ${r.severity === 'high' ? 'rgba(239,68,68,0.4)' : r.severity === 'medium' ? 'rgba(245,158,11,0.4)' : 'rgba(59,130,246,0.4)'}`,
+                          color: r.severity === 'high' ? '#fca5a5' : r.severity === 'medium' ? '#fcd34d' : '#93c5fd',
+                          borderRadius: '4px',
+                          padding: '2px 8px',
+                          fontSize: '12px',
+                          fontWeight: 500,
+                        }}>
+                          {r.label}: {r.value}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            <div style={{ marginTop: '16px', padding: '10px 14px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '6px', color: '#fca5a5', fontSize: '13px' }}>
+              ⚠️ Registering a duplicate complaint may result in duplication of records. Please verify before proceeding.
+            </div>
           </div>
 
           {/* Footer buttons */}
           <div style={{
-            padding: '12px 24px 20px',
-            display: 'flex', justifyContent: 'flex-end', gap: '10px',
+            padding: '14px 24px',
+            borderTop: '1px solid #30363d',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            background: '#111827',
+            flexShrink: 0,
           }}>
-            <button
-              onClick={() => setDuplicateModalData(null)}
-              style={{
-                padding: '7px 20px',
-                borderRadius: '6px',
-                border: '1px solid #30363d',
-                background: 'transparent',
-                color: '#3b82f6',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: 500,
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => {
-                const { values, existing } = duplicateModalData;
-                setDuplicateModalData(null);
-                proceedRegistration(values, existing);
-              }}
-              style={{
-                padding: '7px 20px',
-                borderRadius: '6px',
-                border: 'none',
-                background: '#3b82f6',
-                color: '#ffffff',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: 600,
-              }}
-            >
-              Register Anyway
-            </button>
+            <span style={{ color: '#8b949e', fontSize: '12px' }}>
+              {duplicateModalData.duplicates.length} duplicate{duplicateModalData.duplicates.length > 1 ? 's' : ''} found
+            </span>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => setDuplicateModalData(null)}
+                style={{
+                  padding: '7px 20px',
+                  borderRadius: '6px',
+                  border: '1px solid #30363d',
+                  background: 'transparent',
+                  color: '#60a5fa',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                }}
+              >
+                ← Go Back
+              </button>
+              <button
+                onClick={() => {
+                  const { values, existing } = duplicateModalData;
+                  setDuplicateModalData(null);
+                  // Mark as repeat complaint when registering despite duplicate warning
+                  proceedRegistration({ ...values, typeOfComplaint: 'Repeat (Same Matter)' }, existing);
+                }}
+                style={{
+                  padding: '7px 20px',
+                  borderRadius: '6px',
+                  border: '1px solid #b45309',
+                  background: '#92400e',
+                  color: '#fef3c7',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                }}
+              >
+                Register as Repeat Complaint
+              </button>
+            </div>
           </div>
         </div>
       </div>

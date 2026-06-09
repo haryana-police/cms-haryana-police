@@ -974,7 +974,6 @@ export default function FIRForm() {
                 rules={[{ required: true, message: 'District is required' }]}
                 className={getAiClass('district')}
               >
-                <Input placeholder="e.g. PANIPAT" size="large" />
                 <Select
                   placeholder="-- Select District --"
                   size="large"
@@ -999,7 +998,6 @@ export default function FIRForm() {
                 rules={[{ required: true, message: 'Police Station is required' }]}
                 className={getAiClass('police_station')}
               >
-                <Input placeholder="e.g. SAMALKHA" size="large" />
                 <Select
                   placeholder={selectedDistrict ? '-- Select Police Station --' : 'Pehle District chunein'}
                   size="large"

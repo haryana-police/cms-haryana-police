@@ -3,11 +3,10 @@ import { useAuth } from '../hooks/useAuth';
 import AiChat from './AiChat';
 import LawLibrary from './LawLibrary';
 import * as pdfjsLib from 'pdfjs-dist';
-import PdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import './SmartAnalyzer.css';
 
-// Use local worker (not CDN) to avoid CORS/network issues in Vite
-pdfjsLib.GlobalWorkerOptions.workerSrc = PdfWorker;
+// Use CDN worker to avoid native binary crash (STATUS_ACCESS_VIOLATION) on Windows
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 const Icon = ({ children, className = '' }) => (
@@ -103,7 +102,6 @@ const LawDetailDrawer = ({ visible, onClose, sectionCode, token, lang = 'en' }) 
         <div className="law-drawer-header">
           <div>
             <div className="law-drawer-title">⚖️ Legal Reference</div>
-            <div className="law-drawer-title">Legal Reference</div>
             <div className="law-drawer-subtitle">{sectionCode}</div>
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -174,7 +172,6 @@ const FileUploadZone = ({ files, onFilesAdded, onFileRemove }) => {
           style={{ display: 'none' }}
         />
         <div className="upload-icon">📤</div>
-        <div className="upload-icon"></div>
         <div className="upload-title">Click to Upload Complaint or FIR</div>
         <div className="upload-subtitle">
           Supports: Scanned Images (JPG/PNG) & PDF files
@@ -182,8 +179,6 @@ const FileUploadZone = ({ files, onFilesAdded, onFileRemove }) => {
         <div className="upload-formats">
           <span className="format-chip">📄 Upload FIR</span>
           <span className="format-chip">🖼️ Upload Complaint</span>
-          <span className="format-chip">Upload FIR</span>
-          <span className="format-chip">Upload Complaint</span>
         </div>
       </div>
 
@@ -272,12 +267,6 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
     { key: 'deadlines', label: isHindi ? '⏰ समय-सीमा' : '⏰ Deadlines', count: deadlines?.length || 0 },
     { key: 'evidence', label: isHindi ? '🔍 साक्ष्य' : '🔍 Evidence', count: evidence_checklist?.length || 0 },
     { key: 'special', label: isHindi ? '🛡️ विशेष कानून' : '🛡️ Special Laws', count: special_laws?.length || 0 },
-    { key: 'sections', label: isHindi ? 'धाराएं' : 'Sections', count: sections?.length || 0 },
-    { key: 'sop', label: isHindi ? 'एसओपी' : 'SOP', count: sop?.length || 0 },
-    { key: 'judgments', label: isHindi ? 'निर्णय' : 'Judgments', count: (sc_judgments?.length || 0) + (hc_judgments?.length || 0) },
-    { key: 'deadlines', label: isHindi ? 'समय-सीमा' : 'Deadlines', count: deadlines?.length || 0 },
-    { key: 'evidence', label: isHindi ? 'साक्ष्य' : 'Evidence', count: evidence_checklist?.length || 0 },
-    { key: 'special', label: isHindi ? 'विशेष कानून' : 'Special Laws', count: special_laws?.length || 0 },
   ];
 
   return (
@@ -286,14 +275,12 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
       <div className="case-header">
         <div className="case-meta">
           <div className="case-crime-type">🚔 {crime_type || (isHindi ? 'आपराधिक मामला' : 'Criminal Case')}</div>
-          <div className="case-crime-type">{crime_type || (isHindi ? 'आपराधिक मामला' : 'Criminal Case')}</div>
           <PriorityBadge level={severity || 'HIGH'} />
         </div>
         <div className="case-summary">{case_summary}</div>
         {_meta && (
           <div className="meta-info">
             📁 {_meta.filesProcessed} file(s) analyzed • 
-            {_meta.filesProcessed} file(s) analyzed • 
             {_meta.fileResults?.map((f, i) => (
               <span key={i} className="meta-file">
                 {' '}{f.filename} ({f.method === 'image-ocr' ? `OCR ${f.confidence}%` : f.method})
@@ -370,7 +357,7 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
                   <span>{isHindi ? 'पूरी कानूनी जानकारी के लिए क्लिक करें' : 'Click for full legal reference'}</span>
                   {sec.file_url && sec.page_number && (
                     <a
-                      href={`http://localhost:5000/kb-files/${encodeURIComponent(sec.file_url)}${sec.page_number.replace(/\D/g, '') ? `#page=${sec.page_number.replace(/\D/g, '')}` : ''}`}
+                      href={`/kb-files/${encodeURIComponent(sec.file_url)}${sec.page_number.replace(/\D/g, '') ? `#page=${sec.page_number.replace(/\D/g, '')}` : ''}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="section-pdf-link"
@@ -414,7 +401,7 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
                       {step.authority && <span className="sop-auth">👮 {step.authority}</span>}
                       {step.file_url && step.page_number && (
                         <a
-                          href={`http://localhost:5000/kb-files/${encodeURIComponent(step.file_url)}${step.page_number.replace(/\D/g, '') ? `#page=${step.page_number.replace(/\D/g, '')}` : ''}`}
+                          href={`/kb-files/${encodeURIComponent(step.file_url)}${step.page_number.replace(/\D/g, '') ? `#page=${step.page_number.replace(/\D/g, '')}` : ''}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{ color: '#1890ff', textDecoration: 'none', marginLeft: 'auto', background: '#1890ff15', padding: '2px 8px', borderRadius: '4px', fontSize: '11px' }}
@@ -470,7 +457,7 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
                       </div>
                     </div>
                     <a
-                      href={`http://localhost:5000${sopDoc.fileUrl}`}
+                      href={`${sopDoc.fileUrl}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{
@@ -488,7 +475,6 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
                   {sopDoc.error ? (
                     <div style={{ padding: '12px 16px', color: '#6b7280', fontSize: 12, fontStyle: 'italic' }}>
                       ⚠️ {sopDoc.error}
-                      {sopDoc.error}
                     </div>
                   ) : (
                     <FolderSOPContent paragraphs={sopDoc.paragraphs} />
@@ -532,30 +518,12 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
                   {judg.holding && (
                     <div className="judgment-holding">
                       <div className="judgment-section-label">⚖️ {isHindi ? 'न्यायालय का निर्णय:' : 'Court Holding:'}</div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    {judg.citation && (
-                      <div className="judgment-citation">{isHindi ? 'उद्धरण:' : 'Citation:'} <strong>{judg.citation}</strong></div>
-                    )}
-                    {judg.file_url && judg.page_number && (
-                      <a
-                        href={`http://localhost:5000/kb-files/${encodeURIComponent(judg.file_url)}${judg.page_number.replace(/\D/g, '') ? `#page=${judg.page_number.replace(/\D/g, '')}` : ''}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ color: '#1890ff', textDecoration: 'none', fontSize: '12px', background: '#1890ff15', padding: '4px 8px', borderRadius: '4px', border: '1px solid #1890ff44', marginBottom: '8px' }}
-                      >
-                        {isHindi ? `Law Library में ${judg.page_number} देखें` : `View ${judg.page_number} in Library`}
-                      </a>
-                    )}
-                  </div>
-                  <div className="judgment-guideline"><strong>{isHindi ? 'मुख्य दिशानिर्देश:' : 'Key Guideline:'}</strong> {judg.guideline}</div>
-                      <div className="judgment-section-label">{isHindi ? 'न्यायालय का निर्णय:' : 'Court Holding:'}</div>
                       <div className="judgment-holding-text">{judg.holding}</div>
                     </div>
                   )}
                   {judg.key_points && judg.key_points.length > 0 && (
                     <div className="judgment-keypoints">
                       <div className="judgment-section-label">📌 {isHindi ? 'मुख्य बिंदु:' : 'Key Points:'}</div>
-                      <div className="judgment-section-label">{isHindi ? 'मुख्य बिंदु:' : 'Key Points:'}</div>
                       <ul className="judgment-points-list">
                         {judg.key_points.map((pt, j) => (
                           <li key={j} className="judgment-point-item">→ {pt}</li>
@@ -569,8 +537,6 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
                     </div>
                   )}
                   {judg.relevance && <div className="judgment-relevance">📌 {judg.relevance}</div>}
-                      <span>{isHindi ? 'IO का कर्तव्य:' : "IO's Duty:"}</span> {judg.io_duty}
-                  {judg.relevance && <div className="judgment-relevance">{judg.relevance}</div>}
                 </div>
               ))}
             </>
@@ -579,7 +545,6 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
           {hc_judgments && hc_judgments.length > 0 && (
             <>
               <div className="judgment-group-title" style={{ marginTop: '20px' }}>⚖️ {isHindi ? 'उच्च न्यायालय के निर्णय' : 'High Court Judgments'}</div>
-              <div className="judgment-group-title" style={{ marginTop: '20px' }}>{isHindi ? 'उच्च न्यायालय के निर्णय' : 'High Court Judgments'}</div>
               {hc_judgments.map((judg, i) => (
                 <div key={i} className="judgment-card hc">
                   <div className="judgment-header">
@@ -602,7 +567,7 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
                     )}
                     {judg.file_url && judg.page_number && (
                       <a
-                        href={`http://localhost:5000/kb-files/${encodeURIComponent(judg.file_url)}${judg.page_number.replace(/\D/g, '') ? `#page=${judg.page_number.replace(/\D/g, '')}` : ''}`}
+                        href={`/kb-files/${encodeURIComponent(judg.file_url)}${judg.page_number.replace(/\D/g, '') ? `#page=${judg.page_number.replace(/\D/g, '')}` : ''}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{ color: '#1890ff', textDecoration: 'none', fontSize: '12px', background: '#1890ff15', padding: '4px 8px', borderRadius: '4px', border: '1px solid #1890ff44', marginBottom: '8px' }}
@@ -633,8 +598,6 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
                     </div>
                   )}
                   {judg.relevance && <div className="judgment-relevance">📌 {judg.relevance}</div>}
-                      <span>{isHindi ? 'IO का कर्तव्य:' : "IO's Duty:"}</span> {judg.io_duty}
-                  {judg.relevance && <div className="judgment-relevance">{judg.relevance}</div>}
                 </div>
               ))}
             </>
@@ -647,7 +610,6 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
         <div className="tab-content">
           <div className="deadlines-header">
             📅 {isHindi ? 'आज:' : 'Today:'} {today.toLocaleDateString(isHindi ? 'hi-IN' : 'en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
-            {isHindi ? 'आज:' : 'Today:'} {today.toLocaleDateString(isHindi ? 'hi-IN' : 'en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
           </div>
           <div className="deadlines-grid">
             {deadlines?.map((dl, i) => {
@@ -670,9 +632,6 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
                   <div className="deadline-date">📅 {isHindi ? 'तक:' : 'By:'} {getDeadlineDate(dl.days, dl.hours)}</div>
                   {dl.legal_basis && <div className="deadline-basis">📜 {dl.legal_basis}</div>}
                   {dl.authority && <div className="deadline-auth">👮 {dl.authority}</div>}
-                  <div className="deadline-date">{isHindi ? 'तक:' : 'By:'} {getDeadlineDate(dl.days, dl.hours)}</div>
-                  {dl.legal_basis && <div className="deadline-basis">{dl.legal_basis}</div>}
-                  {dl.authority && <div className="deadline-auth">{dl.authority}</div>}
                 </div>
               );
             })}
@@ -704,7 +663,7 @@ const AnalysisResults = ({ result, hindiResult, lang, onLawClick, folderSOPs, fo
                     <div className="special-law-name">{law.act_name}</div>
                     {law.file_url && law.page_number && (
                       <a
-                        href={`http://localhost:5000/kb-files/${encodeURIComponent(law.file_url)}${law.page_number.replace(/\D/g, '') ? `#page=${law.page_number.replace(/\D/g, '')}` : ''}`}
+                        href={`/kb-files/${encodeURIComponent(law.file_url)}${law.page_number.replace(/\D/g, '') ? `#page=${law.page_number.replace(/\D/g, '')}` : ''}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{ color: '#1890ff', textDecoration: 'none', fontSize: '12px', background: '#1890ff15', padding: '2px 8px', borderRadius: '4px', width: 'fit-content', border: '1px solid #1890ff44' }}
@@ -804,7 +763,6 @@ export default function Investigation() {
     setActiveList(null); 
     setErrorMsg('');
     setAnalyzeProgress(`⬇️ Downloading ${fileName}...`);
-    setAnalyzeProgress(`Downloading ${fileName}...`);
     setIsAnalyzing(true);
     setAnalysisResult(null);
 
@@ -1030,7 +988,6 @@ export default function Investigation() {
 
         if (file.type === 'application/pdf') {
           setAnalyzeProgress(`📄 Converting PDF "${file.name}" to image for OCR...`);
-          setAnalyzeProgress(`Converting PDF "${file.name}" to image for OCR...`);
           const canvasBase64 = await convertPdfToCanvas(file);
           if (canvasBase64) imageFallbacks[i] = canvasBase64;
           await new Promise(r => setTimeout(r, 400));
@@ -1072,7 +1029,6 @@ export default function Investigation() {
     } catch (error) {
       console.error('Analysis error:', error);
       setErrorMsg(`❌ ${error.message || 'Analysis failed. Please try again.'}`);
-      setErrorMsg(`${error.message || 'Analysis failed. Please try again.'}`);
       setAnalyzeProgress('');
     } finally {
       setIsAnalyzing(false);
@@ -1140,7 +1096,6 @@ ${data.evidence_checklist?.map((e, i) => `☐ ${i + 1}. ${e}`).join('\n') || 'N/
 IO ALERTS:
 ────────────────────────────────────────────────────────────────────────────────
 ${data.io_warnings?.map(w => `⚠️ ${w}`).join('\n') || 'N/A'}
-${data.io_warnings?.map(w => `Warning: ${w}`).join('\n') || 'N/A'}
 
 ================================================================================
 Generated by Haryana Police CMS – Smart AI Analyzer
@@ -1152,9 +1107,6 @@ Generated by Haryana Police CMS – Smart AI Analyzer
     { key: 'analyzer', icon: '🔍', label: lang === 'hi' ? 'स्मार्ट विश्लेषक' : 'Smart Analyzer' },
     { key: 'library', icon: '📖', label: lang === 'hi' ? 'कानून पुस्तकालय' : 'Law Library' },
     { key: 'chat', icon: '🤖', label: lang === 'hi' ? 'AI सहायक' : 'AI Chat' },
-    { key: 'analyzer', icon: '', label: lang === 'hi' ? 'स्मार्ट विश्लेषक' : 'Smart Analyzer' },
-    { key: 'library', icon: '', label: lang === 'hi' ? 'कानून पुस्तकालय' : 'Law Library' },
-    { key: 'chat', icon: '', label: lang === 'hi' ? 'AI सहायक' : 'AI Chat' },
   ];
 
   return (

@@ -61,35 +61,35 @@ function toUsername(district, station, num) {
 const insertStmt = db.prepare(`
   INSERT INTO profiles (id, username, password, role, full_name, badge_number, rank, station_id, status)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')
+  ON CONFLICT DO NOTHING
 `);
 
 let created = 0;
 let skipped = 0;
 let nameIdx = 0;
 
-const seedTx = db.transaction(() => {
-  for (const [district, stations] of Object.entries(DISTRICTS_STATIONS)) {
-    for (const station of stations) {
-      for (let n = 1; n <= 2; n++) {
-        const username = toUsername(district, station, n);
+const existingUsernames = new Set(
+  db.prepare("SELECT username FROM profiles WHERE role = 'io'").all().map(r => r.username)
+);
 
-        const existing = db.prepare('SELECT id FROM profiles WHERE username = ?').get(username);
-        if (existing) { skipped++; continue; }
+for (const [district, stations] of Object.entries(DISTRICTS_STATIONS)) {
+  for (const station of stations) {
+    for (let n = 1; n <= 2; n++) {
+      const username = toUsername(district, station, n);
 
-        const rand = Math.random().toString(36).slice(2, 6);
-        const id = `io-${district.slice(0,3).toLowerCase().replace(/[^a-z]/g,'')}-${rand}-${n}`;
-        const name = IO_NAMES[nameIdx % IO_NAMES.length];
-        nameIdx++;
-        const badgeNo = `IO-${district.slice(0,3).toUpperCase().replace(/[^A-Z]/g,'')}-${n.toString().padStart(3,'0')}`;
+      if (existingUsernames.has(username)) { skipped++; continue; }
 
-        insertStmt.run(id, username, 'io123', 'io', name, badgeNo, 'Sub-Inspector (SI)', station);
-        created++;
-      }
+      // Deterministic ID from username — no random collision
+      const id = `io-${username.slice(3, 30)}`;
+      const name = IO_NAMES[nameIdx % IO_NAMES.length];
+      nameIdx++;
+      const badgeNo = `IO-${district.slice(0,3).toUpperCase().replace(/[^A-Z]/g,'')}-${n.toString().padStart(3,'0')}`;
+
+      insertStmt.run(id, username, 'io123', 'io', name, badgeNo, 'Sub-Inspector (SI)', station);
+      created++;
     }
   }
-});
-
-seedTx();
+}
 
 console.log(`\n✅ Done!`);
 console.log(`   Created : ${created} IO accounts (2 per station)`);

@@ -366,6 +366,8 @@ router.get('/cases/:id/wiki', (req, res) => {
 router.post('/cases/:id/upload', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file provided' });
   try {
+    // Decode filename from Latin-1 to UTF-8
+    req.file.originalname = Buffer.from(req.file.originalname, 'latin1').toString('utf-8');
     const parsed = await parseFile(req.file.buffer, req.file.originalname, req.file.mimetype);
     if (!parsed.success || !parsed.text?.trim()) {
       return res.status(422).json({ error: 'Could not extract text from file', details: parsed.error });

@@ -1,18 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { Card, Button, Typography, Row, Col, Divider, Input, message, Select, Tag, Empty, Radio, Space, Spin, Modal, List, Checkbox, Upload } from 'antd';
-import { DownloadOutlined, ArrowLeftOutlined, SearchOutlined, FileTextOutlined, RobotOutlined, PlusOutlined, SwapOutlined, CheckCircleOutlined, EyeOutlined, UploadOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useRef } from 'react';
+import { Card, Button, Typography, Row, Col, Divider, Input, message, Select, Tag, Empty, Radio, Space, Spin, Modal, List, Checkbox, Upload, Alert, Popover } from 'antd';
+import { DownloadOutlined, ArrowLeftOutlined, SearchOutlined, FileTextOutlined, RobotOutlined, PlusOutlined, SwapOutlined, CheckCircleOutlined, EyeOutlined, UploadOutlined, DeleteOutlined, PaperClipOutlined } from '@ant-design/icons';
 import { districts, policeStationsByDistrict } from '../../data/districtPoliceStations';
 import dayjs from 'dayjs';
-import { Document, Packer, Paragraph as DocxParagraph, TextRun } from 'docx';
+import { Document, Packer, Paragraph as DocxParagraph, TextRun, Table as DocxTable, TableRow as DocxTableRow, TableCell as DocxTableCell, WidthType as DocxWidthType, BorderStyle as DocxBorderStyle } from 'docx';
 import { saveAs } from 'file-saver';
 import { useAuth } from '../../hooks/useAuth';
+import { useWhisperSTT } from '../../hooks/useWhisperSTT';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;
 
 export default function Enquiry({ onBack, preSelectedComplaintId }) {
-  const { profile } = useAuth();
+  const { profile, token } = useAuth();
+  const editorRef = useRef(null);
+  const localHtmlRef = useRef('');
   const [complaints, setComplaints] = useState([]);
   const [selectedComplaintId, setSelectedComplaintId] = useState(() => sessionStorage.getItem('enquiry_selectedComplaintId') || preSelectedComplaintId || null);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
@@ -44,6 +47,13 @@ export default function Enquiry({ onBack, preSelectedComplaintId }) {
 
   // File Preview State
   const [previewFile, setPreviewFile] = useState(null);
+
+  const handleClosePreview = () => {
+    if (previewFile && typeof previewFile === 'object' && previewFile.url) {
+      URL.revokeObjectURL(previewFile.url);
+    }
+    setPreviewFile(null);
+  };
 
   useEffect(() => {
     sessionStorage.setItem('enquiry_showDocGen', showDocGen);
@@ -95,29 +105,659 @@ export default function Enquiry({ onBack, preSelectedComplaintId }) {
   // Email-specific state
   const [emailPrompt, setEmailPrompt] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isReportTranslating, setIsReportTranslating] = useState(false);
 
-  // Load all registered complaints from localStorage
-  const loadComplaints = () => {
-    let saved = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
-    saved.sort((a, b) => new Date(b.registrationDate) - new Date(a.registrationDate));
-    
-    // If pre-selected (coming from Search Complaints or Home view), ONLY show that complaint
-    if (preSelectedComplaintId) {
-      saved = saved.filter(c => c.id === preSelectedComplaintId);
-      if (saved.length > 0) {
-        setSelectedComplaint(saved[0]);
+  // Custom templates state
+  const [customTemplates, setCustomTemplates] = useState(() => 
+    JSON.parse(localStorage.getItem('custom_document_templates') || '[]')
+  );
+
+  // Saved draft state
+  const [savedDraft, setSavedDraft] = useState(null);
+
+  // Whisper STT Hook
+  // Whisper STT Hook
+  const activeSpanIdRef = useRef(null);
+
+  const {
+    isRecording,
+    isTranscribing,
+    toggleRecording,
+    stopAndRestart
+  } = useWhisperSTT({
+    onStart: (spanId) => {
+      if (editorRef.current) {
+        editorRef.current.focus();
+        
+        const targetId = spanId || `whisper-temp-${Date.now()}`;
+        activeSpanIdRef.current = targetId;
+
+        // Remove any old interim span with this target ID if any
+        const oldSpan = editorRef.current.querySelector(`#${targetId}`);
+        if (oldSpan) oldSpan.remove();
+
+        const sel = window.getSelection();
+        if (sel.rangeCount) {
+          const range = sel.getRangeAt(0);
+          const tempSpan = document.createElement('span');
+          tempSpan.id = targetId;
+          tempSpan.style.color = '#1890ff';
+          tempSpan.style.borderBottom = '1px dashed #1890ff';
+          tempSpan.style.backgroundColor = 'rgba(24, 144, 255, 0.08)';
+          tempSpan.style.padding = '2px 4px';
+          tempSpan.style.borderRadius = '3px';
+          tempSpan.style.fontStyle = 'italic';
+          tempSpan.innerText = ' (Listening...)';
+          
+          range.deleteContents();
+          range.insertNode(tempSpan);
+          
+          // Move cursor after the span
+          range.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        } else {
+          editorRef.current.innerHTML += ` <span id="${targetId}" style="color: #1890ff; border-bottom: 1px dashed #1890ff; background-color: rgba(24, 144, 255, 0.08); padding: 2px 4px; border-radius: 3px; font-style: italic;"> (Listening...)</span> `;
+        }
+        const html = editorRef.current.innerHTML;
+        localHtmlRef.current = html;
+        setDocumentText(html);
       }
-    } else {
-      // If we have a selectedComplaintId from sessionStorage, we should set the selectedComplaint object
-      const savedComplaintId = sessionStorage.getItem('enquiry_selectedComplaintId');
-      if (savedComplaintId) {
-        const found = saved.find(c => c.id === savedComplaintId);
-        if (found) {
-          setSelectedComplaint(found);
+    },
+    onInterim: (text, spanId) => {
+      if (editorRef.current && spanId) {
+        const tempSpan = editorRef.current.querySelector(`#${spanId}`);
+        if (tempSpan) {
+          tempSpan.innerText = ` ${text}`;
+          const html = editorRef.current.innerHTML;
+          localHtmlRef.current = html;
+          setDocumentText(html);
+        }
+      }
+    },
+    onTranscribing: (spanId) => {
+      if (editorRef.current && spanId) {
+        const tempSpan = editorRef.current.querySelector(`#${spanId}`);
+        if (tempSpan) {
+          tempSpan.style.color = '#faad14';
+          tempSpan.style.borderBottom = '1px dashed #faad14';
+          tempSpan.style.backgroundColor = 'rgba(250, 173, 20, 0.08)';
+          tempSpan.innerText = ' (Transcribing...)';
+          const html = editorRef.current.innerHTML;
+          localHtmlRef.current = html;
+          setDocumentText(html);
+        }
+      }
+    },
+    onSuccess: (text, spanId) => {
+      if (editorRef.current && spanId) {
+        const tempSpan = editorRef.current.querySelector(`#${spanId}`);
+        if (tempSpan) {
+          const textNode = document.createTextNode(` ${text} `);
+          tempSpan.parentNode.replaceChild(textNode, tempSpan);
+        } else {
+          editorRef.current.focus();
+          try {
+            document.execCommand('insertText', false, ` ${text} `);
+          } catch (err) {
+            editorRef.current.innerHTML += ` ${text} `;
+          }
+        }
+        const html = editorRef.current.innerHTML;
+        localHtmlRef.current = html;
+        setDocumentText(html);
+      }
+    },
+    onFailure: (spanId) => {
+      if (editorRef.current && spanId) {
+        const tempSpan = editorRef.current.querySelector(`#${spanId}`);
+        if (tempSpan) {
+          tempSpan.remove();
+          const html = editorRef.current.innerHTML;
+          localHtmlRef.current = html;
+          setDocumentText(html);
         }
       }
     }
-    setComplaints(saved);
+  });
+
+  const handleVoiceToggle = () => {
+    if (isRecording) {
+      toggleRecording();
+    } else {
+      const initialId = `whisper-temp-${Date.now()}`;
+      toggleRecording(initialId);
+    }
+  };
+
+  const [reportInterimText, setReportInterimText] = useState('');
+
+  const {
+    isRecording: reportIsRecording,
+    isTranscribing: reportIsTranscribing,
+    toggleRecording: reportToggleRecording
+  } = useWhisperSTT({
+    onStart: () => {
+      setReportInterimText('');
+    },
+    onInterim: (text) => {
+      setReportInterimText(text);
+    },
+    onTranscribing: () => {
+      setReportInterimText('');
+    },
+    onSuccess: (text) => {
+      setIoReportText(prev => {
+        const base = prev ? prev.trim() : '';
+        return base ? `${base} ${text}` : text;
+      });
+      setReportInterimText('');
+    },
+    onFailure: () => {
+      setReportInterimText('');
+    }
+  });
+
+  const handleReportVoiceToggle = () => {
+    reportToggleRecording();
+  };
+
+  const handleEditorClickOrKey = (e) => {
+    if (!isRecording) return;
+
+    // Check key presses: we only care about cursor movements like arrow keys
+    if (e.type === 'keyup') {
+      const allowedKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown', 'Tab'];
+      if (!allowedKeys.includes(e.key)) {
+        return;
+      }
+    }
+
+    setTimeout(() => {
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return;
+      
+      const anchorNode = sel.anchorNode;
+      const activeSpan = editorRef.current?.querySelector(`#${activeSpanIdRef.current}`);
+      
+      if (activeSpan) {
+        const isInsideActive = activeSpan.contains(anchorNode) || anchorNode === activeSpan;
+        if (!isInsideActive) {
+          // User clicked/moved selection to a new cell/column!
+          const newSpanId = `whisper-temp-${Date.now()}`;
+          // Stop current recording chunk and restart in the new cell
+          stopAndRestart(newSpanId);
+        }
+      }
+    }, 50);
+  };
+
+  // When documentText changes from outside (e.g., translation, template select, draft resume)
+  useEffect(() => {
+    if (editorRef.current && documentText !== localHtmlRef.current) {
+      editorRef.current.innerHTML = documentText || '';
+      localHtmlRef.current = documentText || '';
+    }
+  }, [documentText]);
+
+  // Load saved draft on complaint select
+  useEffect(() => {
+    if (selectedComplaint) {
+      const drafts = JSON.parse(localStorage.getItem('enquiry_drafts') || '{}');
+      const draft = drafts[selectedComplaint.id];
+      if (draft) {
+        setSavedDraft(draft);
+      } else {
+        setSavedDraft(null);
+      }
+    } else {
+      setSavedDraft(null);
+    }
+  }, [selectedComplaint]);
+
+  useEffect(() => {
+    // Add keyframes for recording pulse animation & document editor table styles
+    const styleId = 'pulse-animation-style';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        @keyframes pulse {
+          0% { box-shadow: 0 0 0 0 rgba(255, 77, 79, 0.4); }
+          70% { box-shadow: 0 0 0 10px rgba(255, 77, 79, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(255, 77, 79, 0); }
+        }
+        .document-editor-container {
+          word-break: break-word;
+          overflow-wrap: break-word;
+          word-wrap: break-word;
+        }
+        .document-editor-container table {
+          border-collapse: collapse;
+          width: 100%;
+          max-width: 100%;
+          margin: 16px 0;
+          background-color: rgba(255, 255, 255, 0.02);
+          table-layout: auto;
+        }
+        .document-editor-container table, .document-editor-container th, .document-editor-container td {
+          border: 1px solid #434343;
+        }
+        .document-editor-container th, .document-editor-container td {
+          padding: 10px 14px;
+          min-height: 32px;
+          text-align: left;
+          color: #f0f6fc;
+          word-break: break-word;
+          overflow-wrap: break-word;
+          word-wrap: break-word;
+          white-space: pre-wrap;
+        }
+        .document-editor-container th {
+          background-color: rgba(255, 255, 255, 0.05);
+          font-weight: 600;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  }, []);
+
+  const handleUploadTemplate = async (category, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const token = localStorage.getItem('token');
+    message.loading({ content: `Uploading & parsing "${file.name}"...`, key: 'uploadTemplate' });
+    
+    try {
+      const res = await fetch('/api/templates/parse', {
+        method: 'POST',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: formData
+      });
+      
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          throw new Error('Your session has expired or is unauthorized. Please log out and log in again.');
+        }
+        let errorMsg = 'Failed to parse file';
+        try {
+          const errData = await res.json();
+          errorMsg = errData.error || errorMsg;
+        } catch (_) {
+          try {
+            errorMsg = await res.text() || errorMsg;
+          } catch (__) {}
+        }
+        throw new Error(errorMsg);
+      }
+
+      const data = await res.json();
+      const extractedText = data.text || '';
+
+      const newTemplate = {
+        id: `custom_${Date.now()}`,
+        category,
+        name: file.name,
+        content: extractedText
+      };
+
+      const updated = [...customTemplates, newTemplate];
+      setCustomTemplates(updated);
+      localStorage.setItem('custom_document_templates', JSON.stringify(updated));
+      message.success({ content: `Template "${file.name}" uploaded successfully!`, key: 'uploadTemplate', duration: 3 });
+      
+      // Auto-select the uploaded template immediately
+      handleTemplateSelect(newTemplate.id, updated);
+    } catch (err) {
+      console.error(err);
+      message.error({ content: `Upload failed: ${err.message}`, key: 'uploadTemplate', duration: 4 });
+    }
+  };
+
+  const handleDeleteTemplate = (id) => {
+    const updated = customTemplates.filter(t => t.id !== id);
+    setCustomTemplates(updated);
+    localStorage.setItem('custom_document_templates', JSON.stringify(updated));
+    message.success('Template deleted.');
+    if (selectedTemplate === id) {
+      setSelectedTemplate(null);
+      setDocumentText('');
+    }
+  };
+
+  const fillTemplatePlaceholders = (text, complaint) => {
+    if (!text) return '';
+    const f = getBaseFields(complaint);
+    const dateToday = dayjs().format('DD-MM-YYYY');
+
+    return text
+      .replace(/\{\{complaintId\}\}/g, f.complaintId)
+      .replace(/\$\{complaintId\}/g, f.complaintId)
+      .replace(/\{\{complainantName\}\}/g, f.compName)
+      .replace(/\$\{compName\}/g, f.compName)
+      .replace(/\{\{complainantPhone\}\}/g, f.compPhone)
+      .replace(/\$\{compPhone\}/g, f.compPhone)
+      .replace(/\{\{complainantAddress\}\}/g, f.compAddress)
+      .replace(/\$\{compAddress\}/g, f.compAddress)
+      .replace(/\{\{accusedName\}\}/g, f.accName)
+      .replace(/\$\{accName\}/g, f.accName)
+      .replace(/\{\{accusedAddress\}\}/g, f.accAddress)
+      .replace(/\$\{accAddress\}/g, f.accAddress)
+      .replace(/\{\{accusedInlineBlock\}\}/g, f.accusedInlineBlock)
+      .replace(/\{\{accusedDetailsBlock\}\}/g, f.accusedDetailsBlock)
+      .replace(/\{\{incidentClass\}\}/g, f.incidentClass)
+      .replace(/\$\{incidentClass\}/g, f.incidentClass)
+      .replace(/\{\{placeOfIncident\}\}/g, f.placeOfIncident)
+      .replace(/\$\{placeOfIncident\}/g, f.placeOfIncident)
+      .replace(/\{\{dateOfIncident\}\}/g, f.dateOfInc)
+      .replace(/\$\{dateOfInc\}/g, f.dateOfInc)
+      .replace(/\{\{timeOfIncident\}\}/g, f.timeOfInc)
+      .replace(/\$\{timeOfInc\}/g, f.timeOfInc)
+      .replace(/\{\{dateToday\}\}/g, dateToday)
+      .replace(/\{\{date\}\}/g, dateToday)
+      .replace(/\$\{dateToday\}/g, dateToday);
+  };
+
+  // handleToggleRecording replaced by useWhisperSTT hook
+
+  const handleTranslateReportToEnglish = async () => {
+    if (!ioReportText.trim()) {
+      message.warning('There is no text to translate.');
+      return;
+    }
+    setIsReportTranslating(true);
+    const hideLoading = message.loading({ content: 'Translating report to English...', key: 'translateReportMsg', duration: 0 });
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints/extract`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            {
+              role: 'system',
+              content: `You are an expert translator specializing in legal documents and police communications for Haryana Police.
+Translate the text provided by the user into formal English suitable for official police reports and investigation documents.
+Preserve all formatting, names, dates, and numbers exactly as they are.
+Only output the translated text. Do not include any explanations, preambles, or markdown formatting.`
+            },
+            {
+              role: 'user',
+              content: ioReportText
+            }
+          ],
+          temperature: 0.1
+        })
+      });
+
+      if (!res.ok) throw new Error('Translation request failed.');
+      const data = await res.json();
+      const translated = data?.choices?.[0]?.message?.content?.trim();
+      if (translated) {
+        setIoReportText(translated);
+        message.success({ content: 'Report translated to English!', key: 'translateReportMsg', duration: 2 });
+      } else {
+        message.error({ content: 'AI translation failed.', key: 'translateReportMsg', duration: 2 });
+      }
+    } catch (err) {
+      console.error(err);
+      message.error({ content: 'Translation failed: ' + err.message, key: 'translateReportMsg', duration: 2 });
+    } finally {
+      setIsReportTranslating(false);
+      hideLoading();
+    }
+  };
+
+  const handleTranslate = async (targetLang) => {
+    if (!documentText.trim()) {
+      message.warning('There is no text to translate.');
+      return;
+    }
+    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+    if (!apiKey) {
+      message.error('Groq API key is not set in environment variables.');
+      return;
+    }
+
+    setIsAiLoading(true);
+    message.loading({ content: `Translating document to ${targetLang}...`, key: 'translateMsg' });
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            {
+              role: 'system',
+              content: `You are an expert translator specializing in legal documents and police communications for Haryana Police.
+Translate the HTML content provided by the user into ${targetLang === 'English' ? 'formal English suitable for official police reports' : 'formal Hindi (in Devanagari script) suitable for official police records'}.
+Maintain all HTML structure, tables, columns, rows, spacing, and tags exactly as they are. Translate only the content inside the tags.
+Do not lose any formatting or table cells.
+Maintain all placeholders (like {{complaintId}}, {{complainantName}}, {{accusedName}}), numbers, dates, and proper names exactly as they are.
+Only output the translated HTML. Do not include any explanations, preambles, or additional conversational text.`,
+            },
+            {
+              role: 'user',
+              content: documentText,
+            },
+          ],
+          temperature: 0.2,
+          max_tokens: 4000,
+        }),
+      });
+      const data = await res.json();
+      const translated = data?.choices?.[0]?.message?.content?.trim();
+      if (translated) {
+        let cleaned = translated;
+        if (cleaned.startsWith('```')) {
+          cleaned = cleaned.replace(/^```html\s*|\s*```$/gi, '');
+        }
+        setDocumentText(cleaned);
+        message.success({ content: `Document translated to ${targetLang}!`, key: 'translateMsg', duration: 2 });
+      } else {
+        message.error({ content: 'AI translation failed.', key: 'translateMsg', duration: 2 });
+      }
+    } catch (err) {
+      console.error(err);
+      message.error({ content: 'Translation request failed.', key: 'translateMsg', duration: 2 });
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const handleSaveDraft = () => {
+    if (!selectedComplaint) return;
+    
+    const drafts = JSON.parse(localStorage.getItem('enquiry_drafts') || '{}');
+    drafts[selectedComplaint.id] = {
+      templateId: selectedTemplate,
+      documentText,
+      noticeRecipient,
+      otherPersonName,
+      otherPersonAddress,
+      customSections,
+      selectedAccusedIndices,
+      updatedAt: new Date().toISOString()
+    };
+    
+    localStorage.setItem('enquiry_drafts', JSON.stringify(drafts));
+    message.success('Draft saved successfully! You can resume it anytime.');
+  };
+
+  const handleResumeDraft = () => {
+    if (!savedDraft) return;
+    setSelectedTemplate(savedDraft.templateId);
+    setDocumentText(savedDraft.documentText);
+    setNoticeRecipient(savedDraft.noticeRecipient || 'accused');
+    setOtherPersonName(savedDraft.otherPersonName || '');
+    setOtherPersonAddress(savedDraft.otherPersonAddress || '');
+    setCustomSections(savedDraft.customSections || []);
+    setSelectedAccusedIndices(savedDraft.selectedAccusedIndices || []);
+    setSavedDraft(null); // Clear the alert once resumed
+    message.success('Draft loaded successfully!');
+  };
+
+  const handleDiscardDraft = () => {
+    if (!selectedComplaint) return;
+    const drafts = JSON.parse(localStorage.getItem('enquiry_drafts') || '{}');
+    delete drafts[selectedComplaint.id];
+    localStorage.setItem('enquiry_drafts', JSON.stringify(drafts));
+    setSavedDraft(null);
+    message.info('Draft discarded.');
+  };
+
+  const renderTemplateSection = (category, label, defaultType) => {
+    const categoryTemplates = customTemplates.filter(t => t.category === category);
+    const isDefaultSelected = selectedTemplate === category;
+
+    const categoryTemplateMenu = (
+      <div style={{ background: '#1f1f1f', border: '1px solid #303030', borderRadius: 8, padding: 8, minWidth: 250, maxWidth: 300 }}>
+        {categoryTemplates.length === 0 ? (
+          <div style={{ color: '#aaa', padding: '8px 12px', textAlign: 'center' }}>No uploaded templates</div>
+        ) : (
+          <List
+            size="small"
+            dataSource={categoryTemplates}
+            renderItem={t => {
+              const isSelected = selectedTemplate === t.id;
+              return (
+                <List.Item
+                  style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    padding: '6px 8px', 
+                    borderBottom: '1px solid #303030',
+                    background: isSelected ? 'rgba(24,144,255,0.08)' : 'transparent' 
+                  }}
+                >
+                  <span
+                    style={{ 
+                      color: isSelected ? '#1890ff' : '#f0f6fc', 
+                      cursor: 'pointer', 
+                      overflow: 'hidden', 
+                      textOverflow: 'ellipsis', 
+                      whiteSpace: 'nowrap', 
+                      maxWidth: 180,
+                      fontWeight: isSelected ? 600 : 400
+                    }}
+                    onClick={() => handleTemplateSelect(t.id)}
+                    title={t.name}
+                  >
+                    📄 {t.name}
+                  </span>
+                  <Button
+                    size="small"
+                    type="text"
+                    danger
+                    icon={<DeleteOutlined style={{ color: '#ff4d4f' }} />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteTemplate(t.id);
+                    }}
+                  />
+                </List.Item>
+              );
+            }}
+          />
+        )}
+      </div>
+    );
+
+    return (
+      <div style={{ marginBottom: 16, border: '1px solid #303030', borderRadius: 8, padding: 12, background: '#171a23' }}>
+        <Button
+          type={isDefaultSelected ? 'primary' : (defaultType === 'dashed' ? 'dashed' : 'default')}
+          block
+          onClick={() => handleTemplateSelect(category)}
+          style={{ marginBottom: 10, fontWeight: 500 }}
+        >
+          {label}
+        </Button>
+        
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <Upload
+              accept=".docx"
+              beforeUpload={(file) => {
+                handleUploadTemplate(category, file);
+                return false;
+              }}
+              showUploadList={false}
+              style={{ width: '100%' }}
+            >
+              <Button size="small" icon={<UploadOutlined />} style={{ width: '100%', fontSize: 11 }}>
+                Upload Template
+              </Button>
+            </Upload>
+          </div>
+
+          <div style={{ flex: 1 }}>
+            <Popover 
+              content={categoryTemplateMenu} 
+              title={`Select ${label} Template`}
+              trigger="click" 
+              placement="bottomRight"
+            >
+              <Button size="small" icon={<FileTextOutlined />} style={{ width: '100%', fontSize: 11 }}>
+                Select Template
+              </Button>
+            </Popover>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Load all registered complaints from database
+  const loadComplaints = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to load complaints');
+      let saved = await res.json();
+      
+      saved.sort((a, b) => new Date(b.registrationDate || b.registeredAt) - new Date(a.registrationDate || a.registeredAt));
+      
+      // If pre-selected (coming from Search Complaints or Home view), ONLY show that complaint
+      if (preSelectedComplaintId) {
+        saved = saved.filter(c => c.id === preSelectedComplaintId);
+        if (saved.length > 0) {
+          setSelectedComplaint(saved[0]);
+          setSelectedComplaintId(saved[0].id);
+        }
+      } else {
+        // If we have a selectedComplaintId from sessionStorage, we should set the selectedComplaint object
+        const savedComplaintId = sessionStorage.getItem('enquiry_selectedComplaintId');
+        let found = null;
+        if (savedComplaintId) {
+          found = saved.find(c => c.id === savedComplaintId);
+        }
+        if (found) {
+          setSelectedComplaint(found);
+          setSelectedComplaintId(found.id);
+        } else if (saved.length > 0) {
+          setSelectedComplaint(saved[0]);
+          setSelectedComplaintId(saved[0].id);
+        } else {
+          setSelectedComplaint(null);
+          setSelectedComplaintId(null);
+        }
+      }
+      setComplaints(saved);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   useEffect(() => {
@@ -127,10 +767,13 @@ export default function Enquiry({ onBack, preSelectedComplaintId }) {
     if (profile?.role === 'sho') {
       const token = localStorage.getItem('token');
       if (token) {
-        fetch('http://localhost:3000/api/users/ios', {
+        fetch('/api/users/ios', {
           headers: { 'Authorization': `Bearer ${token}` }
         })
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) throw new Error(`Status ${res.status}`);
+          return res.json();
+        })
         .then(data => setIoList(data))
         .catch(err => console.error('Error fetching IOs:', err));
       }
@@ -196,85 +839,54 @@ export default function Enquiry({ onBack, preSelectedComplaintId }) {
 
   // Build notice addressed to the selected recipient
   const generateNoticeText = (complaint, recipient, otherName, otherAddr, extraSections, selAccusedInds = []) => {
-    const dateToday = dayjs().format('DD-MM-YYYY');
-    const f = getBaseFields(complaint);
-
-    let toBlock, subjectLine;
-    if (recipient === 'complainant') {
-      toBlock = `Name: ${f.compName}\nAddress: ${f.compAddress}`;
-      subjectLine = `Notice regarding your complaint (ID: ${f.complaintId}) filed against ${f.accName}.`;
-    } else if (recipient === 'other') {
-      toBlock = `Name: ${otherName || '[Recipient Name]'}\nAddress: ${otherAddr || '[Recipient Address]'}`;
-      subjectLine = `Notice regarding complaint (ID: ${f.complaintId}) filed by ${f.compName}.`;
-    } else {
-      // Accused — show selected accused in "To:" block
-      let targetAccused = f.accusedList;
-      if (selAccusedInds && selAccusedInds.length > 0) {
-        targetAccused = selAccusedInds.map(i => f.accusedList[i]).filter(Boolean);
-      }
-      
-      toBlock = targetAccused.length === 1 
-        ? `Name: ${targetAccused[0].name}\nAddress: ${targetAccused[0].address || '[Accused Address]'}`
-        : targetAccused.map((a, i) => `Accused ${i + 1}:\nName: ${a.name}\nAddress: ${a.address || '[Accused Address]'}`).join('\n\n');
-      subjectLine = `Notice for appearance regarding complaint filed by ${f.compName}.`;
-    }
-
-    const customBlock = extraSections.length > 0
-      ? '\n\nADDITIONAL DIRECTIONS:\n' + extraSections.map((s, i) => `${i + 1}. ${s}`).join('\n')
-      : '';
-
     return `NOTICE FOR APPEARANCE
 
-Notice Number: _______
-Date: ${dateToday}
-Complaint ID: ${f.complaintId}
+Notice Number: _________________
+Date: _________________
+Complaint ID: _________________
 
 To,
-${toBlock}
+Name: _________________
+Address: _________________
 
-Subject: ${subjectLine}
+Subject: Notice for appearance.
 
-WHEREAS, a complaint has been registered at this Police Station by ${f.compName} (R/o ${f.compAddress}) against:
-${f.accusedInlineBlock}
+WHEREAS, a complaint has been registered at this Police Station against:
+__________________________________________________________________
 
 BRIEF FACT OF COMPLAINT:
-The complainant alleges that an incident of "${f.incidentClass}" occurred at ${f.placeOfIncident} on ${f.dateOfInc} around ${f.timeOfInc}.
+__________________________________________________________________
 
 Therefore, in exercise of the powers conferred upon me, you are hereby directed to appear before the undersigned at the Police Station on __-__-____ at __:__ AM/PM for the purpose of further enquiry and to present your side of the facts along with relevant documents/evidence, if any.
 
-Please note that failure to comply with the terms of this notice may render you liable for action under relevant provisions of law.${customBlock}
+Please note that failure to comply with the terms of this notice may render you liable for action under relevant provisions of law.
 
 
 Signature of Investigating Officer
-Name: _______________
-Designation: _______________
-Police Station: _______________`;
+Name: _________________
+Designation: _________________
+Police Station: _________________`;
   };
 
   const generateTemplateText = (templateType, complaint) => {
-    const dateToday = dayjs().format('DD-MM-YYYY');
-    const f = getBaseFields(complaint);
-    const { compName, compPhone, compAddress, accName, accAddress, incidentClass, placeOfIncident, dateOfInc, timeOfInc, actDescription, complaintId } = f;
-    // f also contains: accusedList, accusedToBlock, accusedInlineBlock, accusedDetailsBlock
-
     switch (templateType) {
       case 'notice':
         return generateNoticeText(complaint, noticeRecipient, otherPersonName, otherPersonAddress, customSections, selectedAccusedIndices);
 
       case 'email':
-        return `Subject: Status Update on Complaint Registration - ${incidentClass}
+        return `Subject: Status Update on Complaint Registration - 
 
 Dear Sir/Madam,
 
-This is to officially inform you that we are in receipt of your complaint (ID: ${complaintId}) regarding the incident of "${incidentClass}".
+This is to officially inform you that we are in receipt of your complaint (ID: ) regarding the incident of "".
 
 COMPLAINT DETAILS:
-- Complainant Name: ${compName}
-- Complainant Contact: ${compPhone}
+- Complainant Name: 
+- Complainant Contact: 
 - Accused Detail(s):
-${f.accusedInlineBlock}
-- Alleged Incident Place: ${placeOfIncident}
-- Date of Occurrence: ${dateOfInc}
+
+- Alleged Incident Place: 
+- Date of Occurrence: 
 
 We have documented your submission and the matter is currently under preliminary enquiry. Our Investigating Officer will be reaching out to you shortly for any further clarifications or statements required as per the procedure.
 
@@ -284,68 +896,103 @@ Sincerely,
 
 Station House Officer (SHO)
 [Police Station Name]
-Date: ${dateToday}`;
+Date: `;
 
       case 'enquiry_rajinama':
-        return `ENQUIRY REPORT - MUTUAL SETTLEMENT (RAJINAMA)
+        return `<p><strong>पुलिस विभाग &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; जिला -</strong> <br />			जांच रिपोर्ट परिवाद नम्बरी – </p>
+<table>
+  <tr>
+    <td><p><strong>परिवादी </strong></p></td>
+    <td><p><br></p></td>
+  </tr>
+  <tr>
+    <td><p><strong>परिवाद का सार </strong></p></td>
+    <td><p><br></p></td>
+  </tr>
+  <tr>
+    <td><p><strong>उत्तरवादी का विवरण </strong></p></td>
+    <td><p><br></p></td>
+  </tr>
+  <tr>
+    <td><p><strong>जांच की स्थिति का विवरण </strong></p></td>
+    <td><p><br></p></td>
+  </tr>
+</table>`;
 
-Date: ${dateToday}
-Complaint ID: ${complaintId}
+      case 'enquiry_civil_land':
+        return `<p><strong>पुलिस विभाग &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; जिला -</strong> <br />			जांच रिपोर्ट परिवाद नम्बरी – </p>
+<table>
+  <tr>
+    <td><p><strong>परिवादी </strong></p></td>
+    <td><p><br></p></td>
+  </tr>
+  <tr>
+    <td><p><strong>परिवाद का सार </strong></p></td>
+    <td><p><br></p></td>
+  </tr>
+  <tr>
+    <td><p><strong>उत्तरवादी का विवरण </strong></p></td>
+    <td><p><br></p></td>
+  </tr>
+  <tr>
+    <td><p><strong>जांच की स्थिति का विवरण </strong></p></td>
+    <td><p><br></p></td>
+  </tr>
+</table>`;
+
+      case 'enquiry_civil_finance':
+        return `<table>
+  <tr>
+    <td><p><strong>DEPARTMENT - POLICE</strong></p></td>
+  </tr>
+  <tr>
+    <td>
+      <p><strong>CITIZEN DETAIL </strong>- </p>
+      <p><strong>NAME </strong>- <br />
+      <strong>MOBILE NO </strong>- </p>
+      <p><strong>ADDRESS </strong>- </p>
+    </td>
+  </tr>
+  <tr>
+    <td><p><strong>ALLEGATIONS MADE IN THE COMPLAINT</strong> - <br></p></td>
+  </tr>
+  <tr>
+    <td><p><strong>DATE OF REPORT </strong>- <br></p></td>
+  </tr>
+  <tr>
+    <td><p><strong>CITIZEN SATISFACTION </strong>- <br></p></td>
+  </tr>
+  <tr>
+    <td><p><strong>FINAL REPORT ON THE ENQUIRY CONDUCTED BY THE INVESTIGATING OFFICER </strong>- <br></p></td>
+  </tr>
+</table>`;
+
+      case 'enquiry_transfer':
+        return `ENQUIRY REPORT - TRANSFER OF COMPLAINT TO OTHER POLICE STATION
+
+Date: 
+Complaint ID: 
 
 1. REFERENCE COMPLAINT
-Complainant: ${compName}, R/o ${compAddress}, Ph: ${compPhone}
+Complainant: 
 Accused Detail(s):
-${f.accusedDetailsBlock}
-Nature of Incident: ${incidentClass}
-Date & Place of Occurrence: ${dateOfInc} at ${placeOfIncident}
 
-2. BRIEF ALLEGATIONS
-As per the contents of the complaint, the complainant alleged that:
-"${actDescription}"
-
-3. PROCEEDINGS & FINDINGS
-During the course of the preliminary enquiry, both the complainant and the accused were summoned to the Police Station. After comprehensive discussions and in the presence of respectable persons from society, both parties have amicably resolved their differences.
-
-The complainant (${compName}) has furnished a written statement stating that the matter has been resolved mutually without any coercion, threat, or undue influence. The complainant does not wish to pursue any further legal or police action regarding this matter.
-
-4. CONCLUSION & RECOMMENDATION
-Since the parties have arrived at a mutual compromise (Rajinama) and the complainant is no longer desirous of pursuing the case, no cognizable offence requiring police intervention survives.
-
-Accordingly, it is recommended to consign this complaint to the records (File / Filed without FIR).
-
-
-Submitted by:
-[IO Signature]
-Name/Rank: _______________`;
-
-      case 'enquiry_civil':
-        return `ENQUIRY REPORT - PROCEEDING OF CIVIL NATURE
-
-Date: ${dateToday}
-Complaint ID: ${complaintId}
-
-1. REFERENCE COMPLAINT
-Complainant: ${compName}, R/o ${compAddress}, Ph: ${compPhone}
-Accused Detail(s):
-${f.accusedDetailsBlock}
-Subject/Category: ${incidentClass}
-Date & Place of Incident: ${dateOfInc} at ${placeOfIncident}
+Subject/Category: Transfer Request
+Date & Place of Incident: 
 
 2. BRIEF OF COMPLAINT
 Briefly, the complainant states that:
-"${actDescription}"
+""
 
-3. ENQUIRY CONDUCTED & FACTUAL POSITION
-An extensive preliminary enquiry was conducted by the undersigned. The relevant documents submitted by the complainant and the statements of both parties were examined.
+3. ENQUIRY CONDUCTED & JURISDICTIONAL FINDINGS
+A preliminary enquiry was conducted. Factual verification of the place of occurrence of the alleged incident was carried out. 
 
-The scrutiny reveals that the crux of the dispute between the parties pertains to land, finances, or contractual obligations, which fundamentally falls within the contours of a Civil Dispute. The elements of mens rea (criminal intent) or a cognizable criminal offence under the BNS/LSL are entirely absent.
+The spot verification and facts gathered reveal that the entire occurrence took place within the territorial jurisdiction of Police Station ____________, District ____________. No part of the cause of action or incident occurred within the territorial jurisdiction of this Police Station.
 
 4. CONCLUSION & RECOMMENDATION
-In light of the Honourable Supreme Court guidelines preventing the criminalization of civil disputes, police interference in this matter is strictly unwarranted.
+In view of territorial jurisdiction regulations, this Police Station cannot register or investigate this matter. It is legally appropriate to transfer this complaint along with all relevant documents to the concerned Police Station.
 
-The complainant has been properly briefed and advised to approach the appropriate Honourable Civil Court / Revenue Authority for the redressal of the grievance.
-
-Therefore, it is recommended to file this complaint.
+Therefore, it is recommended to transfer this complaint to Police Station ____________, District ____________ for further legal proceedings under BNSS.
 
 
 Submitted by:
@@ -355,32 +1002,32 @@ Name/Rank: _______________`;
       case 'enquiry_ncr':
         return `NON-COGNIZABLE REPORT (NCR) / ENQUIRY REPORT
 
-Date: ${dateToday}
-Complaint ID: ${complaintId}
+Date: 
+Complaint ID: 
 
 1. COMPLAINANT DETAILS
-Name: ${compName}
-Address: ${compAddress}
-Contact: ${compPhone}
+Name: 
+Address: 
+Contact: 
 
 2. ACCUSED DETAILS
-${f.accusedDetailsBlock}
+
 
 3. INCIDENT DETAILS
-Category: ${incidentClass}
-Date & Time: ${dateOfInc} | ${timeOfInc}
-Place of Occurrence: ${placeOfIncident}
+Category: 
+Date & Time: 
+Place of Occurrence: 
 
 4. FACTS OF THE COMPLAINT
 The complainant has reported that:
-"${actDescription}"
+""
 
 5. IO'S OPINION & ACTION TAKEN
 Upon careful perusal of the complaint and preliminary enquiry, it is concluded that the allegations raised by the complainant disclose the commission of a strictly Non-Cognizable Offence.
 
 Accordingly, the substance of the information has been duly entered into the Daily Diary Document (Rapt/DDR). The police cannot investigate a non-cognizable case without the order of a Magistrate having power to try such cases.
 
-The complainant, ${compName}, has been properly informed and legally advised to approach the Honourable Magistrate under the relevant sections of the BNSS for further judicial remedy.
+The complainant, , has been properly informed and legally advised to approach the Honourable Magistrate under the relevant sections of the BNSS for further judicial remedy.
 
 
 Prepared by:
@@ -388,54 +1035,57 @@ Prepared by:
 Name/Rank: _______________`;
 
       case 'enquiry_fir':
-        return `ENQUIRY REPORT - FIR REGISTRATION RECOMMENDED
-
-Date: ${dateToday}
-Complaint ID: ${complaintId}
-
-1. REFERENCE
-Source of Complaint: Received from ${compName} (Ph: ${compPhone})
-Complainant Address: ${compAddress}
-Alleged Accused Detail(s):
-${f.accusedDetailsBlock}
-
-2. INCIDENT PARTICULARS
-Classification: ${incidentClass}
-Time, Date & Place: ${timeOfInc} on ${dateOfInc} at ${placeOfIncident}
-
-3. GIST OF ALLEGATIONS
-"${actDescription}"
-
-4. ENQUIRY OBSERVATIONS
-During the preliminary enquiry, physical and documentary constraints were gathered. Based on the facts presented and the sequence of events outlined in the complaint, prima-facie, a cognizable offence is conclusively made out against the accused person(s).
-
-5. RECOMMENDATION
-Since the allegations disclose explicit commission of a Cognizable Offence, it is legally imperative to initiate investigation. Consequently, it is strongly recommended that a First Information Report (FIR) be registered without any delay under the relevant sections of BNS / Minor Acts.
-
-After registration of the FIR, the investigation file may kindly be handed over to the Investigating Officer for due procedures of law.
-
-
-Submitted by:
-[IO Signature]
-Name/Rank: _______________
-
-Forwarded to SHO for approval / FIR Registration.`;
+        return `<p><strong>पुलिस विभाग &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;जिला-</strong></p>
+<p>श्रीमान जी </p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp; परिवाद नम्बरी: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; पेशी दिनांक: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; शिकायतकर्ता: </p>
+<p>जांच हेतु प्राप्त हुई |</p>
+<p>परिवाद की जांच रिपोर्ट इस प्रकार है-<br /></p>
+<table>
+  <tr>
+    <td><p><strong>शिकायतकर्ता द्वारा लगाए गये आरोप (बिन्दुवार)</strong></p></td>
+    <td><p><strong>जांच का विवरण (सही/गलत) बिन्दुवार कारण सहित</strong></p></td>
+    <td><p><strong>स्थानीय पुलिस /एस.एच.ओ. द्वारा की गई कार्यवाही</strong></p></td>
+  </tr>
+  <tr>
+    <td><p><br></p></td>
+    <td><p><br></p></td>
+    <td><p><br></p></td>
+  </tr>
+</table>`;
 
       default:
         return '';
     }
   };
 
-  const handleTemplateSelect = (value) => {
+  const handleTemplateSelect = (value, templatesList = customTemplates) => {
     setSelectedTemplate(value);
-    const generatedText = generateTemplateText(value, selectedComplaint);
-    setDocumentText(generatedText);
+    if (value && value.startsWith('custom_')) {
+      const found = templatesList.find(t => t.id === value);
+      if (found) {
+        const generatedText = fillTemplatePlaceholders(found.content, selectedComplaint);
+        setDocumentText(generatedText);
+      } else {
+        message.error('Custom template not found.');
+        setDocumentText('');
+      }
+    } else {
+      // Check if there is an uploaded custom template for this category first
+      const uploaded = templatesList.find(t => t.category === value);
+      if (uploaded) {
+        const generatedText = fillTemplatePlaceholders(uploaded.content, selectedComplaint);
+        setDocumentText(generatedText);
+      } else {
+        const generatedText = generateTemplateText(value, selectedComplaint);
+        setDocumentText(generatedText);
+      }
+    }
   };
 
   // Regenerate notice whenever recipient changes
   const handleNoticeRecipientChange = (val) => {
     setNoticeRecipient(val);
-    if (val !== 'other') {
+    if (val !== 'other' && selectedTemplate === 'notice') {
       const text = generateNoticeText(selectedComplaint, val, otherPersonName, otherPersonAddress, customSections, selectedAccusedIndices);
       setDocumentText(text);
     }
@@ -443,8 +1093,10 @@ Forwarded to SHO for approval / FIR Registration.`;
 
   const handleAccusedSelectionChange = (checkedValues) => {
     setSelectedAccusedIndices(checkedValues);
-    const text = generateNoticeText(selectedComplaint, noticeRecipient, otherPersonName, otherPersonAddress, customSections, checkedValues);
-    setDocumentText(text);
+    if (selectedTemplate === 'notice') {
+      const text = generateNoticeText(selectedComplaint, noticeRecipient, otherPersonName, otherPersonAddress, customSections, checkedValues);
+      setDocumentText(text);
+    }
   };
 
   const handleAddCustomSection = () => {
@@ -518,96 +1170,314 @@ Output ONLY the email text, no explanation.`,
   };
 
 
+  const convertHtmlToDocx = (htmlString) => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlString, 'text/html');
+    const body = doc.body;
+
+    const parseTextFormatting = (node, isBold = false, isItalic = false) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.nodeValue;
+        if (text) {
+          return new TextRun({
+            text,
+            bold: isBold,
+            italic: isItalic,
+            size: 22,
+            font: 'Arial',
+          });
+        }
+        return null;
+      }
+
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const tagName = node.tagName.toLowerCase();
+        const currentBold = isBold || tagName === 'strong' || tagName === 'b' || tagName === 'th';
+        const currentItalic = isItalic || tagName === 'em' || tagName === 'i';
+
+        if (tagName === 'br') {
+          return new TextRun({ break: 1 });
+        }
+
+        const runs = [];
+        node.childNodes.forEach(child => {
+          const res = parseTextFormatting(child, currentBold, currentItalic);
+          if (res) {
+            if (Array.isArray(res)) {
+              runs.push(...res);
+            } else {
+              runs.push(res);
+            }
+          }
+        });
+        return runs;
+      }
+      return null;
+    };
+
+    const parseBlockElement = (node) => {
+      const tagName = node.tagName.toLowerCase();
+
+      if (tagName === 'p') {
+        const paragraphChildren = [];
+        node.childNodes.forEach(child => {
+          const res = parseTextFormatting(child);
+          if (res) {
+            if (Array.isArray(res)) {
+              paragraphChildren.push(...res);
+            } else {
+              paragraphChildren.push(res);
+            }
+          }
+        });
+        return new DocxParagraph({ children: paragraphChildren, spacing: { after: 120 } });
+      }
+
+      if (tagName === 'table') {
+        const rows = [];
+        const trs = node.querySelectorAll('tr');
+        
+        trs.forEach(trNode => {
+          const cells = [];
+          const tds = trNode.querySelectorAll('td, th');
+          
+          tds.forEach(tdNode => {
+            const cellChildren = convertContainerToDocxElements(tdNode);
+            
+            if (cellChildren.length === 0) {
+              cellChildren.push(new DocxParagraph({ children: [new TextRun('')] }));
+            }
+            
+            cells.push(new DocxTableCell({
+              children: cellChildren,
+              width: { size: 100 / (tds.length || 1), type: DocxWidthType.PERCENTAGE },
+              borders: {
+                top: { style: DocxBorderStyle.SINGLE, size: 6, color: '808080' },
+                bottom: { style: DocxBorderStyle.SINGLE, size: 6, color: '808080' },
+                left: { style: DocxBorderStyle.SINGLE, size: 6, color: '808080' },
+                right: { style: DocxBorderStyle.SINGLE, size: 6, color: '808080' },
+              },
+              padding: { top: 100, bottom: 100, left: 150, right: 150 }
+            }));
+          });
+          
+          if (cells.length > 0) {
+            rows.push(new DocxTableRow({ children: cells }));
+          }
+        });
+        
+        if (rows.length > 0) {
+          return new DocxTable({ rows, width: { size: 100, type: DocxWidthType.PERCENTAGE } });
+        }
+      }
+
+      if (tagName === 'ul' || tagName === 'ol') {
+        const listItems = [];
+        node.childNodes.forEach(child => {
+          if (child.nodeType === Node.ELEMENT_NODE && child.tagName.toLowerCase() === 'li') {
+            const itemChildren = [];
+            child.childNodes.forEach(c => {
+              const res = parseTextFormatting(c);
+              if (res) {
+                if (Array.isArray(res)) {
+                  itemChildren.push(...res);
+                } else {
+                  itemChildren.push(res);
+                }
+              }
+            });
+            listItems.push(new DocxParagraph({ 
+              children: itemChildren, 
+              bullet: { level: 0 },
+              spacing: { after: 80 }
+            }));
+          }
+        });
+        return listItems;
+      }
+
+      if (['h1', 'h2', 'h3', 'h4'].includes(tagName)) {
+        const paragraphChildren = [];
+        node.childNodes.forEach(child => {
+          const res = parseTextFormatting(child);
+          if (res) {
+            if (Array.isArray(res)) {
+              paragraphChildren.push(...res);
+            } else {
+              paragraphChildren.push(res);
+            }
+          }
+        });
+        const fontSize = tagName === 'h1' ? 32 : tagName === 'h2' ? 28 : tagName === 'h3' ? 24 : 22;
+        paragraphChildren.forEach(run => {
+          run.bold = true;
+          run.size = fontSize;
+        });
+        return new DocxParagraph({ 
+          children: paragraphChildren, 
+          spacing: { before: 240, after: 120 }
+        });
+      }
+
+      return convertContainerToDocxElements(node);
+    };
+
+    const convertContainerToDocxElements = (containerNode) => {
+      const elements = [];
+      let currentInlineRuns = [];
+
+      const flushInlineRuns = () => {
+        if (currentInlineRuns.length > 0) {
+          elements.push(new DocxParagraph({ children: currentInlineRuns, spacing: { after: 120 } }));
+          currentInlineRuns = [];
+        }
+      };
+
+      containerNode.childNodes.forEach(child => {
+        if (child.nodeType === Node.TEXT_NODE) {
+          const text = child.nodeValue;
+          if (text && text.trim()) {
+            currentInlineRuns.push(new TextRun({ text, font: 'Arial', size: 22 }));
+          }
+        } else if (child.nodeType === Node.ELEMENT_NODE) {
+          const tagName = child.tagName.toLowerCase();
+          
+          if (['strong', 'b', 'em', 'i', 'span', 'a', 'br'].includes(tagName)) {
+            const runs = parseTextFormatting(child);
+            if (runs) {
+              if (Array.isArray(runs)) {
+                currentInlineRuns.push(...runs);
+              } else {
+                currentInlineRuns.push(runs);
+              }
+            }
+          } else {
+            flushInlineRuns();
+            const blockElement = parseBlockElement(child);
+            if (blockElement) {
+              if (Array.isArray(blockElement)) {
+                elements.push(...blockElement);
+              } else {
+                elements.push(blockElement);
+              }
+            }
+          }
+        }
+      });
+
+      flushInlineRuns();
+      return elements;
+    };
+
+    const children = convertContainerToDocxElements(body);
+
+    if (children.length === 0) {
+      children.push(new DocxParagraph({ children: [new TextRun('')] }));
+    }
+
+    return new Document({ sections: [{ properties: {}, children }] });
+  };
+
   const handleDownloadDocx = () => {
     if (!documentText) {
       message.error('No document text to download.');
       return;
     }
-    const lines = documentText.split('\n');
-    let isFirstLine = true;
-    const docxParagraphs = lines.map((line) => {
-      const isEmpty = line.trim() === '';
-      if (isEmpty) return new DocxParagraph({ children: [new TextRun('')] });
-      if (isFirstLine) {
-        isFirstLine = false;
-        return new DocxParagraph({
-          children: [new TextRun({ text: line, bold: true, size: 28, font: 'Arial' })],
-          spacing: { after: 200 },
-        });
-      }
-      return new DocxParagraph({
-        children: [new TextRun({ text: line, font: 'Arial', size: 22 })],
-        spacing: { after: 80 },
-      });
-    });
 
     const templateNames = {
       notice: 'Notice for Appearance',
       email: 'Email / Status Update',
       enquiry_rajinama: 'Enquiry — Rajinama',
-      enquiry_civil: 'Enquiry — Civil Nature',
+      enquiry_civil_land: 'Enquiry — Civil Nature (Land)',
+      enquiry_civil_finance: 'Enquiry — Civil Nature (Finance)',
       enquiry_ncr: 'Enquiry — NCR',
       enquiry_fir: 'Enquiry — FIR Recommended',
+      enquiry_transfer: 'Enquiry — Transfer to other PS',
     };
 
-    const doc = new Document({ sections: [{ properties: {}, children: docxParagraphs }] });
-    Packer.toBlob(doc).then(blob => {
-      const fileKeys = {
-        notice: 'Notice',
-        email: 'Email_Update',
-        enquiry_rajinama: 'Enquiry_Rajinama',
-        enquiry_civil: 'Enquiry_Civil',
-        enquiry_ncr: 'Enquiry_NCR',
-        enquiry_fir: 'Enquiry_FIR',
-      };
-      const fileName = `${selectedComplaint?.id || 'Complaint'}_${fileKeys[selectedTemplate] || 'Document'}.docx`;
-      saveAs(blob, fileName);
-      message.success(`Downloaded: ${fileName}`);
+    try {
+      const doc = convertHtmlToDocx(documentText);
+      Packer.toBlob(doc).then(blob => {
+        const fileKeys = {
+          notice: 'Notice',
+          email: 'Email_Update',
+          enquiry_rajinama: 'Enquiry_Rajinama',
+          enquiry_civil_land: 'Enquiry_Civil_Land',
+          enquiry_civil_finance: 'Enquiry_Civil_Finance',
+          enquiry_ncr: 'Enquiry_NCR',
+          enquiry_fir: 'Enquiry_FIR',
+          enquiry_transfer: 'Enquiry_Transfer_PS',
+        };
+        const fileName = `${selectedComplaint?.id || 'Complaint'}_${fileKeys[selectedTemplate] || 'Document'}.docx`;
+        saveAs(blob, fileName);
+        message.success(`Downloaded: ${fileName}`);
 
-      // Save applied template status back to this complaint in localStorage
-      if (selectedComplaint?.id) {
-        const saved = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
-        const updated = saved.map(c =>
-          c.id === selectedComplaint.id
-            ? { ...c, appliedTemplate: templateNames[selectedTemplate] || selectedTemplate }
-            : c
-        );
-        localStorage.setItem('registeredComplaints', JSON.stringify(updated));
-      }
-    }).catch(err => {
+        // Save applied template status back to this complaint in database
+        if (selectedComplaint?.id) {
+          const token = localStorage.getItem('token');
+          fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints/${selectedComplaint.id}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({ appliedTemplate: templateNames[selectedTemplate] || selectedTemplate })
+          }).then(res => {
+            if (res.ok) loadComplaints();
+          }).catch(err => console.error(err));
+        }
+      }).catch(err => {
+        console.error('Packer error:', err);
+        message.error('Failed to bundle docx: ' + err.message);
+      });
+    } catch (err) {
       console.error('DOCX Generation Error:', err);
-      message.error('Failed to generate DOCX file.');
-    });
+      message.error('Failed to generate DOCX file: ' + err.message);
+    }
   };
 
-  const handleTransfer = () => {
+  const handleTransfer = async () => {
     if (!selectedComplaint) { message.warning('Please select a complaint first from Document Generation.'); return; }
     if (!transferDistrict || !transferPS) { message.warning('Please select both District and Police Station.'); return; }
+    if (!transferReason || !transferReason.trim()) { message.warning('Please enter Transfer Reason.'); return; }
 
-    const saved = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
-    const updated = saved.map(c =>
-      c.id === selectedComplaint.id
-        ? {
-            ...c,
-            ioStatus: 'Transferred',
-            transferredTo: { district: transferDistrict, policeStation: transferPS },
-            transferReason: transferReason.trim(),
-            transferDate: new Date().toISOString(),
-          }
-        : c
-    );
-    localStorage.setItem('registeredComplaints', JSON.stringify(updated));
-    message.success(`Complaint ${selectedComplaint.id} transferred to ${transferPS}, ${transferDistrict}`);
-    setShowTransferModal(false);
-    setTransferDistrict('');
-    setTransferPS('');
-    setTransferReason('');
-    loadComplaints();
-    // Update selected complaint state too
-    setSelectedComplaint(prev => prev ? { ...prev, ioStatus: 'Transferred', transferredTo: { district: transferDistrict, policeStation: transferPS } } : prev);
+    const updates = {
+      ioStatus: 'Transferred',
+      transferredTo: { district: transferDistrict, policeStation: transferPS },
+      transferReason: transferReason.trim(),
+      transferDate: new Date().toISOString(),
+      policeStation: transferPS,
+      district: transferDistrict,
+      assignedIoId: null,
+      assignedIoName: null,
+    };
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints/${selectedComplaint.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(updates)
+      });
+      if (!res.ok) throw new Error('Failed to transfer complaint');
+      
+      message.success(`Complaint ${selectedComplaint.id} transferred to ${transferPS}, ${transferDistrict}`);
+      setShowTransferModal(false);
+      setTransferDistrict('');
+      setTransferPS('');
+      setTransferReason('');
+      await loadComplaints();
+      
+      setSelectedComplaint(prev => prev ? { ...prev, ...updates } : prev);
+    } catch (err) {
+      message.error(err.message);
+    }
   };
 
-  const handleAssignIo = () => {
+  const handleAssignIo = async () => {
     if (!selectedIoForAssign || !selectedComplaint) {
       message.error('Please select an IO and ensure a complaint is selected.');
       return;
@@ -615,27 +1485,34 @@ Output ONLY the email text, no explanation.`,
     const io = ioList.find(i => i.id === selectedIoForAssign);
     if (!io) return;
 
-    const saved = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
-    const updated = saved.map(c => {
-      if (c.id === selectedComplaint.id) {
-        return { 
-          ...c, 
-          assignedIoId: io.id, 
-          assignedIoName: io.full_name,
-          ioStatus: 'Pending'
-        };
-      }
-      return c;
-    });
-    localStorage.setItem('registeredComplaints', JSON.stringify(updated));
-    message.success(`Complaint assigned to ${io.full_name}`);
-    setShowAssignModal(false);
-    loadComplaints();
+    const updates = { 
+      assignedIoId: io.id, 
+      assignedIoName: io.full_name,
+      ioStatus: 'Pending'
+    };
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints/${selectedComplaint.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(updates)
+      });
+      if (!res.ok) throw new Error('Failed to assign IO');
+      
+      message.success(`Complaint assigned to ${io.full_name}`);
+      setShowAssignModal(false);
+      await loadComplaints();
+    } catch (err) {
+      message.error(err.message);
+    }
   };
 
-  const handleUpdateStatus = (complaintId, newStatus) => {
-    const saved = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
-    const targetC = saved.find(c => c.id === complaintId);
+  const handleUpdateStatus = async (complaintId, newStatus) => {
+    const targetC = complaints.find(c => c.id === complaintId);
 
     if (targetC?.ioStatus === 'Disposed' || targetC?.ioStatus === 'Convert to FIR') {
        message.error('This complaint has already been finalized by the SHO. Status cannot be changed.');
@@ -646,7 +1523,13 @@ Output ONLY the email text, no explanation.`,
        return;
     }
 
-    if ((newStatus === 'Disposed' || newStatus === 'Convert to FIR') && !targetC?.investigationReport) {
+    // Check: docs required for Disposed/Convert to FIR
+    const hasInvestigationDocs =
+      !targetC?.isReportRejected && (
+        (targetC?.investigationReport && targetC.investigationReport.trim() !== '') ||
+        (targetC?.investigationFiles && targetC.investigationFiles.length > 0)
+      );
+    if ((newStatus === 'Disposed' || newStatus === 'Convert to FIR') && !hasInvestigationDocs) {
       message.error(`You must attach investigation documents before marking as ${newStatus}.`);
       return;
     }
@@ -659,68 +1542,198 @@ Output ONLY the email text, no explanation.`,
       pendingStatus = newStatus;
     }
 
-    const updated = saved.map(c => {
-      if (c.id === complaintId) {
-        if (pendingStatus) {
-           return { ...c, ioStatus: updatedStatus, pendingIoStatus: pendingStatus };
-        } else {
-           const { pendingIoStatus, ...rest } = c;
-           return { ...rest, ioStatus: updatedStatus };
-        }
-      }
-      return c;
-    });
-    localStorage.setItem('registeredComplaints', JSON.stringify(updated));
-    message.success(pendingStatus ? `Sent request to SHO for ${pendingStatus}` : `Status updated successfully to ${newStatus}`);
-    loadComplaints();
-    if (selectedComplaint && selectedComplaint.id === complaintId) {
-      if (pendingStatus) {
-         setSelectedComplaint({ ...selectedComplaint, ioStatus: updatedStatus, pendingIoStatus: pendingStatus });
-      } else {
-         const { pendingIoStatus, ...rest } = selectedComplaint;
-         setSelectedComplaint({ ...rest, ioStatus: updatedStatus });
-      }
+    const updates = pendingStatus 
+      ? { ioStatus: updatedStatus, pendingIoStatus: pendingStatus } 
+      : { ioStatus: updatedStatus, pendingIoStatus: null };
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints/${complaintId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(updates)
+      });
+      if (!res.ok) throw new Error('Failed to update status');
+
+      message.success(pendingStatus ? `Sent request to SHO for ${pendingStatus}` : `Status updated successfully to ${newStatus}`);
+      await loadComplaints();
+    } catch (err) {
+      message.error(err.message);
     }
   };
 
-  const handleSaveIoReport = () => {
+  const handleSaveIoReport = async () => {
     if (!ioReportText.trim() && ioAttachedFiles.length === 0) {
       message.warning('Please enter the report content or attach documents.');
       return;
     }
-    const saved = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
-    const fileNames = ioAttachedFiles.map(f => f.name);
-    const updated = saved.map(c =>
-      c.id === activeReportComplaintId ? { ...c, investigationReport: ioReportText.trim(), investigationFiles: fileNames, isReportRejected: false } : c
-    );
-    localStorage.setItem('registeredComplaints', JSON.stringify(updated));
-    message.success('Final investigation report and documents attached successfully.');
-    setShowIoReportModal(false);
-    loadComplaints();
-    if (selectedComplaint && selectedComplaint.id === activeReportComplaintId) {
-      setSelectedComplaint({ ...selectedComplaint, investigationReport: ioReportText.trim(), investigationFiles: fileNames, isReportRejected: false });
+
+    let savedFileRecords = [];
+
+    // Upload files to server if any are attached
+    if (ioAttachedFiles.length > 0) {
+      const hide = message.loading('Uploading files to server...', 0);
+      try {
+        const formData = new FormData();
+        for (const f of ioAttachedFiles) {
+          const fileObj = f.originFileObj || f;
+          if (fileObj instanceof File || fileObj instanceof Blob) {
+            formData.append('files', fileObj, fileObj.name || f.name);
+          }
+        }
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/complaint-files/upload`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        const data = await res.json();
+        hide();
+        if (!res.ok) throw new Error(data.error || 'Upload failed');
+        // data.files = [{ name, url, mimetype }]
+        savedFileRecords = data.files;
+        message.success(`${savedFileRecords.length} file(s) uploaded successfully.`);
+      } catch (err) {
+        hide();
+        message.error(`File upload failed: ${err.message}`);
+        return;
+      }
+    }
+
+    const reportText = ioReportText.trim() || (savedFileRecords.length > 0 ? '[Files Attached]' : '');
+    const updates = { investigationReport: reportText, investigationFiles: savedFileRecords, isReportRejected: false };
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints/${activeReportComplaintId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(updates)
+      });
+      if (!res.ok) throw new Error('Failed to save investigation report');
+
+      message.success('Final investigation report and documents attached successfully.');
+      setShowIoReportModal(false);
+      await loadComplaints();
+      if (selectedComplaint && selectedComplaint.id === activeReportComplaintId) {
+        setSelectedComplaint({ ...selectedComplaint, investigationReport: reportText, investigationFiles: savedFileRecords, isReportRejected: false });
+      }
+    } catch (err) {
+      message.error(err.message);
     }
   };
 
-  const handleShoApproval = (complaintId, isApproved) => {
-    const saved = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
-    let msg = '';
-    const updated = saved.map(c => {
-      if (c.id === complaintId && c.ioStatus === 'Pending SHO Approval') {
-        const { pendingIoStatus, ...rest } = c;
-        if (isApproved) {
-           msg = `Approved: Status is now ${c.pendingIoStatus}`;
-           return { ...rest, ioStatus: c.pendingIoStatus };
-        } else {
-           msg = `Rejected request for ${c.pendingIoStatus}. Status reverted to Under Investigation.`;
-           return { ...rest, ioStatus: 'Under Investigation', isReportRejected: true };
-        }
+
+  const handleShoApproval = async (complaintId, isApproved) => {
+    const targetC = complaints.find(c => c.id === complaintId && c.ioStatus === 'Pending SHO Approval');
+    if (!targetC) return;
+
+    // ── Special case: approving "Convert to FIR" ────────────────────────────
+    if (isApproved && targetC.pendingIoStatus === 'Convert to FIR') {
+      const hide = message.loading('Creating FIR record…', 0);
+      try {
+        const firPayload = {
+          district: targetC.district || 'Unknown',
+          police_station: profile?.station_id || 'Unknown',
+          date_time_of_fir: new Date().toISOString().slice(0, 16),
+          acts_sections: [],
+          complainant_name: [targetC.firstName, targetC.lastName].filter(Boolean).join(' ') || 'Unknown',
+          complainant_phone: targetC.mobileNumber || '',
+          complainant_present_address: [
+            targetC.houseNumber, targetC.streetName, targetC.colonyArea,
+            targetC.villageTown, targetC.tehsilBlock, targetC.district,
+            targetC.state, targetC.pinCode,
+          ].filter(Boolean).join(', '),
+          place_address: targetC.placeOfIncident || '',
+          occurrence_date_from: targetC.dateOfIncident ? String(targetC.dateOfIncident).slice(0, 10) : '',
+          fir_content:
+            targetC.investigationReport ||
+            targetC.descriptionOfComplaint ||
+            `FIR converted from Complaint ${complaintId}. Please update the FIR details.`,
+          accused_details: (targetC.accusedList || []).map(a => ({
+            name: a.name || 'Unknown',
+            address: a.address || '',
+          })),
+          complaint_id: complaintId,
+        };
+
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/firs`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(firPayload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to create FIR');
+
+        // Persist linked FIR info in the complaint record via PATCH API
+        const updates = {
+          ioStatus: 'Convert to FIR',
+          pendingIoStatus: null,
+          linkedFirId: data.id,
+          linkedFirNumber: data.fir_number,
+        };
+
+        const patchRes = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints/${complaintId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(updates),
+        });
+        if (!patchRes.ok) throw new Error('Failed to update complaint record with FIR reference');
+
+        hide();
+        message.success(`✅ FIR ${data.fir_number} registered from Complaint ${complaintId}. Now visible in FIR Module.`, 5);
+        await loadComplaints();
+      } catch (err) {
+        hide();
+        message.error('FIR creation failed: ' + err.message);
       }
-      return c;
-    });
-    localStorage.setItem('registeredComplaints', JSON.stringify(updated));
-    message.success(msg || 'Status updated');
-    loadComplaints();
+      return;
+    }
+
+    // ── Normal approval / rejection ─────────────────────────────────────────
+    let msg = '';
+    let updates = {};
+    if (isApproved) {
+      msg = `Approved: Status is now ${targetC.pendingIoStatus}`;
+      updates = { ioStatus: targetC.pendingIoStatus, pendingIoStatus: null };
+    } else {
+      msg = `Rejected request for ${targetC.pendingIoStatus}. Status reverted to Under Investigation.`;
+      updates = { 
+        ioStatus: 'Under Investigation', 
+        pendingIoStatus: null, 
+        isReportRejected: true,
+        investigationReport: '',
+        investigationFiles: []
+      };
+    }
+
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints/${complaintId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) throw new Error('Failed to update complaint status');
+      
+      message.success(msg);
+      await loadComplaints();
+    } catch (err) {
+      message.error(err.message);
+    }
   };
 
   const filteredComplaints = complaints.filter(c => {
@@ -735,7 +1748,7 @@ Output ONLY the email text, no explanation.`,
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
         <Button icon={<ArrowLeftOutlined />} style={{ background: '#1f1f1f', color: '#177ddc', borderColor: '#303030', borderRadius: '8px', padding: '4px 16px', fontWeight: 500 }} onClick={showDocGen ? () => setShowDocGen(false) : onBack}>Back</Button>
         <Title level={3} style={{ margin: 0 }}>
-          {showDocGen ? 'Enquire Registered Complaints — Document Generation' : 'Enquire Registered Complaints'}
+          {showDocGen ? 'Document Generation' : 'Enquire Registered Complaints'}
         </Title>
       </div>
 
@@ -803,283 +1816,253 @@ Output ONLY the email text, no explanation.`,
         </Card>
       ) : (
         <>
-          {/* Step 1: Select Complaint */}
-          <Card
-        title={
-          <span style={{ fontWeight: 600 }}>
-            Step 1: Select a Registered Complaint
-          </span>
-        }
-        style={{ marginBottom: 24 }}
-      >
-        {complaints.length === 0 ? (
-          <Empty
-            image={<FileTextOutlined style={{ fontSize: 48, color: '#aaa' }} />}
-            description={
-              <span>
-                No registered complaints found. Please{' '}
-                <a onClick={onBack}>register a complaint</a> first.
-              </span>
-            }
-          />
-        ) : (
-          <>
-            <Input
-              prefix={<SearchOutlined />}
-              placeholder="Search complaint by ID, Name, or Mobile..."
-              value={searchVal}
-              onChange={e => setSearchVal(e.target.value)}
-              style={{ maxWidth: 420, marginBottom: 16 }}
-              allowClear
-            />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 380, overflowY: 'auto' }}>
-              {filteredComplaints.map(c => {
-                const name = [c.firstName, c.lastName].filter(Boolean).join(' ') || 'Unknown';
-                const isSelected = selectedComplaintId === c.id;
-                return (
-                  <div
-                    key={c.id}
-                    style={{
-                      padding: '16px 20px',
-                      border: isSelected ? '2px solid #1890ff' : '1px solid #d9d9d9',
-                      borderRadius: 10,
-                      background: isSelected ? 'rgba(24,144,255,0.07)' : 'transparent',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      gap: 16,
-                      flexWrap: 'wrap'
-                    }}
-                  >
-                    {/* Single row: all details side by side */}
-                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap', flex: 1 }}>
-                      <div style={{ minWidth: 80 }}>
-                        <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 2 }}>Complaint ID</Text>
-                        <Text strong style={{ fontSize: 14 }}>{c.id}</Text>
-                      </div>
-                      <div style={{ minWidth: 120 }}>
-                        <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 2 }}>Complainant Name</Text>
-                        <Text style={{ fontSize: 14 }}>{name}</Text>
-                      </div>
-                      <div style={{ minWidth: 110 }}>
-                        <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 2 }}>Mobile Number</Text>
-                        <Text style={{ fontSize: 14 }}>{c.mobileNumber || '—'}</Text>
-                      </div>
-                      <div style={{ minWidth: 100 }}>
-                        <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 2 }}>Date Registered</Text>
-                        <Text style={{ fontSize: 14 }}>{dayjs(c.registrationDate).format('DD MMM YYYY')}</Text>
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>Incident Class</Text>
-                        {c.classOfIncident
-                          ? <Tag color="blue">{c.classOfIncident}</Tag>
-                          : <Text type="secondary">—</Text>}
-                      </div>
-                      {c.appliedTemplate && (
-                        <div style={{ minWidth: 120 }}>
-                          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>Last Document</Text>
-                          <Tag color="purple">{c.appliedTemplate}</Tag>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Right: Select button */}
-                    <Button
-                      type={isSelected ? 'primary' : 'default'}
-                      onClick={() => handleComplaintSelect(c.id)}
-                      style={{ minWidth: 160, fontWeight: 500, flexShrink: 0 }}
-                    >
-                      {isSelected 
-                        ? (c.appliedTemplate ? '✓ Generated' : '✓ Selected') 
-                        : (c.appliedTemplate ? 'Generate Another' : 'Select & Generate Doc')}
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </Card>
-
-      {/* Step 2: Select Template & Generate Document */}
-      {selectedComplaint && (
-        <Card
-          title={
-            <span style={{ fontWeight: 600 }}>
-              Step 2: Select Document Template for Complaint <Tag color="blue">{selectedComplaint.id}</Tag>
-            </span>
-          }
-        >
-          <Row gutter={24}>
-            <Col span={7}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <Button
-                  type={selectedTemplate === 'notice' ? 'primary' : 'default'}
-                  block
-                  onClick={() => handleTemplateSelect('notice')}
-                >
-                  Notice for Appearance
-                </Button>
-                <Button
-                  type={selectedTemplate === 'email' ? 'primary' : 'default'}
-                  block
-                  onClick={() => handleTemplateSelect('email')}
-                >
-                  Email / Status Update
-                </Button>
-                <Divider style={{ margin: '8px 0', fontSize: 12 }}>Enquiry Reports</Divider>
-                <Button
-                  type={selectedTemplate === 'enquiry_rajinama' ? 'primary' : 'dashed'}
-                  block
-                  onClick={() => handleTemplateSelect('enquiry_rajinama')}
-                >
-                  Rajinama (Mutual Settlement)
-                </Button>
-                <Button
-                  type={selectedTemplate === 'enquiry_civil' ? 'primary' : 'dashed'}
-                  block
-                  onClick={() => handleTemplateSelect('enquiry_civil')}
-                >
-                  Civil Nature (Land / Financial)
-                </Button>
-                <Button
-                  type={selectedTemplate === 'enquiry_ncr' ? 'primary' : 'dashed'}
-                  block
-                  onClick={() => handleTemplateSelect('enquiry_ncr')}
-                >
-                  Non-Cognizable Offence (NCR)
-                </Button>
-                <Button
-                  type={selectedTemplate === 'enquiry_fir' ? 'primary' : 'dashed'}
-                  block
-                  onClick={() => handleTemplateSelect('enquiry_fir')}
-                >
-                  FIR Registration Recommended
-                </Button>
-              </div>
-            </Col>
-
-            <Col span={17}>
-              {selectedTemplate ? (
-                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                  {/* -- Notice Configuration Header -- */}
-                  {selectedTemplate === 'notice' && (
-                    <div style={{ marginBottom: 16, padding: '16px', background: 'rgba(255, 255, 255, 0.04)', border: '1px solid #434343', borderRadius: 8 }}>
-                      <Text strong style={{ display: 'block', marginBottom: 12 }}>Notice Recipient:</Text>
-                      <Radio.Group 
-                        value={noticeRecipient} 
-                        onChange={e => handleNoticeRecipientChange(e.target.value)}
-                        style={{ marginBottom: 16 }}
-                      >
-                        <Radio value="accused">Accused</Radio>
-                        <Radio value="complainant">Complainant</Radio>
-                        <Radio value="other">Other Person</Radio>
-                      </Radio.Group>
-
-                      {noticeRecipient === 'accused' && selectedComplaint?.accusedList?.length > 1 && (
-                        <div style={{ marginBottom: 16, background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8 }}>
-                          <Text strong style={{ display: 'block', marginBottom: 8, color: '#1890ff' }}>Select Specific Accused for Notice:</Text>
-                          <Checkbox.Group 
-                            options={selectedComplaint.accusedList.map((a, i) => ({ label: a.name, value: i }))} 
-                            value={selectedAccusedIndices} 
-                            onChange={handleAccusedSelectionChange} 
-                          />
-                          <Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
-                            (If none selected, notice will be addressed to all accused)
-                          </Text>
-                        </div>
-                      )}
-
-                      {noticeRecipient === 'other' && (
-                        <Row gutter={16} style={{ marginBottom: 16 }}>
-                          <Col span={10}>
-                            <Input 
-                              placeholder="Name" 
-                              value={otherPersonName} 
-                              onChange={e => setOtherPersonName(e.target.value)} 
-                              onBlur={() => handleNoticeRecipientChange('other')}
-                            />
-                          </Col>
-                          <Col span={14}>
-                            <Input 
-                              placeholder="Full Address" 
-                              value={otherPersonAddress} 
-                              onChange={e => setOtherPersonAddress(e.target.value)}
-                              onBlur={() => handleNoticeRecipientChange('other')}
-                            />
-                          </Col>
-                        </Row>
-                      )}
-                    </div>
-                  )}
-
-                  {/* -- Email Configuration Header -- */}
-                  {selectedTemplate === 'email' && (
-                    <div style={{ marginBottom: 16, padding: '16px', background: 'rgba(24, 144, 255, 0.1)', borderRadius: 8, border: '1px solid rgba(24, 144, 255, 0.3)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                        <div>
-                          <Text strong style={{ display: 'block', marginBottom: 4, color: '#1890ff' }}>
-                            <RobotOutlined style={{ marginRight: 6 }} />
-                            Draft Email with AI
-                          </Text>
-                          <Text type="secondary" style={{ fontSize: 13 }}>
-                            The AI knows the details of Complaint {selectedComplaint?.id}. Just tell it who to email and what to say.
-                          </Text>
-                        </div>
-                        <Button 
-                          type="primary" 
-                          icon={<RobotOutlined />} 
-                          onClick={handleGenerateEmailWithAI}
-                          loading={isAiLoading}
-                        >
-                          Draft Email
-                        </Button>
-                      </div>
-                      <TextArea 
-                        rows={2} 
-                        placeholder="E.g., Write an email to the SHO requesting more time because the accused is out of town." 
-                        value={emailPrompt}
-                        onChange={e => setEmailPrompt(e.target.value)}
-                        style={{ resize: 'none', width: '100%' }}
-                      />
-                    </div>
-                  )}
-
-                  {/* -- Actions & Editor -- */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8 }}>
-                    <Text strong>Document Preview:</Text>
-                    <Button
-                      type="primary"
-                      icon={<DownloadOutlined />}
-                      onClick={handleDownloadDocx}
-                      disabled={!documentText}
-                    >
-                      Download as DOCX
-                    </Button>
-                  </div>
-                  
-                  <Spin spinning={isAiLoading} tip="AI is drafting the email...">
-                    <TextArea
-                      rows={selectedTemplate === 'notice' || selectedTemplate === 'email' ? 14 : 22}
-                      value={documentText}
-                      onChange={e => setDocumentText(e.target.value)}
-                      style={{ fontSize: 14, lineHeight: '1.7', fontFamily: 'monospace', width: '100%' }}
-                    />
-                  </Spin>
-                  
-                  <Text type="secondary" style={{ fontSize: 12, marginTop: 8, display: 'block' }}>
-                    You can edit the text directly above before downloading.
-                  </Text>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 200, color: '#aaa' }}>
-                  ← Select a template to auto-generate the document with complaint data.
-                </div>
+          {complaints.length === 0 && (
+            <Card style={{ marginBottom: 24 }}>
+              <Empty
+                image={<FileTextOutlined style={{ fontSize: 48, color: '#aaa' }} />}
+                description={
+                  <span>
+                    No registered complaints found. Please{' '}
+                    <a onClick={onBack}>register a complaint</a> first.
+                  </span>
+                }
+              />
+            </Card>
+          )}
+          {selectedComplaint && (
+            <Card
+              title={
+                <span style={{ fontWeight: 600 }}>
+                  Select Document Template for Complaint <Tag color="blue">{selectedComplaint.id}</Tag>
+                </span>
+              }
+            >
+              {/* Alert for saved draft */}
+              {savedDraft && (
+                <Alert
+                  message={
+                    <span>
+                      You have a saved draft for this complaint from{' '}
+                      <strong>{dayjs(savedDraft.updatedAt).format('DD MMM YYYY, hh:mm A')}</strong>.
+                    </span>
+                  }
+                  type="info"
+                  showIcon
+                  action={
+                    <Space>
+                      <Button size="small" type="primary" onClick={handleResumeDraft}>
+                        Resume Draft
+                      </Button>
+                      <Button size="small" type="text" danger onClick={handleDiscardDraft}>
+                        Discard
+                      </Button>
+                    </Space>
+                  }
+                  style={{ marginBottom: 16 }}
+                />
               )}
-            </Col>
-          </Row>
-        </Card>
-      )}
+
+              <Row gutter={24}>
+                <Col span={7}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: '72vh', overflowY: 'auto', paddingRight: 4 }}>
+                    {renderTemplateSection('notice', 'Notice for Appearance', 'default')}
+                    {renderTemplateSection('email', 'Email / Status Update', 'default')}
+                    <Divider style={{ margin: '8px 0', fontSize: 12 }}>Enquiry Reports</Divider>
+                    {renderTemplateSection('enquiry_rajinama', 'Rajinama (Mutual Settlement)', 'dashed')}
+                    {renderTemplateSection('enquiry_civil_land', 'Civil Nature (Land Dispute)', 'dashed')}
+                    {renderTemplateSection('enquiry_civil_finance', 'Civil Nature (Financial Dispute)', 'dashed')}
+                    {renderTemplateSection('enquiry_ncr', 'Non-Cognizable Offence (NCR)', 'dashed')}
+                    {renderTemplateSection('enquiry_fir', 'FIR Registration Recommended', 'dashed')}
+                    {renderTemplateSection('enquiry_transfer', 'Transfer to other Police Station', 'dashed')}
+                  </div>
+                </Col>
+
+                <Col span={17}>
+                  {selectedTemplate ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                      {/* -- Notice Configuration Header -- */}
+                      {selectedTemplate === 'notice' && (
+                        <div style={{ marginBottom: 16, padding: '16px', background: 'rgba(255, 255, 255, 0.04)', border: '1px solid #434343', borderRadius: 8 }}>
+                          <Text strong style={{ display: 'block', marginBottom: 12 }}>Notice Recipient:</Text>
+                          <Radio.Group 
+                            value={noticeRecipient} 
+                            onChange={e => handleNoticeRecipientChange(e.target.value)}
+                            style={{ marginBottom: 16 }}
+                          >
+                            <Radio value="accused">Accused</Radio>
+                            <Radio value="complainant">Complainant</Radio>
+                            <Radio value="other">Other Person</Radio>
+                          </Radio.Group>
+
+                          {noticeRecipient === 'accused' && selectedComplaint?.accusedList?.length > 1 && (
+                            <div style={{ marginBottom: 16, background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8 }}>
+                              <Text strong style={{ display: 'block', marginBottom: 8, color: '#1890ff' }}>Select Specific Accused for Notice:</Text>
+                              <Checkbox.Group 
+                                options={selectedComplaint.accusedList.map((a, i) => ({ label: a.name, value: i }))} 
+                                value={selectedAccusedIndices} 
+                                onChange={handleAccusedSelectionChange} 
+                              />
+                              <Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+                                (If none selected, notice will be addressed to all accused)
+                              </Text>
+                            </div>
+                          )}
+
+                          {noticeRecipient === 'other' && (
+                            <Row gutter={16} style={{ marginBottom: 16 }}>
+                              <Col span={10}>
+                                <Input 
+                                  placeholder="Name" 
+                                  value={otherPersonName} 
+                                  onChange={e => setOtherPersonName(e.target.value)} 
+                                  onBlur={() => handleNoticeRecipientChange('other')}
+                                />
+                              </Col>
+                              <Col span={14}>
+                                <Input 
+                                  placeholder="Full Address" 
+                                  value={otherPersonAddress} 
+                                  onChange={e => setOtherPersonAddress(e.target.value)}
+                                  onBlur={() => handleNoticeRecipientChange('other')}
+                                />
+                              </Col>
+                            </Row>
+                          )}
+                        </div>
+                      )}
+
+                      {/* -- Email Configuration Header -- */}
+                      {selectedTemplate === 'email' && (
+                        <div style={{ marginBottom: 16, padding: '16px', background: 'rgba(24, 144, 255, 0.1)', borderRadius: 8, border: '1px solid rgba(24, 144, 255, 0.3)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                            <div>
+                              <Text strong style={{ display: 'block', marginBottom: 4, color: '#1890ff' }}>
+                                <RobotOutlined style={{ marginRight: 6 }} />
+                                Draft Email with AI
+                              </Text>
+                              <Text type="secondary" style={{ fontSize: 13 }}>
+                                The AI knows the details of Complaint {selectedComplaint?.id}. Just tell it who to email and what to say.
+                              </Text>
+                            </div>
+                            <Button 
+                              type="primary" 
+                              icon={<RobotOutlined />} 
+                              onClick={handleGenerateEmailWithAI}
+                              loading={isAiLoading}
+                            >
+                              Draft Email
+                            </Button>
+                          </div>
+                          <TextArea 
+                            rows={2} 
+                            placeholder="E.g., Write an email to the SHO requesting more time because the accused is out of town." 
+                            value={emailPrompt}
+                            onChange={e => setEmailPrompt(e.target.value)}
+                            style={{ resize: 'none', width: '100%' }}
+                          />
+                        </div>
+                      )}
+
+                      {/* -- Actions & Editor Toolbar -- */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <Button
+                            type={isRecording ? 'primary' : 'default'}
+                            danger={isRecording}
+                            loading={isTranscribing}
+                            icon={<RobotOutlined spin={isRecording} />}
+                            onClick={handleVoiceToggle}
+                            style={{
+                              animation: isRecording ? 'pulse 1.5s infinite' : 'none',
+                            }}
+                          >
+                            {isRecording ? 'Listening (Click to Stop)' : isTranscribing ? 'Transcribing...' : 'Voice Typing (STT)'}
+                          </Button>
+                          
+                          <Button
+                            type="default"
+                            onClick={() => handleTranslate('English')}
+                            disabled={isAiLoading || !documentText.trim()}
+                          >
+                            Convert to English
+                          </Button>
+                          <Button
+                            type="default"
+                            onClick={() => handleTranslate('Hindi')}
+                            disabled={isAiLoading || !documentText.trim()}
+                          >
+                            Convert to Hindi
+                          </Button>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Button
+                            type="default"
+                            icon={<CheckCircleOutlined />}
+                            onClick={handleSaveDraft}
+                            style={{ background: '#141414', color: '#52c41a', borderColor: '#303030' }}
+                          >
+                            Save Draft
+                          </Button>
+                          <Button
+                            type="primary"
+                            icon={<DownloadOutlined />}
+                            onClick={handleDownloadDocx}
+                            disabled={!documentText}
+                          >
+                            Download as DOCX
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      <Spin spinning={isAiLoading} tip="Processing document...">
+                        <div
+                          ref={editorRef}
+                          contentEditable
+                          suppressContentEditableWarning
+                          onInput={(e) => {
+                            const html = e.currentTarget.innerHTML;
+                            localHtmlRef.current = html;
+                            setDocumentText(html);
+                          }}
+                          onMouseUp={handleEditorClickOrKey}
+                          onKeyUp={handleEditorClickOrKey}
+                          className="document-editor-container"
+                          style={{ 
+                            fontSize: 14, 
+                            lineHeight: '1.7', 
+                            fontFamily: 'Arial, sans-serif', 
+                            width: '100%',
+                            minHeight: selectedTemplate === 'notice' || selectedTemplate === 'email' ? '300px' : '500px',
+                            maxHeight: '65vh',
+                            overflowY: 'auto',
+                            padding: '24px',
+                            background: '#141414',
+                            color: '#f0f6fc',
+                            borderRadius: '8px',
+                            border: isRecording ? '2px solid #ff4d4f' : '1px solid #303030',
+                            boxShadow: isRecording ? '0 0 8px rgba(255, 77, 79, 0.2)' : 'none',
+                            outline: 'none',
+                            transition: 'all 0.3s ease',
+                            whiteSpace: 'pre-wrap'
+                          }}
+                        />
+                      </Spin>
+                      
+                      <Text type="secondary" style={{ fontSize: 12, marginTop: 8, display: 'block' }}>
+                        You can edit the text directly above before downloading.
+                      </Text>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 200, color: '#aaa' }}>
+                      ← Select a template to auto-generate the document with complaint data.
+                    </div>
+                  )}
+                </Col>
+              </Row>
+            </Card>
+          )}
+
         </>
       )}
 
@@ -1204,6 +2187,13 @@ Output ONLY the email text, no explanation.`,
                     </div>
                   </div>
                 )}
+                {/* Show linked FIR badge once complaint has been converted */}
+                {c.ioStatus === 'Convert to FIR' && c.linkedFirNumber && (
+                  <div style={{ marginTop: 10, padding: '7px 12px', background: 'rgba(255,77,79,0.08)', border: '1px solid rgba(255,77,79,0.35)', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <Tag color="red" icon={<FileTextOutlined />} style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12 }}>FIR: {c.linkedFirNumber}</Tag>
+                    <Text type="secondary" style={{ fontSize: 11 }}>Complaint converted — View & manage this case in the <strong>FIR Module</strong>.</Text>
+                  </div>
+                )}
               </Card>
             );
           });
@@ -1269,7 +2259,9 @@ Output ONLY the email text, no explanation.`,
                     const isCurrent = (c.ioStatus || 'Pending') === status || (isPendingApproval && c.pendingIoStatus === status);
                     
                     const requiresReport = status === 'Disposed' || status === 'Convert to FIR';
-                    const hasReport = !!c.investigationReport || (c.investigationFiles && c.investigationFiles.length > 0);
+                    // hasReport is true if either: (1) there is non-empty report text, OR (2) files were attached
+                    const hasReport = !c.isReportRejected && ((c.investigationReport && c.investigationReport.trim() !== '') ||
+                      (c.investigationFiles && c.investigationFiles.length > 0));
                     
                     // Disabled if already finalized, or pending approval, or missing report when needed
                     const disabled = isAlreadyClosed || isPendingApproval || (requiresReport && !hasReport);
@@ -1301,21 +2293,25 @@ Output ONLY the email text, no explanation.`,
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Text type="secondary" style={{ fontSize: 13 }}>
                         <FileTextOutlined style={{ marginRight: 6 }} />
-                        {c.investigationReport ? 'Documents attached. Ready for Disposal/FIR.' : 'Attach investigation documents to proceed to Disposed/FIR.'}
+                        {c.investigationReport && !c.isReportRejected ? 'Documents attached. Ready for Disposal/FIR.' : 'Attach investigation documents to proceed to Disposed/FIR.'}
                       </Text>
                       <Button 
-                        type={c.investigationReport ? "default" : "primary"} 
+                        type={c.investigationReport && !c.isReportRejected ? "default" : "primary"} 
                         size="small"
-                        icon={c.investigationReport ? <CheckCircleOutlined style={{ color: '#52c41a' }} /> : <PlusOutlined />}
+                        icon={c.investigationReport && !c.isReportRejected ? <CheckCircleOutlined style={{ color: '#52c41a' }} /> : <PlusOutlined />}
                         onClick={() => {
                           setActiveReportComplaintId(c.id);
-                          setIoReportText(c.investigationReport || '');
-                          setIoAttachedFiles(c.investigationFiles ? c.investigationFiles.map((f, i) => ({ uid: i, name: f, status: 'done' })) : []);
+                          setIoReportText(c.isReportRejected ? '' : (c.investigationReport || ''));
+                          setIoAttachedFiles(c.isReportRejected ? [] : (c.investigationFiles ? c.investigationFiles.map((f, i) => {
+                            const isObj = f && typeof f === 'object';
+                            const name = isObj ? f.name : f;
+                            return { uid: i, name, status: 'done' };
+                          }) : []));
                           setShowIoReportModal(true);
                         }}
-                        style={{ borderColor: c.investigationReport ? '#52c41a' : undefined }}
+                        style={{ borderColor: c.investigationReport && !c.isReportRejected ? '#52c41a' : undefined }}
                       >
-                        {c.investigationReport ? 'View Attached Documents' : 'Attach Documents'}
+                        {c.investigationReport && !c.isReportRejected ? 'View Attached Documents' : 'Attach Documents'}
                       </Button>
                     </div>
                   </div>
@@ -1386,7 +2382,7 @@ Output ONLY the email text, no explanation.`,
               {/* District */}
               <div>
                 <label style={{ color: '#c9d1d9', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>
-                  Transfer to District <span style={{ color: '#f87171' }}>*</span>
+                  Transfer to District
                 </label>
                 <select
                   value={transferDistrict}
@@ -1405,7 +2401,7 @@ Output ONLY the email text, no explanation.`,
               {/* Police Station */}
               <div>
                 <label style={{ color: '#c9d1d9', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>
-                  Transfer to Police Station <span style={{ color: '#f87171' }}>*</span>
+                  Transfer to Police Station
                 </label>
                 <select
                   value={transferPS}
@@ -1462,11 +2458,11 @@ Output ONLY the email text, no explanation.`,
               </button>
               <button
                 onClick={handleTransfer}
-                disabled={!selectedComplaint || !transferDistrict || !transferPS}
+                disabled={!selectedComplaint || !transferDistrict || !transferPS || !transferReason.trim()}
                 style={{
                   padding: '7px 20px', borderRadius: 6,
-                  border: 'none', background: (!selectedComplaint || !transferDistrict || !transferPS) ? '#1f2937' : '#1677ff',
-                  color: '#ffffff', cursor: (!selectedComplaint || !transferDistrict || !transferPS) ? 'not-allowed' : 'pointer',
+                  border: 'none', background: (!selectedComplaint || !transferDistrict || !transferPS || !transferReason.trim()) ? '#1f2937' : '#1677ff',
+                  color: '#ffffff', cursor: (!selectedComplaint || !transferDistrict || !transferPS || !transferReason.trim()) ? 'not-allowed' : 'pointer',
                   fontSize: 14, fontWeight: 600,
                 }}
               >
@@ -1486,7 +2482,12 @@ Output ONLY the email text, no explanation.`,
           </div>
         }
         open={showIoReportModal}
-        onCancel={() => setShowIoReportModal(false)}
+        onCancel={() => {
+          if (reportIsRecording) {
+            reportToggleRecording();
+          }
+          setShowIoReportModal(false);
+        }}
         footer={null}
         width={700}
       >
@@ -1509,13 +2510,19 @@ Output ONLY the email text, no explanation.`,
                     <div style={{ marginBottom: 16 }}>
                       <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>Attached Files:</Text>
                       <Space direction="vertical" style={{ width: '100%' }}>
-                        {currentC.investigationFiles.map((file, idx) => (
-                          <div key={idx} style={{ background: '#252839', padding: '8px 12px', borderRadius: 4, border: '1px solid #30363d', display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <UploadOutlined style={{ color: '#8b949e' }} />
-                            <Text style={{ color: '#c9d1d9' }}>{file}</Text>
-                            <Button size="small" type="primary" ghost style={{ marginLeft: 'auto' }} onClick={() => setPreviewFile(file)}>View</Button>
-                          </div>
-                        ))}
+                        {currentC.investigationFiles.map((file, idx) => {
+                          const isObj = file && typeof file === 'object';
+                          const name = isObj ? file.name : file;
+                          return (
+                            <div key={idx} style={{ background: '#252839', padding: '8px 12px', borderRadius: 4, border: '1px solid #30363d', display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <UploadOutlined style={{ color: '#8b949e' }} />
+                              <Text style={{ color: '#c9d1d9', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</Text>
+                              <Button size="small" type="primary" ghost style={{ flexShrink: 0 }}
+                                onClick={() => isObj ? setPreviewFile({ name: file.name, url: file.url, type: file.mimetype || '' }) : setPreviewFile(name)}
+                              >View File</Button>
+                            </div>
+                          );
+                        })}
                       </Space>
                     </div>
                   )}
@@ -1551,16 +2558,109 @@ Output ONLY the email text, no explanation.`,
                       onRemove={(file) => {
                         setIoAttachedFiles(prev => prev.filter(f => f.uid !== file.uid));
                       }}
+                      itemRender={(originNode, file, currFileList, actions) => {
+                        return (
+                          <div 
+                            style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'space-between', 
+                              padding: '8px 12px', 
+                              background: '#252839', 
+                              border: '1px solid #30363d', 
+                              borderRadius: 4, 
+                              marginBottom: 8 
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', marginRight: 12 }}>
+                              <PaperClipOutlined style={{ color: '#8b949e', flexShrink: 0 }} />
+                              <span style={{ color: '#c9d1d9', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                {file.name}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                              <Button 
+                                size="small" 
+                                type="primary" 
+                                ghost 
+                                onClick={() => {
+                                  const fileObj = file.originFileObj || file;
+                                  const isRealFile = fileObj instanceof File || fileObj instanceof Blob || (fileObj && typeof fileObj === 'object' && 'size' in fileObj && 'type' in fileObj);
+                                  if (isRealFile) {
+                                    const url = URL.createObjectURL(fileObj);
+                                    setPreviewFile({
+                                      name: file.name || fileObj.name,
+                                      url: url,
+                                      type: fileObj.type || ''
+                                    });
+                                  } else {
+                                    setPreviewFile(file.name || file.uid);
+                                  }
+                                }}
+                              >
+                                View File
+                              </Button>
+                              <DeleteOutlined 
+                                style={{ color: '#ff4d4f', cursor: 'pointer', fontSize: 16 }} 
+                                onClick={actions.remove} 
+                              />
+                            </div>
+                          </div>
+                        );
+                      }}
                     >
                       <Button icon={<UploadOutlined />}>Select Files</Button>
                     </Upload>
                   </div>
 
-                  <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>Written Details (Optional):</Text>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <Text type="secondary" style={{ margin: 0 }}>Written Details (Optional):</Text>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <Button
+                        type="default"
+                        size="small"
+                        disabled={reportIsRecording || reportIsTranscribing || isReportTranslating || !ioReportText.trim()}
+                        loading={isReportTranslating}
+                        onClick={handleTranslateReportToEnglish}
+                        style={{
+                          borderRadius: '6px',
+                          fontWeight: 500,
+                        }}
+                      >
+                        Convert to English
+                      </Button>
+                      <Button
+                        type={reportIsRecording ? 'primary' : 'default'}
+                        danger={reportIsRecording}
+                        loading={reportIsTranscribing}
+                        icon={<RobotOutlined spin={reportIsRecording} />}
+                        onClick={handleReportVoiceToggle}
+                        size="small"
+                        style={{
+                          animation: reportIsRecording ? 'pulse 1.5s infinite' : 'none',
+                          borderRadius: '6px',
+                          fontWeight: 500,
+                        }}
+                      >
+                        {reportIsRecording ? 'Listening (Click to Stop)' : reportIsTranscribing ? 'Transcribing...' : 'Voice Typing (STT)'}
+                      </Button>
+                    </div>
+                  </div>
                   <TextArea
                     rows={8}
-                    value={ioReportText}
-                    onChange={e => setIoReportText(e.target.value)}
+                    value={
+                      reportIsTranscribing 
+                        ? `${ioReportText}\n[Transcribing...]` 
+                        : reportIsRecording 
+                          ? `${ioReportText}\n[Listening: ${reportInterimText || '...'}]` 
+                          : ioReportText
+                    }
+                    onChange={e => {
+                      if (!reportIsRecording && !reportIsTranscribing) {
+                        setIoReportText(e.target.value);
+                      }
+                    }}
+                    disabled={reportIsRecording || reportIsTranscribing}
                     placeholder="Enter the detailed investigation report, actions taken, and final recommendations here..."
                     style={{ fontFamily: 'monospace', fontSize: 14, padding: 12 }}
                   />
@@ -1599,13 +2699,20 @@ Output ONLY the email text, no explanation.`,
             <div style={{ marginBottom: 16 }}>
               <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>Attached Files:</Text>
               <Space direction="vertical" style={{ width: '100%' }}>
-                {shoViewAttachedFiles.map((file, idx) => (
-                  <div key={idx} style={{ background: '#252839', padding: '8px 12px', borderRadius: 4, border: '1px solid #30363d', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <UploadOutlined style={{ color: '#8b949e' }} />
-                    <Text style={{ color: '#c9d1d9' }}>{file}</Text>
-                    <Button size="small" type="primary" ghost style={{ marginLeft: 'auto' }} onClick={() => setPreviewFile(file)}>View</Button>
-                  </div>
-                ))}
+                {shoViewAttachedFiles.map((file, idx) => {
+                  const isObj = file && typeof file === 'object';
+                  const name = isObj ? file.name : file;
+                  return (
+                    <div key={idx} style={{ background: '#252839', padding: '8px 12px', borderRadius: 4, border: '1px solid #30363d', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <UploadOutlined style={{ color: '#8b949e' }} />
+                      <Text style={{ color: '#c9d1d9', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</Text>
+                      <Button size="small" type="primary" ghost style={{ flexShrink: 0 }}
+                        onClick={() => isObj ? setPreviewFile({ name: file.name, url: file.url, type: file.mimetype || '' }) : setPreviewFile(name)}
+                      >View File</Button>
+                    </div>
+                  );
+                })}
+
               </Space>
             </div>
           )}
@@ -1625,24 +2732,77 @@ Output ONLY the email text, no explanation.`,
 
       {/* ── File Preview Modal ── */}
       <Modal
-        title={`Viewing: ${previewFile}`}
+        title={previewFile && typeof previewFile === 'object' ? `Viewing: ${previewFile.name}` : `Viewing: ${previewFile}`}
         open={!!previewFile}
-        onCancel={() => setPreviewFile(null)}
+        onCancel={handleClosePreview}
         footer={[
-          <Button key="close" type="primary" onClick={() => setPreviewFile(null)}>
+          <Button key="close" type="primary" onClick={handleClosePreview}>
             Close
           </Button>
         ]}
         width={800}
         style={{ top: 20 }}
       >
-        <div style={{ height: '60vh', background: '#141414', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1px solid #30363d', borderRadius: 8 }}>
-          <FileTextOutlined style={{ fontSize: 64, color: '#3b82f6', marginBottom: 16 }} />
-          <Text style={{ color: '#e5e7eb', fontSize: 18 }}>{previewFile}</Text>
-          <Text type="secondary" style={{ marginTop: 12, textAlign: 'center', maxWidth: 400 }}>
-            Document preview is simulated.<br />
-            In a real environment with a backend, this area would display the actual PDF, Image, or Video content uploaded by the IO.
-          </Text>
+        <div style={{ height: '60vh', background: '#141414', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1px solid #30363d', borderRadius: 8, overflow: 'hidden' }}>
+          {previewFile && typeof previewFile === 'object' && previewFile.url ? (
+            (() => {
+              const type = previewFile.type || '';
+              const name = previewFile.name || '';
+              
+              if (type === 'application/pdf' || name.toLowerCase().endsWith('.pdf')) {
+                return (
+                  <iframe
+                    src={previewFile.url}
+                    style={{ width: '100%', height: '100%', border: 'none' }}
+                    title={name}
+                  />
+                );
+              } else if (type.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(name)) {
+                return (
+                  <img
+                    src={previewFile.url}
+                    alt={name}
+                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                  />
+                );
+              } else if (type.startsWith('video/') || /\.(mp4|webm|ogg|mov)$/i.test(name)) {
+                return (
+                  <video
+                    src={previewFile.url}
+                    controls
+                    style={{ maxWidth: '100%', maxHeight: '100%' }}
+                  />
+                );
+              } else if (type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac)$/i.test(name)) {
+                return (
+                  <audio
+                    src={previewFile.url}
+                    controls
+                    style={{ width: '80%' }}
+                  />
+                );
+              } else {
+                return (
+                  <div style={{ padding: 20, textAlign: 'center' }}>
+                    <FileTextOutlined style={{ fontSize: 64, color: '#3b82f6', marginBottom: 16 }} />
+                    <Text style={{ color: '#e5e7eb', fontSize: 18, display: 'block' }}>{name}</Text>
+                    <Text type="secondary" style={{ marginTop: 12 }}>
+                      No preview available for this file type.
+                    </Text>
+                  </div>
+                );
+              }
+            })()
+          ) : (
+            <>
+              <FileTextOutlined style={{ fontSize: 64, color: '#3b82f6', marginBottom: 16 }} />
+              <Text style={{ color: '#e5e7eb', fontSize: 18 }}>{previewFile}</Text>
+              <Text type="secondary" style={{ marginTop: 12, textAlign: 'center', maxWidth: 400 }}>
+                Document preview is simulated.<br />
+                In a real environment with a backend, this area would display the actual PDF, Image, or Video content uploaded by the IO.
+              </Text>
+            </>
+          )}
         </div>
       </Modal>
 

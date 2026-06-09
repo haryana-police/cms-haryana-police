@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import {
   Table, Button, Tag, Typography, Space, Input,
-  Select, Card, Statistic, Row, Col, Tooltip, message,
+  Select, Card, Statistic, Row, Col, Tooltip, message, Modal,
 } from 'antd';
 import {
   PlusOutlined, SearchOutlined, FileTextOutlined,
-  FileDoneOutlined, ClockCircleOutlined, CheckCircleOutlined, LinkOutlined,
+  FileDoneOutlined, ClockCircleOutlined, CheckCircleOutlined, LinkOutlined, SwapOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { RoleGate } from '../../components/Auth/RoleGate';
+import { ComplaintDetailView } from '../../components/complaints/SearchComplaints';
+import '../../styles/fir.css';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -30,6 +32,95 @@ export default function FIRListPage() {
   const { token, profile } = useAuth();
   const isSHO = profile?.role === 'sho' || profile?.role === 'admin';
   const isIO  = profile?.role === 'io';
+
+  const [viewComplaintId, setViewComplaintId] = useState(null);
+  const [viewComplaintData, setViewComplaintData] = useState(null);
+  const [viewComplaintLoading, setViewComplaintLoading] = useState(false);
+
+  useEffect(() => {
+    if (!viewComplaintId) {
+      setViewComplaintData(null);
+      return;
+    }
+    const fetchComplaint = async () => {
+      try {
+        setViewComplaintLoading(true);
+        // Check localStorage first
+        const allSaved = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
+        const found = allSaved.find(c => c.id === viewComplaintId);
+        if (found) {
+          setViewComplaintData(found);
+          return;
+        }
+
+        // Fetch from database
+        const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints/${viewComplaintId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        let data;
+        if (!res.ok) {
+          // Fallback: If not found in DB, try to find in current FIRs list
+          const linkedFir = firs.find(f => f.complaint_id === viewComplaintId);
+          if (linkedFir) {
+            data = {
+              id: viewComplaintId,
+              created_at: linkedFir.date_time_of_fir,
+              complainant_name: linkedFir.complainant_name || 'Unknown',
+              complainant_phone: linkedFir.complainant_phone || '',
+              complainant_present_address: linkedFir.complainant_present_address || '',
+              district: linkedFir.district || '',
+              incident_place: linkedFir.place_address || 'Unknown',
+              incident_date: linkedFir.date_time_of_fir ? linkedFir.date_time_of_fir.slice(0, 10) : null,
+              complaint_text: linkedFir.fir_content || '',
+              status: 'Convert to FIR'
+            };
+          } else {
+            throw new Error('Failed to load complaint details');
+          }
+        } else {
+          data = await res.json();
+        }
+        
+        // Normalize
+        const normalized = {
+          id: data.id || data.complaint_number,
+          registrationDate: data.created_at,
+          firstName: data.complainant_name || 'Unknown',
+          lastName: '',
+          mobileNumber: data.complainant_phone || '',
+          gender: data.complainant_gender || 'Male',
+          natureOfComplaint: 'Citizen/General Public',
+          typeOfAccused: 'Against Private Person',
+          villageTown: data.complainant_present_address || '',
+          district: data.district || '',
+          state: 'Haryana',
+          nationality: data.complainant_nationality || 'Indian',
+          idType: 'Aadhar Card',
+          idNumber: data.complainant_uid || '',
+          classOfIncident: 'Other IPC/BNS Crimes',
+          placeOfIncident: data.incident_place || 'Unknown',
+          dateOfIncident: data.incident_date || null,
+          dateOfComplaint: data.created_at || null,
+          typeOfComplaint: 'Fresh Complaint',
+          typeOfComplainant: 'Private Person',
+          complaintPurpose: 'FIR Registration',
+          isFirRegistered: 'Yes',
+          modeOfReceipt: 'In-Person/By Hand',
+          descriptionOfComplaint: data.complaint_text || '',
+          ioStatus: data.status || 'Registered',
+          accusedList: []
+        };
+        setViewComplaintData(normalized);
+      } catch (err) {
+        message.error(err.message);
+        setViewComplaintId(null);
+      } finally {
+        setViewComplaintLoading(false);
+      }
+    };
+    fetchComplaint();
+  }, [viewComplaintId, token]);
 
   const fetchFIRs = async () => {
     setLoading(true);
@@ -65,6 +156,7 @@ export default function FIRListPage() {
     investigating: firs.filter(f => f.status === 'under_investigation').length,
     chargesheeted: firs.filter(f => f.status === 'chargesheeted').length,
     closed:        firs.filter(f => f.status === 'closed').length,
+    converted:     firs.filter(f => !!f.complaint_id).length,
   };
 
   const columns = [
@@ -72,12 +164,23 @@ export default function FIRListPage() {
       title: 'FIR No.',
       dataIndex: 'fir_number',
       key: 'fir_number',
-      width: 100,
+      width: 120,
       render: (num, row) => (
         <div>
           <Text strong style={{ color: '#69c0ff', fontFamily: 'monospace', fontSize: 14 }}>
             {num}/{row.year}
           </Text>
+          {row.complaint_id && (
+            <div style={{ marginTop: 3 }}>
+              <Tag
+                color="volcano"
+                icon={<SwapOutlined />}
+                style={{ fontSize: 10, lineHeight: '16px', padding: '0 5px' }}
+              >
+                From Complaint
+              </Tag>
+            </div>
+          )}
         </div>
       ),
     },
@@ -97,16 +200,16 @@ export default function FIRListPage() {
       title: 'Complainant',
       dataIndex: 'complainant_name',
       key: 'complainant_name',
-      ellipsis: true,
     },
     {
       title: 'Acts & Sections',
       dataIndex: 'acts_sections',
       key: 'acts_sections',
-      ellipsis: true,
+      width: 160,
       render: (val) => {
         try {
           const arr = JSON.parse(val || '[]');
+          if (!arr || arr.length === 0) return '—';
           return (
             <Space size={4} wrap>
               {arr.slice(0, 2).map((a, i) => (
@@ -132,7 +235,7 @@ export default function FIRListPage() {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      width: 160,
+      width: 150,
       render: (status) => {
         const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.under_investigation;
         return <Tag color={cfg.color} icon={cfg.icon}>{cfg.label}</Tag>;
@@ -141,11 +244,22 @@ export default function FIRListPage() {
     {
       title: 'Linked Data',
       key: 'links',
+      width: 130,
       render: (_, row) => (
         <Space direction="vertical" size={0}>
           {row.complaint_id && (
-            <Tooltip title="Linked Complaint">
-              <Tag icon={<LinkOutlined />} color="cyan" style={{ fontSize: 11, marginBottom: 4 }}>CMP: {row.complaint_id}</Tag>
+            <Tooltip title="View Linked Complaint">
+              <Tag
+                icon={<LinkOutlined />}
+                color="cyan"
+                style={{ fontSize: 11, marginBottom: 4, cursor: 'pointer' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setViewComplaintId(row.complaint_id);
+                }}
+              >
+                CMP: {row.complaint_id}
+              </Tag>
             </Tooltip>
           )}
           {row.gd_entry_no && (
@@ -161,9 +275,25 @@ export default function FIRListPage() {
       title: 'Registered By',
       dataIndex: 'registered_by_name',
       key: 'registered_by_name',
-      width: 130,
-      ellipsis: true,
+      width: 185,
       render: (name) => <Text style={{ fontSize: 12 }}>{name || '—'}</Text>,
+    },
+    {
+      title: 'Action',
+      key: 'action',
+      width: 80,
+      render: (_, row) => (
+        <Button
+          type="link"
+          size="small"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/fir/${row.id}`);
+          }}
+        >
+          View
+        </Button>
+      ),
     },
   ];
 
@@ -211,15 +341,15 @@ export default function FIRListPage() {
         </div>
       )}
       {/* Stats */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
+      <Row gutter={[16, 16]} style={{ marginBottom: 20 }} align="stretch">
         {[
-          { title: 'Total FIRs', value: counts.total, color: '#1890ff' },
-          { title: 'Registered', value: counts.registered, color: '#1890ff' },
-          { title: 'Under Investigation', value: counts.investigating, color: '#fa8c16' },
-          { title: 'Closed', value: counts.closed, color: '#52c41a' },
-          { title: 'Chargesheeted', value: counts.chargesheeted, color: '#722ed1' },
+          { title: 'Total FIRs',                value: counts.total,         color: '#1890ff' },
+          { title: 'Registered',                value: counts.registered,    color: '#1890ff' },
+          { title: 'Under Investigation',        value: counts.investigating,  color: '#fa8c16' },
+          { title: 'Closed',                    value: counts.closed,        color: '#52c41a' },
+          { title: 'Chargesheeted',             value: counts.chargesheeted, color: '#722ed1' },
         ].map((s, i) => (
-          <Col xs={12} sm={12} md={6} style={{ flex: 1 }} key={i}>
+          <Col xs={12} sm={12} md={8} lg={4} style={{ flex: '1 1 180px' }} key={i}>
             <Card className="fir-stat-card" bordered={false}>
               <Statistic
                 title={<span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12 }}>{s.title}</span>}
@@ -265,6 +395,32 @@ export default function FIRListPage() {
           locale={{ emptyText: 'No FIRs found. Register a new FIR to get started.' }}
         />
       </Card>
+
+      {/* Linked Complaint View Modal */}
+      <Modal
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <FileTextOutlined style={{ color: '#1890ff' }} />
+            <span>Complaint Details</span>
+          </div>
+        }
+        open={!!viewComplaintId}
+        onCancel={() => setViewComplaintId(null)}
+        footer={[
+          <Button key="close" onClick={() => setViewComplaintId(null)}>Close</Button>
+        ]}
+        width={860}
+        loading={viewComplaintLoading}
+        styles={{
+          body: { background: '#111827', padding: '20px' },
+          header: { background: '#1a2236', borderBottom: '1px solid rgba(255,255,255,0.08)' },
+          footer: { background: '#1a2236', borderTop: '1px solid rgba(255,255,255,0.08)' },
+          content: { background: '#111827' },
+          mask: { backdropFilter: 'blur(4px)' },
+        }}
+      >
+        {viewComplaintData && <ComplaintDetailView record={viewComplaintData} />}
+      </Modal>
     </div>
   );
 }

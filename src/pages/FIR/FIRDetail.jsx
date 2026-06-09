@@ -10,6 +10,8 @@ import {
   PlusOutlined, DeleteOutlined, AuditOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../../hooks/useAuth';
+import { ComplaintDetailView } from '../../components/complaints/SearchComplaints';
+import '../../styles/fir.css';
 
 // Investigation Components
 import CDRManagement from './investigation/CDRManagement';
@@ -81,6 +83,94 @@ export default function FIRDetail() {
   const { token, profile } = useAuth();
   const [fir, setFir] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const [viewComplaintId, setViewComplaintId] = useState(null);
+  const [viewComplaintData, setViewComplaintData] = useState(null);
+  const [viewComplaintLoading, setViewComplaintLoading] = useState(false);
+
+  useEffect(() => {
+    if (!viewComplaintId) {
+      setViewComplaintData(null);
+      return;
+    }
+    const fetchComplaint = async () => {
+      try {
+        setViewComplaintLoading(true);
+        // Check localStorage first
+        const allSaved = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
+        const found = allSaved.find(c => c.id === viewComplaintId);
+        if (found) {
+          setViewComplaintData(found);
+          return;
+        }
+
+        // Fetch from database
+        const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints/${viewComplaintId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        let data;
+        if (!res.ok) {
+          // Fallback: If not found in DB, try to find in current FIR details
+          if (fir && fir.complaint_id === viewComplaintId) {
+            data = {
+              id: viewComplaintId,
+              created_at: fir.date_time_of_fir,
+              complainant_name: fir.complainant_name || 'Unknown',
+              complainant_phone: fir.complainant_phone || '',
+              complainant_present_address: fir.complainant_present_address || '',
+              district: fir.district || '',
+              incident_place: fir.place_address || 'Unknown',
+              incident_date: fir.date_time_of_fir ? fir.date_time_of_fir.slice(0, 10) : null,
+              complaint_text: fir.fir_content || '',
+              status: 'Convert to FIR'
+            };
+          } else {
+            throw new Error('Failed to load complaint details');
+          }
+        } else {
+          data = await res.json();
+        }
+        
+        // Normalize
+        const normalized = {
+          id: data.id || data.complaint_number,
+          registrationDate: data.created_at,
+          firstName: data.complainant_name || 'Unknown',
+          lastName: '',
+          mobileNumber: data.complainant_phone || '',
+          gender: data.complainant_gender || 'Male',
+          natureOfComplaint: 'Citizen/General Public',
+          typeOfAccused: 'Against Private Person',
+          villageTown: data.complainant_present_address || '',
+          district: data.district || '',
+          state: 'Haryana',
+          nationality: data.complainant_nationality || 'Indian',
+          idType: 'Aadhar Card',
+          idNumber: data.complainant_uid || '',
+          classOfIncident: 'Other IPC/BNS Crimes',
+          placeOfIncident: data.incident_place || 'Unknown',
+          dateOfIncident: data.incident_date || null,
+          dateOfComplaint: data.created_at || null,
+          typeOfComplaint: 'Fresh Complaint',
+          typeOfComplainant: 'Private Person',
+          complaintPurpose: 'FIR Registration',
+          isFirRegistered: 'Yes',
+          modeOfReceipt: 'In-Person/By Hand',
+          descriptionOfComplaint: data.complaint_text || '',
+          ioStatus: data.status || 'Registered',
+          accusedList: []
+        };
+        setViewComplaintData(normalized);
+      } catch (err) {
+        message.error(err.message);
+        setViewComplaintId(null);
+      } finally {
+        setViewComplaintLoading(false);
+      }
+    };
+    fetchComplaint();
+  }, [viewComplaintId, token]);
 
   useEffect(() => {
     const fetchFIR = async () => {
@@ -398,10 +488,43 @@ export default function FIRDetail() {
         </div>
       </div>
 
+      {/* Converted from Complaint banner */}
+      {fir?.complaint_id && (
+        <div style={{
+          background: 'rgba(255,120,117,0.1)',
+          border: '1px solid rgba(255,77,79,0.4)',
+          borderRadius: 8,
+          padding: '10px 18px',
+          marginBottom: 16,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+        }}>
+          <SwapOutlined style={{ color: '#ff4d4f', fontSize: 18, flexShrink: 0 }} />
+          <div style={{ fontSize: 13 }}>
+            <span style={{ color: '#ff7875', fontWeight: 700 }}>Converted from Complaint</span>
+            <span style={{ color: '#d9d9d9', marginLeft: 10 }}>
+              Yeh FIR Complaint{' '}
+              <Tooltip title="View Linked Complaint">
+                <Tag
+                  color="volcano"
+                  style={{ fontFamily: 'monospace', fontWeight: 700, margin: '0 3px', cursor: 'pointer' }}
+                  onClick={() => setViewComplaintId(fir.complaint_id)}
+                >
+                  {fir.complaint_id}
+                </Tag>
+              </Tooltip>
+              {' '}se convert ki gayi hai. Complaint Module mein bhi is record ka link mojood hai.
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Hidden print-ready document */}
       <div style={{ display: 'none' }}>
         <FIRPrintDocument fir={fir} />
       </div>
+
 
       {/* ── Change IO Modal ── */}
       <Modal
@@ -835,6 +958,32 @@ export default function FIRDetail() {
           ] : [])
         ]}
       />
+
+      {/* Linked Complaint View Modal */}
+      <Modal
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <SwapOutlined style={{ color: '#1890ff' }} />
+            <span>Complaint Details</span>
+          </div>
+        }
+        open={!!viewComplaintId}
+        onCancel={() => setViewComplaintId(null)}
+        footer={[
+          <Button key="close" onClick={() => setViewComplaintId(null)}>Close</Button>
+        ]}
+        width={860}
+        loading={viewComplaintLoading}
+        styles={{
+          body: { background: '#111827', padding: '20px' },
+          header: { background: '#1a2236', borderBottom: '1px solid rgba(255,255,255,0.08)' },
+          footer: { background: '#1a2236', borderTop: '1px solid rgba(255,255,255,0.08)' },
+          content: { background: '#111827' },
+          mask: { backdropFilter: 'blur(4px)' },
+        }}
+      >
+        {viewComplaintData && <ComplaintDetailView record={viewComplaintData} />}
+      </Modal>
     </div>
   );
 }

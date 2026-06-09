@@ -5,8 +5,8 @@ import { useAuth } from '../hooks/useAuth';
 
 const { Title, Text } = Typography;
 const { Panel } = Collapse;
-const API = () => import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const BASE = 'http://localhost:5000';
+const API = () => import.meta.env.VITE_API_URL || '/api';
+const BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/api$/, '');
 const CATEGORY_CONFIG = {
   laws: { label: 'Core Laws', color: '#22c55e', bg: '#052e16' },
   sop: { label: 'SOPs & Guidelines', color: '#3b82f6', bg: '#0c1a2e' },
@@ -52,7 +52,7 @@ export default function LawLibrary() {
   useEffect(() => {
     const fetchKb = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/kb', {
+        const response = await fetch(`${API()}/kb`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!response.ok) throw new Error('Failed to fetch knowledge base');
@@ -132,7 +132,7 @@ export default function LawLibrary() {
               {filteredCategories[category].map((file, idx) => (
                 <a 
                   key={`${category}-${idx}`}
-                  href={`http://localhost:5000/kb-files/${file.path}`}
+                  href={`${BASE}/kb-files/${file.path}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{ 

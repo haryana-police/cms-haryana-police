@@ -3,6 +3,7 @@ import { Table, Input, Button, Typography, Tag, Modal, Card, Row, Col, Divider, 
 import { SearchOutlined, EyeOutlined, UserOutlined, EnvironmentOutlined, SafetyOutlined, FileTextOutlined, TeamOutlined, InfoCircleOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuth } from '../../hooks/useAuth';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -44,7 +45,7 @@ const sectionCard = (icon, title, color = '#1890ff') => ({
 });
 
 // Full Detail View Component
-function ComplaintDetailView({ record }) {
+export function ComplaintDetailView({ record }) {
   if (!record) return null;
 
   const d = record;
@@ -227,26 +228,95 @@ export default function SearchComplaints({ onBack, onStartEnquiry, hideHeader })
   const [searchText, setSearchText] = useState('');
   const [viewComplaint, setViewComplaint] = useState(null);
   const { profile } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const [complaintsList, setComplaintsList] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchComplaints = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setComplaintsList(data);
+      }
+    } catch (e) {
+      console.error("Error loading complaints:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchComplaints();
+  }, []);
+
+  React.useEffect(() => {
+    const openId = searchParams.get('open_id');
+    if (openId && complaintsList.length > 0) {
+      const found = complaintsList.find(c => c.id === openId);
+      if (found) {
+        setViewComplaint(found);
+      }
+    }
+  }, [searchParams, complaintsList]);
 
   const complaints = useMemo(() => {
-    let saved = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
-    if (profile?.role === 'io') {
-      saved = saved.filter(c => String(c.assignedIoId).trim() === String(profile?.id).trim());
-    }
-    saved.sort((a, b) => new Date(b.registrationDate) - new Date(a.registrationDate));
-    return saved;
-  }, [profile]);
+    const list = [...complaintsList];
+    list.sort((a, b) => new Date(b.registrationDate || b.registeredAt) - new Date(a.registrationDate || a.registeredAt));
+    return list;
+  }, [complaintsList]);
 
   const filteredComplaints = useMemo(() => {
     if (!searchText) return complaints;
     const lower = searchText.toLowerCase();
-    return complaints.filter(c =>
-      (c.id && c.id.toLowerCase().includes(lower)) ||
-      (c.firstName && c.firstName.toLowerCase().includes(lower)) ||
-      (c.lastName && c.lastName.toLowerCase().includes(lower)) ||
-      (c.mobileNumber && c.mobileNumber.includes(lower))
-    );
-  }, [complaints, searchText]);
+    return complaints.filter(c => {
+      // 1. Existing search criteria (ID, Name, Mobile Number)
+      const matchesExisting = 
+        (c.id && c.id.toLowerCase().includes(lower)) ||
+        (c.firstName && c.firstName.toLowerCase().includes(lower)) ||
+        (c.lastName && c.lastName.toLowerCase().includes(lower)) ||
+        (c.mobileNumber && c.mobileNumber.includes(lower));
+
+      if (matchesExisting) return true;
+
+      // 2. Status matching (based on UI status cards & tags)
+      const rawStatus = (c.ioStatus || 'Registered').toLowerCase();
+      
+      // Determine if transferred in to this station
+      const isDestination =
+        c.ioStatus === 'Transferred' &&
+        profile?.role !== 'admin' &&
+        (c.policeStation || 'SAMALKHA') === profile?.station_id &&
+        (c.originalStation || 'SAMALKHA') !== profile?.station_id;
+
+      // Build array of matching display labels for status
+      const displayLabels = [rawStatus];
+      if (isDestination) {
+        displayLabels.push('pending (transferred in)', 'pending', 'transferred in');
+      } else {
+        if (rawStatus === 'pending' || rawStatus === 'pending sho approval' || rawStatus === 'registered') {
+          displayLabels.push('pending enquiry', 'pending', 'enquiry', 'registered');
+        } else if (rawStatus === 'under investigation') {
+          displayLabels.push('under investigation', 'investigation');
+        } else if (rawStatus === 'disposed') {
+          displayLabels.push('disposed');
+        } else if (rawStatus === 'convert to fir') {
+          displayLabels.push('convert to fir', 'fir');
+        } else if (rawStatus === 'transferred') {
+          displayLabels.push('transferred');
+        }
+      }
+
+      // Check if any computed status string matches the query
+      return displayLabels.some(label => label.includes(lower));
+    });
+  }, [complaints, searchText, profile]);
 
   const columns = [
     {
@@ -254,7 +324,15 @@ export default function SearchComplaints({ onBack, onStartEnquiry, hideHeader })
       dataIndex: 'id',
       key: 'id',
       width: '12%',
-      render: text => <strong>{text}</strong>,
+      render: (text, record) => (
+        <Button 
+          type="link" 
+          style={{ padding: 0, fontWeight: 700, height: 'auto', color: '#177ddc' }}
+          onClick={() => setViewComplaint(record)}
+        >
+          {text}
+        </Button>
+      ),
     },
     {
       title: 'Date',
@@ -281,13 +359,37 @@ export default function SearchComplaints({ onBack, onStartEnquiry, hideHeader })
       key: 'status',
       width: '14%',
       render: (_, record) => {
+        // If complaint was transferred TO this station (we are the destination)
+        // show it as 'Pending (Transferred In)' not 'Transferred'
+        const isDestination =
+          record.ioStatus === 'Transferred' &&
+          profile?.role !== 'admin' &&
+          (record.policeStation || 'SAMALKHA') === profile?.station_id &&
+          (record.originalStation || 'SAMALKHA') !== profile?.station_id;
+
         let color = 'green';
         let label = record.ioStatus || 'Registered';
-        if (label === 'Pending') color = 'orange';
-        if (label === 'Under Investigation') color = 'blue';
-        if (label === 'Disposed') color = 'purple';
-        if (label === 'Convert to FIR') color = 'red';
-        return <Tag color={color}>{label}</Tag>;
+        if (isDestination) { label = 'Pending (Transferred In)'; color = 'orange'; }
+        else if (label === 'Pending') color = 'orange';
+        else if (label === 'Under Investigation') color = 'blue';
+        else if (label === 'Disposed') color = 'purple';
+        else if (label === 'Convert to FIR') color = 'red';
+        else if (label === 'Transferred') color = 'volcano';
+        return (
+          <div>
+            <Tag color={color}>{label}</Tag>
+            {record.ioStatus === 'Convert to FIR' && record.linkedFirNumber && (
+              <div style={{ marginTop: 3 }}>
+                <Tag color="volcano" style={{ fontSize: 10, fontFamily: 'monospace' }}>FIR: {record.linkedFirNumber}</Tag>
+              </div>
+            )}
+            {isDestination && record.transferredFrom && (
+              <div style={{ marginTop: 3 }}>
+                <Tag color="geekblue" style={{ fontSize: 10 }}>From: {record.transferredFrom}</Tag>
+              </div>
+            )}
+          </div>
+        );
       },
     },
     {
@@ -303,7 +405,7 @@ export default function SearchComplaints({ onBack, onStartEnquiry, hideHeader })
       key: 'action',
       width: '18%',
       render: (_, record) => (
-        <div style={{ display: 'flex', gap: '6px' }}>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           <Button
             type="default"
             icon={<EyeOutlined />}
@@ -312,13 +414,15 @@ export default function SearchComplaints({ onBack, onStartEnquiry, hideHeader })
           >
             View
           </Button>
-          <Button
-            type="primary"
-            size="small"
-            onClick={() => { if (onStartEnquiry) onStartEnquiry(record.id); }}
-          >
-            Enquire
-          </Button>
+          {record.ioStatus !== 'Convert to FIR' && (
+            <Button
+              type="primary"
+              size="small"
+              onClick={() => { if (onStartEnquiry) onStartEnquiry(record.id); }}
+            >
+              Enquire
+            </Button>
+          )}
         </div>
       ),
     },
@@ -363,12 +467,33 @@ export default function SearchComplaints({ onBack, onStartEnquiry, hideHeader })
           </div>
         }
         open={!!viewComplaint}
-        onCancel={() => setViewComplaint(null)}
+        onCancel={() => {
+          setViewComplaint(null);
+          const params = new URLSearchParams(window.location.search);
+          if (params.has('open_id')) {
+            params.delete('open_id');
+            setSearchParams(params);
+          }
+        }}
         footer={[
-          <Button key="enquire" type="primary" onClick={() => { setViewComplaint(null); if (onStartEnquiry) onStartEnquiry(viewComplaint?.id); }}>
-            Start Enquiry
-          </Button>,
-          <Button key="close" onClick={() => setViewComplaint(null)}>Close</Button>,
+          viewComplaint?.ioStatus !== 'Convert to FIR' && (
+            <Button key="enquire" type="primary" onClick={() => { setViewComplaint(null); if (onStartEnquiry) onStartEnquiry(viewComplaint?.id); }}>
+              Start Enquiry
+            </Button>
+          ),
+          viewComplaint?.ioStatus === 'Convert to FIR' && (
+            <Button key="view-fir" type="primary" danger onClick={() => { setViewComplaint(null); navigate('/fir'); }}>
+              View FIR
+            </Button>
+          ),
+          <Button key="close" onClick={() => {
+            setViewComplaint(null);
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('open_id')) {
+              params.delete('open_id');
+              setSearchParams(params);
+            }
+          }}>Close</Button>,
         ]}
         width={860}
         styles={{

@@ -1,12 +1,154 @@
-import Database from 'better-sqlite3';
-import { join, dirname } from 'path';
+import { execSync } from 'child_process';
+import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __dirname = path.dirname(__filename);
 
-// Open database in the root folder
-const db = new Database(join(__dirname, '../data.db'));
+// Helper function to run a query synchronously in Postgres via a subprocess
+function runPgQuerySync(sql, params = []) {
+  const payload = JSON.stringify({ sql, params });
+  const base64Payload = Buffer.from(payload).toString('base64');
+  
+  try {
+    const resultStr = execSync(`node "${path.join(__dirname, 'pg-worker.js')}" ${base64Payload}`, {
+      env: {
+        ...process.env,
+        PGPASSWORD: process.env.PGPASSWORD || 'Pankaj@36085260'
+      },
+      maxBuffer: 20 * 1024 * 1024 // 20MB buffer for large seed data
+    }).toString();
+    
+    const result = JSON.parse(resultStr);
+    if (result.error) {
+      throw new Error(result.error);
+    }
+    return result.data;
+  } catch (err) {
+    console.error('PostgreSQL execution error:', err.message);
+    throw err;
+  }
+}
+
+function translateQueryAndParams(sql, params = []) {
+  let finalSql = sql;
+  let finalParams = params;
+
+  // Extract all @name placeholders
+  const namedParamRegex = /@([a-zA-Z0-9_]+)/g;
+  let matches = [];
+  let match;
+  while ((match = namedParamRegex.exec(sql)) !== null) {
+    matches.push(match[1]);
+  }
+
+  if (matches.length > 0 && params.length === 1 && typeof params[0] === 'object' && params[0] !== null && !(params[0] instanceof Date)) {
+    const paramObj = params[0];
+    const uniqueNames = [...new Set(matches)];
+    
+    let index = 1;
+    const nameToPlaceholder = {};
+    finalParams = [];
+    for (const name of uniqueNames) {
+      nameToPlaceholder[name] = `$${index}`;
+      finalParams.push(paramObj[name]);
+      index++;
+    }
+    
+    finalSql = sql.replace(/@([a-zA-Z0-9_]+)/g, (m, name) => {
+      return nameToPlaceholder[name] || m;
+    });
+  } else {
+    // Replace ? with $1, $2, etc.
+    let paramCount = 0;
+    let tempSql = '';
+    let inSingleQuote = false;
+    let inDoubleQuote = false;
+    for (let i = 0; i < sql.length; i++) {
+      const char = sql[i];
+      if (char === "'" && sql[i - 1] !== '\\') {
+        inSingleQuote = !inSingleQuote;
+      }
+      if (char === '"' && sql[i - 1] !== '\\') {
+        inDoubleQuote = !inDoubleQuote;
+      }
+      if (char === '?' && !inSingleQuote && !inDoubleQuote) {
+        paramCount++;
+        tempSql += `$${paramCount}`;
+      } else {
+        tempSql += char;
+      }
+    }
+    finalSql = tempSql;
+  }
+
+  // General DDL and query translations
+  finalSql = finalSql.replace(/\bDATETIME\b/gi, 'TIMESTAMP');
+  finalSql = finalSql.replace(/\bREAL\b/gi, 'DOUBLE PRECISION');
+  finalSql = finalSql.replace(/lower\(hex\(randomblob\(8\)\)\)/gi, "substring(md5(random()::text), 1, 16)");
+  finalSql = finalSql.replace(/\bLIKE\b/gi, 'ILIKE');
+
+  if (/INSERT OR IGNORE/gi.test(finalSql)) {
+    finalSql = finalSql.replace(/INSERT OR IGNORE/gi, 'INSERT');
+    if (!/ON CONFLICT/gi.test(finalSql)) {
+      finalSql += ' ON CONFLICT DO NOTHING';
+    }
+  }
+
+  return { sql: finalSql, params: finalParams };
+}
+
+const db = {
+  exec(sql) {
+    const translated = translateQueryAndParams(sql);
+    runPgQuerySync(translated.sql);
+  },
+  prepare(sql) {
+    return {
+      run(...params) {
+        const translated = translateQueryAndParams(sql, params);
+        const rows = runPgQuerySync(translated.sql, translated.params);
+        return { changes: rows ? rows.length : 0, lastInsertRowid: null };
+      },
+      get(...params) {
+        const translated = translateQueryAndParams(sql, params);
+        const rows = runPgQuerySync(translated.sql, translated.params);
+        return rows && rows.length > 0 ? rows[0] : undefined;
+      },
+      all(...params) {
+        const translated = translateQueryAndParams(sql, params);
+        return runPgQuerySync(translated.sql, translated.params) || [];
+      }
+    };
+  },
+  transaction(fn) {
+    return (...args) => {
+      runPgQuerySync('BEGIN');
+      try {
+        const res = fn(...args);
+        runPgQuerySync('COMMIT');
+        return res;
+      } catch (err) {
+        runPgQuerySync('ROLLBACK');
+        throw err;
+      }
+    };
+  },
+  pragma(statement) {
+    const match = /table_info\(([^)]+)\)/i.exec(statement);
+    if (match) {
+      const tableName = match[1].toLowerCase();
+      const sql = `SELECT column_name as name FROM information_schema.columns WHERE table_name = $1`;
+      try {
+        const rows = runPgQuerySync(sql, [tableName]);
+        return rows || [];
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  }
+};
 
 // â”€â”€â”€ Profiles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 db.exec(`
@@ -105,7 +247,7 @@ db.exec(`
     dispatch_date_time TEXT,
 
     -- Meta
-    status TEXT DEFAULT 'under_investigation',
+    status TEXT DEFAULT 'registered',
     registered_by TEXT NOT NULL,
     complaint_id TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -189,7 +331,12 @@ db.exec(`
     incident_date TEXT,
     status TEXT DEFAULT 'pending',
     registered_by TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    assigned_io_id TEXT,
+    assigned_io_name TEXT,
+    io_status TEXT DEFAULT 'Pending',
+    original_station TEXT,
+    raw_data TEXT
   );
 `);
 
@@ -372,6 +519,58 @@ try {
   console.log('Migration note:', err.message);
 }
 
+const DISTRICTS_STATIONS = {
+  'AMBALA': ['AMBALA CANTT','AMBALA CITY','AMBALA SADAR','BALDEV NAGAR','BARARA','MAHESH NAGAR','MULLANA','NAGGAL','NARAINGARH','PANJOKHRA','PARAO AMBALA CANTT','SAHA','SECTOR-9 AMBALA CITY','SHAHZADPUR','WOMEN POLICE STATION NARAINGARH AMBALA','WOMEN POLICE STATION AMBALA'],
+  'BHIWANI': ['BAWANI KHERA','BEHAL','BHIWANI CITY','BHIWANI CIVIL LINES','BHIWANI SADAR','BOND KALAN','DADRI CITY','DADRI SADAR','JUI KALAN PS BHIWANI','LOHARU','PS INDUSTRIAL AREA BHIWANI','SIWANI','TOSHAM','WOMEN POLICE STATION BHIWANI'],
+  'CHARKHI DADRI': ['BADHRA','BOND KALAN','DADRI CITY','DADRI SADAR','JHOJHU KALAN','WOMEN POLICE STATION CHARKHI DADRI'],
+  'FARIDABAD': ['ADARSH NAGAR','BALLABHGARH CITY','BALLABHGARH SADAR','BHUPANI','CHHANSA','DABUA','DHAUJ','FARIDABAD CENTRAL','FARIDABAD KOTWALI','FARIDABAD N.I.T.','FARIDABAD OLD','KHERIPUL','METRO POLICE STATION FARIDABAD','MUJESAR','PALLA','POLICE STATION B.P.T.P.','S.G.M. NAGAR','SARAI KHAWAJA','SARAN','SECTOR-8','SECTOR-17','SECTOR-31 FARIDABAD','SECTOR-58','SURAJ KUND','TIGAON','WOMEN POLICE STATION BALLABGARH','WOMEN POLICE STATION NIT FARIDABAD','WOMEN POLICE STATION FARIDABAD'],
+  'FATEHABAD': ['BHATTU KALAN','BHUNA','CITY FATEHABAD','CITY RATIA','CITY TOHANA','JAKHAL','SADAR FATEHABAD','SADAR RATTIA','SADAR TOHANA','WOMEN POLICE STATION FATEHABAD'],
+  'GURUGRAM': ['BADSHAHPUR','BAJGHERA','BHONDSI','BILASPUR GURUGRAM','CITY SOHANA','CIVIL LINES GURGAON','DLF','DLF PH-3RD','DLF PHASE-1','DLF-II','FURRUKH NAGAR','GURGAON CITY','GURGAON SADAR','INDUSTRIAL SECTOR-7 MANESAR','KHEDKI DAULA','MANESAR','METRO','NEW COLONY','PALAM VIHAR','PATAUDI','PS CYBER MANESAR','RAJENDRA PARK','SECTOR-37','SECTOR-50','SECTOR-53','SECTOR-9A','SECTOR-10','SECTOR-14 GURUGRAM','SOHNA','SUSHANT LOK','UDYOG VIHAR','WOMEN POLICE STATION GURGAON'],
+  'HANSI': ['BASS','HANSI CITY','HANSI SADAR','NARNAUND','PS CYBER CRIME HANSI','WOMEN POLICE STATION HANSI'],
+  'HISAR': ['ADAMPUR','AGROHA','AZAD NAGAR HISAR','BARWALA','CYBER CRIME POLICE STATION HISAR','HISAR CITY','HISAR CIVIL LINES','HISAR SADAR','HTM HISAR','UKLANA','URBAN ESTATE HISAR','WOMEN POLICE STATION HISSAR'],
+  'JHAJJAR': ['ASAUDA','BADLI','BERI','CITY BAHADURGARH','CITY JHAJJAR','DUJANA','LINE PAR BAHADURGARH','MACHHROLI','PS CYBER JHAJJAR','SADAR BAHADURGARH','SADAR JHAJJAR','SAHLAWAS','SECTOR-06 BAHADURGARH','WOMEN POLICE STATION JHAJJAR','WOMEN PS BAHADURGARH JHAJJAR'],
+  'JIND': ['ALEWA','CITY SAFIDON','CIVIL LINE JIND','GARHI','JIND CITY','JIND SADAR','JULANA','NARWANA CITY','NARWANA SADAR','PILLU KHERA','SAFIDON','UCHANA','WOMEN POLICE STATION JIND'],
+  'KAITHAL': ['CHEEKA','CIVIL LINE KAITHAL','DHAND','GUHLA','KAITHAL CITY','KAITHAL SADAR','KALAYAT','PUNDRI','RAJAUND','SIWAN','TITRAM','WOMEN POLICE STATION KAITHAL'],
+  'KARNAL': ['ASSANDH','BUTANA','CYBER CRIME POLICE STATION KARNAL','GHARAUNDA','INDRI','KARNAL CITY','KARNAL CIVIL LINES','KARNAL SADAR','KUNJPURA','MADHUBAN','MUNAK KARNAL','NIGDHU KARNAL','NISSING','RAM NAGAR KARNAL','TARAORI','WOMEN POLICE STATION KARNAL'],
+  'KURUKSHETRA': ['BABAIN','CYBER CRIME POLICE STATION KURUKSHETRA','ISMAILABAD','JHANSA','LADWA','PEHOWA','SHAHABAD','THANESAR CITY','THANESAR SADAR','WOMEN POLICE STATION KURUKSHETRA'],
+  'MAHENDERGARH': ['ATELI','CITY KANINA','CITY MAHENDERGARH','CITY NARNAUL','NANGAL CHAUDHRI','NIZAMPUR','SADAR KANINA','SADAR MAHENDERGARH','SADAR NARNAUL','SATNALI','WOMEN POLICE STATION NARNAUL'],
+  'NUH': ['BICCHOR','CITY NUH','CITY TAURU','FEROZEPUR JHIRKA','NAGINA','PINANGWA','PS CITY PUNHANA','PS MOHAMMADPUR AHIR','PUNHANA','ROZKA MEO','SADAR NUH','SADAR TAURU','WOMEN POLICE STATION MEWAT'],
+  'PALWAL': ['BAHIN','CAMP PALWAL','CHAND HUT','CITY PALWAL','GADPURI','HASSANPUR','HATHIN','HODAL','MUNDKATI','SADAR PALWAL','UTAWAR','WOMEN POLICE STATION PALWAL'],
+  'PANCHKULA': ['CHANDIMANDIR','CYBER CRIME','KALKA','MANSA DEVI COMPLEX','PANCHKULA SECTOR-5','PINJORE','RAIPUR RANI','SECTOR-14 PANCHKULA','SECTOR-20','SECTOR-7 PANCHKULA','WOMEN POLICE STATION PANCHKULA'],
+  'PANIPAT': ['BAPOLI','CHANDNIBAGH','CYBER CRIME POLICE STATION PANIPAT','INDUSTRIAL SECTOR 29 PANIPAT','ISRANA','MATLAUDA','MODEL TOWN PANIPAT','OLD INDUSTRIAL PANIPAT','PANIPAT CITY','PANIPAT SADAR','QUILLA PANIPAT','SAMALKHA','SANOLI','SECTOR 13/17 PANIPAT','TEHSIL CAMP PANIPAT','WOMEN POLICE STATION PANIPAT'],
+  'REWARI': ['BAWAL','DHARUHERA','JATUSANA','KASOLA','KHOL','KOSLI','MODEL TOWN REWARI','RAMPURA','REWARI CITY','REWARI SADAR','ROHADAI','SEC-6 DHARUHERA','WOMEN POLICE STATION REWARI'],
+  'ROHTAK': ['ARYA NAGAR ROHTAK','BAHUAKBARPUR','CYBER POLICE STATION ROHTAK','I.M.T. ROHTAK','KALANAUR','LAKHAN MAJRA','MEHAM','P.G.I.M.S. ROHTAK','PURANI SABZI MANDI ROHTAK','ROHTAK CITY','ROHTAK CIVIL LINES','ROHTAK SADAR','SAMPLA','SHIVAJI COLONY','URBAN ESTATE ROHTAK','WOMEN POLICE STATION ROHTAK'],
+  'SIRSA': ['CITY MANDI DABWALI','CYBER CRIME POLICE STATION SIRSA','DABWALI SADAR','DING','ELLENABAD','KALAN WALI','NATHU SARAI CHOPTA','ODHAN','POLICE STATION CIVIL LINE SIRSA','RANIA','RORI','SIRSA CITY','SIRSA SADAR','WOMEN POLICE STATION SIRSA'],
+  'SONIPAT': ['BAHALGARH','BARAUDA','CIVIL LINE SONIPAT','GANNAUR','GOHANA CITY','GOHANA SADAR','HSIDC BARHI','KHARKHODA','KUNDLI','MOOHANA','MURTHAL','RAI','SECTOR-27 SONIPAT','SONIPAT CITY','SONIPAT SADAR','WOMEN POLICE STATION SONIPAT'],
+  'YAMUNANAGAR': ['BILASPUR','BURIA','CHHACHHRAULI','CHHAPAR','CYBER CRIME POLICE STATION YAMUNANAGAR','FARAKPUR','GANDHI NAGAR YAMUNANAGAR','JAGADDHRI SADAR','JAGADHRI CITY','JATHLANA','PRATAP NAGAR','RADAUR','SADHAURA','WOMEN POLICE STATION YAMUNA NAGAR','YAMUNA NAGAR CITY','YAMUNA NAGAR SADAR'],
+  'DABWALI': ['BARAGUDHA', 'CITY MANDI DABWALI', 'DABWALI SADAR', 'KALAN WALI', 'ODHAN', 'RORI', 'WOMEN POLICE STATION DABWALI SIRSA'],
+  'STATE CRIME BRANCH': ['NODAL CYBER CRIME POLICE STATION HARYANA'],
+  'HSENB': [
+    'HSENB POLICE STATION AMBALA', 'HSENB POLICE STATION FARIDABAD',
+    'HSENB POLICE STATION GURUGRAM', 'HSENB POLICE STATION HISAR',
+    'HSENB POLICE STATION JIND', 'HSENB POLICE STATION KARNAL',
+    'HSENB POLICE STATION REWARI', 'HSENB POLICE STATION ROHTAK',
+    'PS HSENB BHIWANI', 'PS HSENB CHARKHI DADRI', 'PS HSENB FATEHABAD',
+    'PS HSENB JHAJJAR', 'PS HSENB KAITHAL', 'PS HSENB KURUKSHETRA',
+    'PS HSENB MAHENDERGARH', 'PS HSENB NUH', 'PS HSENB PALWAL',
+    'PS HSENB PANCHKULA', 'PS HSENB PANIPAT', 'PS HSENB SIRSA',
+    'PS HSENB SONIPAT', 'PS HSENB YAMUNANAGAR',
+  ],
+  'HSNCB': [
+    'HSNCB UNIT AMBALA', 'HSNCB UNIT BHIWANI', 'HSNCB UNIT FARIDABAD',
+    'HSNCB UNIT FATEHABAD', 'HSNCB UNIT GURUGRAM', 'HSNCB UNIT HISAR',
+    'HSNCB UNIT KARNAL', 'HSNCB UNIT KURUKSHETRA', 'HSNCB UNIT REWARI',
+    'HSNCB UNIT ROHTAK', 'HSNCB UNIT SIRSA',
+  ],
+};
+
+const IO_NAMES = [
+  'Rajesh Kumar','Suresh Singh','Amit Sharma','Vikas Yadav','Rohit Verma',
+  'Sandeep Chauhan','Pankaj Malik','Deepak Nain','Rakesh Hooda','Manoj Dahiya',
+  'Vinod Kumar','Kuldeep Singh','Harish Dewan','Satish Garg','Naresh Dhull',
+  'Ramesh Saini','Ajay Rana','Sanjay Bishnoi','Naveen Arora','Pradeep Goel',
+];
+
 // Seed profiles
 const profileCount = db.prepare('SELECT COUNT(*) as c FROM profiles').get().c;
 if (profileCount === 0) {
@@ -381,11 +580,96 @@ if (profileCount === 0) {
   `);
   const seedProfiles = [
     { id: 'usr-1', username: 'admin', password: 'admin123', role: 'admin', full_name: 'Test Admin', badge_number: 'ADM-001', rank: 'SP', station_id: 'hq' },
-    { id: 'usr-2', username: 'io_1', password: 'io123', role: 'io', full_name: 'Investigating Officer Singh', badge_number: 'IO-101', rank: 'SI', station_id: 'stn-1' },
-    { id: 'usr-3', username: 'sho_1', password: 'sho123', role: 'sho', full_name: 'SHO Kumar', badge_number: 'SHO-201', rank: 'Inspector', station_id: 'stn-1' },
+    { id: 'usr-2', username: 'io_1', password: 'io123', role: 'io', full_name: 'Investigating Officer Singh', badge_number: 'IO-101', rank: 'SI', station_id: 'SAMALKHA' },
+    { id: 'usr-3', username: 'sho_1', password: 'sho123', role: 'sho', full_name: 'SHO Kumar', badge_number: 'SHO-201', rank: 'Inspector', station_id: 'SAMALKHA' },
   ];
   db.transaction((rows) => rows.forEach(r => insertProfile.run(r)))(seedProfiles);
   console.log('Seed profiles created.');
+}
+
+// Auto-seed SHOs if they don't exist
+const shoCount = db.prepare("SELECT COUNT(*) as c FROM profiles WHERE role = 'sho'").get().c;
+if (shoCount <= 1) {
+  console.log('Auto-seeding SHOs...');
+  const seenUsernames = new Set();
+  const existingUsernames = db.prepare(`SELECT username FROM profiles WHERE role = 'sho'`).all().map(r => r.username);
+  existingUsernames.forEach(u => seenUsernames.add(u));
+
+  const uniqueUsername = (base) => {
+    if (!seenUsernames.has(base)) { seenUsernames.add(base); return base; }
+    let i = 2;
+    while (seenUsernames.has(`${base}_${i}`)) i++;
+    seenUsernames.add(`${base}_${i}`);
+    return `${base}_${i}`;
+  };
+
+  const toSHOUsername = (district, station) => {
+    const d = district.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').slice(0, 8);
+    const s = station.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').slice(0, 30);
+    return `sho_${d}_${s}`;
+  };
+
+  const insertSHO = db.prepare(`
+    INSERT INTO profiles (id, username, password, role, full_name, badge_number, rank, station_id, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')
+  `);
+
+  db.transaction(() => {
+    for (const [district, stations] of Object.entries(DISTRICTS_STATIONS)) {
+      for (const station of stations) {
+        const baseUsername = toSHOUsername(district, station);
+        const existingSHO = db.prepare(`SELECT id FROM profiles WHERE role = 'sho' AND station_id = ?`).get(station);
+        if (existingSHO) continue;
+
+        const username = uniqueUsername(baseUsername);
+        const rand = Math.random().toString(36).slice(2, 6);
+        const id = `sho-${district.slice(0,3).toLowerCase().replace(/[^a-z]/g,'')}-${rand}`;
+        const badgeNo = `SHO-${district.slice(0,3).toUpperCase().replace(/[^A-Z]/g,'')}-${station.slice(0,6).replace(/[^A-Z0-9]/gi,'').toUpperCase()}`;
+        const fullName = `SHO ${station}`;
+
+        insertSHO.run(id, username, 'sho123', 'sho', fullName, badgeNo, 'Inspector', station);
+      }
+    }
+  })();
+  console.log('SHOs auto-seeded successfully.');
+}
+
+// Auto-seed IOs if they don't exist
+const ioCount = db.prepare("SELECT COUNT(*) as c FROM profiles WHERE role = 'io'").get().c;
+if (ioCount <= 1) {
+  console.log('Auto-seeding IOs...');
+  const toIOUsername = (district, station, num) => {
+    const d = district.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').slice(0, 8);
+    const s = station.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').slice(0, 25);
+    return `io_${d}_${s}_${num}`;
+  };
+
+  const insertIO = db.prepare(`
+    INSERT INTO profiles (id, username, password, role, full_name, badge_number, rank, station_id, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')
+  `);
+
+  let nameIdx = 0;
+  db.transaction(() => {
+    for (const [district, stations] of Object.entries(DISTRICTS_STATIONS)) {
+      for (const station of stations) {
+        for (let n = 1; n <= 2; n++) {
+          const username = toIOUsername(district, station, n);
+          const existing = db.prepare('SELECT id FROM profiles WHERE username = ?').get(username);
+          if (existing) continue;
+
+          const rand = Math.random().toString(36).slice(2, 6);
+          const id = `io-${district.slice(0,3).toLowerCase().replace(/[^a-z]/g,'')}-${rand}-${n}`;
+          const name = IO_NAMES[nameIdx % IO_NAMES.length];
+          nameIdx++;
+          const badgeNo = `IO-${district.slice(0,3).toUpperCase().replace(/[^A-Z]/g,'')}-${n.toString().padStart(3,'0')}`;
+
+          insertIO.run(id, username, 'io123', 'io', name, badgeNo, 'Sub-Inspector (SI)', station);
+        }
+      }
+    }
+  })();
+  console.log('IOs auto-seeded successfully.');
 }
 
 // --- Seed analysis data ---
@@ -394,20 +678,20 @@ if (caseCount === 0) {
   // Insert cases
   db.prepare(`INSERT INTO cases (id, title, case_type, status, offense_section, station_id, io_id, registered_at, description)
     VALUES (?,?,?,?,?,?,?,?,?)`).run(
-    'case-001', 'Mobile Theft â€“ Sector 14 Market', 'complaint', 'open',
-    'BNS 303', 'stn-1', 'usr-2', '2026-04-01 10:30:00',
+    'case-001', 'Mobile Theft – Sector 14 Market', 'complaint', 'open',
+    'BNS 303', 'SAMALKHA', 'usr-2', '2026-04-01 10:30:00',
     'Complainant Ramesh Kumar reports theft of iPhone 14 from busy market area. Suspects fled on motorcycle.'
   );
   db.prepare(`INSERT INTO cases (id, title, case_type, status, offense_section, station_id, io_id, registered_at, description)
     VALUES (?,?,?,?,?,?,?,?,?)`).run(
-    'case-002', 'FIR â€“ Cyber Fraud â‚¹2.5 Lakh', 'fir', 'investigation',
-    'BNS 318, IT Act 66C', 'stn-1', 'usr-2', '2026-03-20 14:00:00',
-    'Victim Priya Sharma transferred â‚¹2.5 lakh after receiving fraudulent call from "bank official". Multiple accused involved.'
+    'case-002', 'FIR – Cyber Fraud ₹2.5 Lakh', 'fir', 'investigation',
+    'BNS 318, IT Act 66C', 'SAMALKHA', 'usr-2', '2026-03-20 14:00:00',
+    'Victim Priya Sharma transferred ₹2.5 lakh after receiving fraudulent call from "bank official". Multiple accused involved.'
   );
   db.prepare(`INSERT INTO cases (id, title, case_type, status, offense_section, station_id, io_id, registered_at, description)
     VALUES (?,?,?,?,?,?,?,?,?)`).run(
-    'case-003', 'FIR â€“ Drug Peddling (NDPS)', 'fir', 'challan',
-    'NDPS Act 20(b)(ii)', 'stn-1', 'usr-3', '2026-02-10 09:15:00',
+    'case-003', 'FIR – Drug Peddling (NDPS)', 'fir', 'challan',
+    'NDPS Act 20(b)(ii)', 'SAMALKHA', 'usr-3', '2026-02-10 09:15:00',
     'Accused Vikram Yadav and Suresh Nain apprehended with 500g of cannabis near bus stand.'
   );
 
@@ -688,12 +972,14 @@ if (complaintCount === 0) {
       id, complaint_number, complainant_name, complainant_father_name, complainant_dob,
       complainant_nationality, complainant_phone, complainant_occupation,
       complainant_present_address, complainant_permanent_address, complainant_uid,
-      district, police_station, complaint_text, incident_place, incident_date, status
+      district, police_station, complaint_text, incident_place, incident_date, status,
+      assigned_io_id, assigned_io_name, io_status, original_station, raw_data
     ) VALUES (
       @id, @complaint_number, @complainant_name, @complainant_father_name, @complainant_dob,
       @complainant_nationality, @complainant_phone, @complainant_occupation,
       @complainant_present_address, @complainant_permanent_address, @complainant_uid,
-      @district, @police_station, @complaint_text, @incident_place, @incident_date, @status
+      @district, @police_station, @complaint_text, @incident_place, @incident_date, @status,
+      @assigned_io_id, @assigned_io_name, @io_status, @original_station, @raw_data
     )
   `);
 
@@ -765,10 +1051,59 @@ if (complaintCount === 0) {
     },
   ];
 
+  const seedComplaintsWithRaw = seedComplaints.map(c => {
+    const nameParts = c.complainant_name.split(' ');
+    const firstName = nameParts[0];
+    const lastName = nameParts.slice(1).join(' ');
+    
+    const rawRecord = {
+      id: c.id,
+      registrationDate: new Date().toISOString(),
+      dateRegistered: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+      firstName,
+      lastName,
+      mobileNumber: c.complainant_phone,
+      gender: 'Male',
+      natureOfComplaint: 'Citizen/General Public',
+      typeOfAccused: 'Against Private Person',
+      villageTown: c.complainant_present_address,
+      district: c.district,
+      state: 'Haryana',
+      nationality: c.complainant_nationality || 'INDIA',
+      idType: 'Aadhar Card',
+      idNumber: c.complainant_uid,
+      classOfIncident: c.id === 'cmp-005' ? 'Cyber Financial Fraud' : 'Other IPC/BNS Crimes',
+      placeOfIncident: c.incident_place,
+      dateOfIncident: c.incident_date,
+      dateOfComplaint: c.incident_date,
+      typeOfComplaint: 'Fresh Complaint',
+      typeOfComplainant: 'Private Person',
+      complaintPurpose: 'FIR Registration',
+      isFirRegistered: 'No',
+      modeOfReceipt: 'In-Person/By Hand',
+      descriptionOfComplaint: c.complaint_text,
+      ioStatus: 'Pending',
+      policeStation: c.police_station,
+      originalStation: c.police_station,
+      assignedIoId: null,
+      assignedIoName: null,
+      accusedList: []
+    };
+
+    return {
+      ...c,
+      assigned_io_id: null,
+      assigned_io_name: null,
+      io_status: 'Pending',
+      original_station: c.police_station,
+      raw_data: JSON.stringify(rawRecord)
+    };
+  });
+
   const txn = db.transaction((complaints) => {
     for (const c of complaints) insertComplaint.run(c);
   });
-  txn(seedComplaints);
+  txn(seedComplaintsWithRaw);
   console.log('Seed complaints created.');
 }
 
