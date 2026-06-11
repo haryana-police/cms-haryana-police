@@ -1209,41 +1209,28 @@ ${extraHtml}
   <tr><td style="padding:12px; border:1px solid #333;"><p><strong>FINAL REPORT ON THE ENQUIRY CONDUCTED BY THE INVESTIGATING OFFICER -</strong></p></td></tr>
 </table>`;
 
-case 'enquiry_transfer': {
-        const ft = getBaseFields(complaint);
-        const ct = complaint || {};
-        const pst = ct.policeStation || (profile?.policeStation) || '_______';
-        const distt = ct.district || (profile?.district) || '_______';
-        const datet = dayjs().format('DD-MM-YYYY');
-        const regDatet = ct.registrationDate ? dayjs(ct.registrationDate).format('DD/MM/YYYY') : '_______';
-        return `<table style="width:100%; border-collapse:collapse; font-family:Arial,sans-serif;">
+      case 'enquiry_transfer':
+        return `<p><strong>पुलिस विभाग &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; जिला -</strong> <br />			जांच रिपोर्ट परिवाद नम्बरी – </p>
+<table style="width:100%; border-collapse:collapse; border:1px solid #333;">
   <tr>
-    <td style="width:50%;"><strong>थाना - ${pst}</strong></td>
-    <td style="width:50%; text-align:right;"><strong>जिला- ${distt}</strong></td>
+    <td style="padding:8px; border:1px solid #333; width:30%;"><p><strong>परिवादी</strong></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><br></p></td>
   </tr>
-</table>
-<p><strong>क्रमांक - &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</strong>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>दिनांक - ${datet}</strong></p>
-<p><strong>जांच रिपोर्ट परिवाद नम्बरी – ${ft.complaintId}</strong> (अन्य थाने को स्थानांतरण हेतु)</p>
-<p><strong>1. संदर्भ परिवाद विवरण</strong></p>
-<table style="width:100%; border-collapse:collapse; border:1px solid #999;">
-  <tr><td style="padding:6px; border:1px solid #999; width:35%;"><strong>परिवादी</strong></td><td style="padding:6px; border:1px solid #999;">${ft.compName}, मो. ${ft.compPhone}<br>${ft.compAddress}</td></tr>
-  <tr><td style="padding:6px; border:1px solid #999;"><strong>उत्तरवादी</strong></td><td style="padding:6px; border:1px solid #999;">${ft.accusedDetailsBlock}</td></tr>
-  <tr><td style="padding:6px; border:1px solid #999;"><strong>परिवाद प्राप्ति दिनांक</strong></td><td style="padding:6px; border:1px solid #999;">${regDatet}</td></tr>
-  <tr><td style="padding:6px; border:1px solid #999;"><strong>घटना का स्थान</strong></td><td style="padding:6px; border:1px solid #999;">${ft.placeOfIncident}</td></tr>
-  <tr><td style="padding:6px; border:1px solid #999;"><strong>घटना दिनांक एवं समय</strong></td><td style="padding:6px; border:1px solid #999;">${ft.dateOfInc} समय ${ft.timeOfInc}</td></tr>
-</table>
-<p><strong>2. परिवाद का सार</strong></p>
-<p>${ft.actDescription}</p>
-<p><strong>3. जांच एवं क्षेत्राधिकार के तथ्य</strong></p>
-<p>प्रारंभिक जांच की गई। घटना स्थल का सत्यापन किया गया। सत्यापन से ज्ञात हुआ कि घटना की संपूर्ण कार्यवाही थाना ____________, जिला ____________ की सीमा में घटित हुई है। घटना का कोई भी भाग इस थाने की सीमा में नहीं आता।</p>
-<p><strong>4. निष्कर्ष एवं सिफारिश</strong></p>
-<p>क्षेत्राधिकार नियमों के अनुसार इस थाने द्वारा इस परिवाद की जांच नहीं की जा सकती। अतः यह परिवाद सम्बन्धित सभी दस्तावेजों सहित थाना ____________, जिला ____________ को BNSS के प्रावधानों के अन्तर्गत आगे की कार्यवाही हेतु स्थानांतरित करना उचित है।</p>
-<p>&nbsp;</p>
-<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;जांच अधिकारी</p>
-<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;थाना ${pst}, जिला ${distt}</p>`;
-      }
+  <tr>
+    <td style="padding:8px; border:1px solid #333;"><p><strong>परिवाद का सार</strong></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><br></p></td>
+  </tr>
+  <tr>
+    <td style="padding:8px; border:1px solid #333;"><p><strong>उत्तरवादी का विवरण</strong></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><br></p></td>
+  </tr>
+  <tr>
+    <td style="padding:8px; border:1px solid #333;"><p><strong>जांच की स्थिति का विवरण</strong></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><br></p></td>
+  </tr>
+</table>`;
 
-      case 'enquiry_ncr': {
+case 'enquiry_ncr': {
         const fn = getBaseFields(complaint);
         const cn = complaint || {};
         const psn = cn.policeStation || (profile?.policeStation) || '_______';
