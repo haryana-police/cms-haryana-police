@@ -1079,13 +1079,9 @@ ${extraHtml}
     const ce = complaint || {};
     const pse = ce.policeStation || (profile?.policeStation) || '_______';
     const diste = ce.district || (profile?.district) || '_______';
-    const dateE = dayjs().format('DD-MM-YYYY');
     const regDate = ce.registrationDate ? dayjs(ce.registrationDate).format('DD/MM/YYYY') : '_______';
-
-    let toName = '';
-    let toAddress = '';
-    let toPhone = '';
-    let toTypeLabel = '';
+    const appearanceDate = dayjs().add(7, 'day').format('DD/MM/YYYY');
+    const shoEmail = `sho${pse.toLowerCase().replace(/\s+/g, '')}@gmail.com`;
 
     const rawList = (ce.accusedList && ce.accusedList.length > 0)
       ? ce.accusedList
@@ -1094,8 +1090,13 @@ ${extraHtml}
       ? rawList.filter((_, i) => selAccusedInds.includes(i))
       : rawList;
     const selectedAccusedNames = selected.map(a => a.name).join(', ');
-    const selectedAccusedAddresses = selected.map(a => a.address || '_______').join(' / ');
-    
+    const compFullAddress = [ce.villageTown, ce.tehsilBlock, diste, ce.state].filter(Boolean).join(', ') || fe.compAddress;
+
+    let toName = '';
+    let toAddress = '';
+    let toPhone = '';
+    let toTypeLabel = '';
+
     if (recipient === 'complainant') {
       toName = fe.compName;
       toAddress = fe.compAddress;
@@ -1107,26 +1108,29 @@ ${extraHtml}
       toPhone = '';
       toTypeLabel = 'अन्य व्यक्ति';
     } else {
-      // accused
       toName = selectedAccusedNames;
-      toAddress = selectedAccusedAddresses;
+      toAddress = selected.map(a => a.address || '_______').join(' / ');
       toPhone = '';
       toTypeLabel = 'उत्तरवादी';
     }
 
-    const phoneLine = toPhone ? `<br>मो. ${toPhone}` : '';
-    
-    let bodyIntro = '';
-    if (recipient === 'complainant') {
-      bodyIntro = `उपरोक्त विषयान्तर्गत आपको सूचित किया जाता है कि आपका परिवाद संख्या <strong>${fe.complaintId}</strong>, जो दिनांक ${regDate} को इस थाने में प्राप्त हुआ था, की प्रारंभिक जांच जारी है।`;
-    } else if (recipient === 'accused') {
-      bodyIntro = `उपरोक्त विषयान्तर्गत आपको सूचित किया जाता है कि आपके विरुद्ध परिवाद संख्या <strong>${fe.complaintId}</strong>, जो दिनांक ${regDate} को इस थाने में प्राप्त हुआ था, की प्रारंभिक जांच जारी है।`;
-    } else {
-      bodyIntro = `उपरोक्त विषयान्तर्गत आपको सूचित किया जाता है कि परिवाद संख्या <strong>${fe.complaintId}</strong>, जो दिनांक ${regDate} को इस थाने में प्राप्त हुआ था, की प्रारंभिक जांच जारी है।`;
-    }
+    let bodyPara1 = '';
+    let bodyPara2 = '';
+    let bodyPara3 = '';
 
-    const targetAccusedName = (recipient === 'accused' || (selAccusedInds && selAccusedInds.length > 0)) ? selectedAccusedNames : fe.accName;
-    const targetAccusedAddress = (recipient === 'accused' || (selAccusedInds && selAccusedInds.length > 0)) ? selectedAccusedAddresses : fe.accAddress;
+    if (recipient === 'complainant') {
+      bodyPara1 = `आपको सूचित किया जाता है कि परिवादी <strong>${fe.compName}</strong> निवासी ${compFullAddress} थाना ${pse} ${diste} द्वारा प्रस्तुत परिवाद संख्या <strong>${fe.complaintId}</strong> दिनांक ${regDate} थाना ${pse}, जिला ${diste} में प्राप्त हुआ है। उक्त परिवाद की प्रारंभिक जांच की जानी प्रस्तावित है।`;
+      bodyPara2 = `अतः आप परिवादी <strong>${fe.compName}</strong> को निर्देशित किया जाता है कि दिनांक <strong>${appearanceDate}</strong> को प्रातः <strong>11:00 बजे</strong> प्रारंभिक जांच के दौरान समस्त संबंधित दस्तावेजों, साक्षों एवं अन्य आवश्यक सामग्री सहित व्यक्तिगत रूप से उपस्थित होना सुनिश्चित करें। यदि आप स्वयं उपस्थित होने में असमर्थ हों तो अपने अधिकृत प्रतिनिधि को भेज सकते हैं।`;
+      bodyPara3 = `यदि आप शिकायत की जांच के संबंध में वीडियो कॉन्फ्रेंसिंग के माध्यम से अपनी उपस्थिति दर्ज कराना चाहते हैं, तो कृपया दिनांक <strong>${appearanceDate}</strong> से पूर्व थाना प्रभारी के ईमेल <strong>${shoEmail}</strong> पर लिखित अनुरोध प्रेषित करना सुनिश्चित करें।`;
+    } else if (recipient === 'accused') {
+      bodyPara1 = `आपको सूचित किया जाता है कि परिवादी <strong>${fe.compName}</strong> निवासी ${compFullAddress} थाना ${pse} ${diste} द्वारा प्रस्तुत परिवाद संख्या <strong>${fe.complaintId}</strong> दिनांक ${regDate} थाना ${pse}, जिला ${diste} में प्राप्त हुआ है। उक्त परिवाद की प्रारंभिक जांच की जानी प्रस्तावित है।`;
+      bodyPara2 = `अतः आप उत्तरवादी <strong>${selectedAccusedNames}</strong> को निर्देशित किया जाता है कि दिनांक <strong>${appearanceDate}</strong> को प्रातः <strong>11:00 बजे</strong> प्रारंभिक जांच के दौरान समस्त संबंधित दस्तावेजों, साक्षों एवं अन्य आवश्यक सामग्री सहित व्यक्तिगत रूप से उपस्थित होना सुनिश्चित करें। यदि आप स्वयं उपस्थित होने में असमर्थ हों तो अपने अधिकृत प्रतिनिधि को भेज सकते हैं।`;
+      bodyPara3 = `यदि आप शिकायत की जांच के संबंध में वीडियो कॉन्फ्रेंसिंग के माध्यम से अपनी उपस्थिति दर्ज कराना चाहते हैं, तो कृपया दिनांक <strong>${appearanceDate}</strong> से पूर्व थाना प्रभारी के ईमेल <strong>${shoEmail}</strong> पर लिखित अनुरोध प्रेषित करना सुनिश्चित करें।`;
+    } else {
+      bodyPara1 = `आपको सूचित किया जाता है कि परिवादी <strong>${fe.compName}</strong> निवासी ${compFullAddress} थाना ${pse} ${diste} द्वारा प्रस्तुत परिवाद संख्या <strong>${fe.complaintId}</strong> दिनांक ${regDate} थाना ${pse}, जिला ${diste} में प्राप्त हुआ है।`;
+      bodyPara2 = `अतः आपको निर्देशित किया जाता है कि दिनांक <strong>${appearanceDate}</strong> को प्रातः <strong>11:00 बजे</strong> प्रारंभिक जांच के दौरान समस्त संबंधित दस्तावेजों, साक्षों एवं अन्य आवश्यक सामग्री सहित व्यक्तिगत रूप से उपस्थित होना सुनिश्चित करें। यदि आप स्वयं उपस्थित होने में असमर्थ हों तो अपने अधिकृत प्रतिनिधि को भेज सकते हैं।`;
+      bodyPara3 = `यदि आप शिकायत की जांच के संबंध में वीडियो कॉन्फ्रेंसिंग के माध्यम से अपनी उपस्थिति दर्ज कराना चाहते हैं, तो कृपया दिनांक <strong>${appearanceDate}</strong> से पूर्व थाना प्रभारी के ईमेल <strong>${shoEmail}</strong> पर लिखित अनुरोध प्रेषित करना सुनिश्चित करें।`;
+    }
 
     return `<table style="width:100%; border-collapse:collapse; font-family:Arial,sans-serif;">
   <tr>
@@ -1134,17 +1138,14 @@ ${extraHtml}
     <td style="width:50%; text-align:right;"><strong>जिला- ${diste}</strong></td>
   </tr>
 </table>
-<p><strong>क्रमांक - &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</strong>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>दिनांक - ${dateE}</strong></p>
-<p><strong>विषय:</strong> परिवाद संख्या <strong>${fe.complaintId}</strong> के सम्बन्ध में स्थिति अद्यतन।</p>
-<p>सेवा में,</p>
-<p><strong>${toTypeLabel === 'अन्य व्यक्ति' ? toName : `${toTypeLabel} ${toName}`}</strong><br>${toAddress}${phoneLine}</p>
-<p>महोदय/महोदया,</p>
-<p>&nbsp;&nbsp;&nbsp;&nbsp;${bodyIntro}</p>
-<p>परिवाद में लगाए गए आरोपों की जांच उत्तरवादी <strong>${targetAccusedName}</strong> निवासी ${targetAccusedAddress} के विरुद्ध की जा रही है। जांच प्रक्रिया के अंतर्गत आवश्यक साक्ष्य एकत्रित किए जा रहे हैं।</p>
-<p>किसी भी जानकारी हेतु थाना <strong>${pse}</strong> से संपर्क किया जा सकता है।</p>
+<p><strong>विषय:</strong> परिवाद संख्या <strong>${fe.complaintId}</strong> दिनांक ${regDate} के संबंध में प्रारंभिक जांच हेतु सूचना</p>
+<p>महोदय,</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;${bodyPara1}</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;${bodyPara2}</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;${bodyPara3}</p>
 <p>&nbsp;</p>
-<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;थाना प्रभारी</p>
-<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;थाना ${pse}, जिला ${diste}</p>`;
+<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;थाना प्रभारी</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;थाना ${pse}, जिला ${diste}</p>`;
   };
 
   const generateTemplateText = (templateType, complaint) => {
@@ -2325,6 +2326,38 @@ Follow these rules strictly:
                               </Col>
                             </Row>
                           )}
+
+                          {/* -- Draft Email with AI block -- */}
+                          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #303030' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                              <div>
+                                <Text strong style={{ display: 'block', marginBottom: 2, color: '#1890ff' }}>
+                                  <RobotOutlined style={{ marginRight: 6 }} />
+                                  Draft Email with AI
+                                </Text>
+                                <Text type="secondary" style={{ fontSize: 12 }}>
+                                  Describe what you want to write — AI will draft the full email.
+                                </Text>
+                              </div>
+                              <Button
+                                type="primary"
+                                icon={<RobotOutlined />}
+                                onClick={handleGenerateEmailWithAI}
+                                loading={isAiLoading}
+                                disabled={!emailPrompt.trim()}
+                                size="small"
+                              >
+                                Generate
+                              </Button>
+                            </div>
+                            <TextArea
+                              rows={2}
+                              placeholder="E.g., Write that accused should appear on 25th June with all documents related to the land dispute."
+                              value={emailPrompt}
+                              onChange={e => setEmailPrompt(e.target.value)}
+                              style={{ resize: 'none', width: '100%' }}
+                            />
+                          </div>
                         </div>
                       )}
 
