@@ -1157,96 +1157,59 @@ ${extraHtml}
         return generateEmailText(complaint, emailRecipient, emailOtherPersonName, emailOtherPersonAddress, emailSelectedAccusedIndices);
       }
 
-      case 'enquiry_rajinama':
+            case 'enquiry_rajinama':
         return `<p><strong>पुलिस विभाग &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; जिला -</strong> <br />			जांच रिपोर्ट परिवाद नम्बरी – </p>
-<table>
+<table style="width:100%; border-collapse:collapse; border:1px solid #333;">
   <tr>
-    <td><p><strong>परिवादी </strong></p></td>
-    <td><p><br></p></td>
+    <td style="padding:8px; border:1px solid #333; width:30%;"><p><strong>परिवादी</strong></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><br></p></td>
   </tr>
   <tr>
-    <td><p><strong>परिवाद का सार </strong></p></td>
-    <td><p><br></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><strong>परिवाद का सार</strong></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><br></p></td>
   </tr>
   <tr>
-    <td><p><strong>उत्तरवादी का विवरण </strong></p></td>
-    <td><p><br></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><strong>उत्तरवादी का विवरण</strong></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><br></p></td>
   </tr>
   <tr>
-    <td><p><strong>जांच की स्थिति का विवरण </strong></p></td>
-    <td><p><br></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><strong>जांच की स्थिति का विवरण</strong></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><br></p></td>
   </tr>
 </table>`;
 
-      case 'enquiry_civil_land':
+            case 'enquiry_civil_land':
         return `<p><strong>पुलिस विभाग &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; जिला -</strong> <br />			जांच रिपोर्ट परिवाद नम्बरी – </p>
-<table>
+<table style="width:100%; border-collapse:collapse; border:1px solid #333;">
   <tr>
-    <td><p><strong>परिवादी </strong></p></td>
-    <td><p><br></p></td>
+    <td style="padding:8px; border:1px solid #333; width:30%;"><p><strong>परिवादी</strong></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><br></p></td>
   </tr>
   <tr>
-    <td><p><strong>परिवाद का सार </strong></p></td>
-    <td><p><br></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><strong>परिवाद का सार</strong></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><br></p></td>
   </tr>
   <tr>
-    <td><p><strong>उत्तरवादी का विवरण </strong></p></td>
-    <td><p><br></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><strong>उत्तरवादी का विवरण</strong></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><br></p></td>
   </tr>
   <tr>
-    <td><p><strong>जांच की स्थिति का विवरण </strong></p></td>
-    <td><p><br></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><strong>जांच की स्थिति का विवरण</strong></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><br></p></td>
   </tr>
 </table>`;
 
-      case 'enquiry_civil_finance': {
-        const fcf = getBaseFields(complaint);
-        const ccf = complaint || {};
-        const pscf = ccf.policeStation || (profile?.policeStation) || '_______';
-        const distcf = ccf.district || (profile?.district) || '_______';
-        const datecf = dayjs().format('DD-MM-YYYY');
-        const regDatecf = ccf.registrationDate ? dayjs(ccf.registrationDate).format('DD/MM/YYYY') : '_______';
-        return `<table style="width:100%; border-collapse:collapse; font-family:Arial,sans-serif;">
-  <tr>
-    <td style="width:50%;"><strong>थाना - ${pscf}</strong></td>
-    <td style="width:50%; text-align:right;"><strong>जिला- ${distcf}</strong></td>
-  </tr>
-</table>
-<p><strong>क्रमांक - &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</strong>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>दिनांक - ${datecf}</strong></p>
-<p><strong>जांच रिपोर्ट परिवाद नम्बरी – ${fcf.complaintId}</strong></p>
-<table style="width:100%; border-collapse:collapse; border:1px solid #999;">
-  <tr style="border:1px solid #999;">
-    <td style="padding:6px; border:1px solid #999; width:35%;"><p><strong>परिवादी का विवरण</strong></p></td>
-    <td style="padding:6px; border:1px solid #999;"><p>${fcf.compName}<br>मो. ${fcf.compPhone}<br>${fcf.compAddress}</p></td>
-  </tr>
-  <tr style="border:1px solid #999;">
-    <td style="padding:6px; border:1px solid #999;"><p><strong>परिवाद प्राप्ति दिनांक</strong></p></td>
-    <td style="padding:6px; border:1px solid #999;"><p>${regDatecf}</p></td>
-  </tr>
-  <tr style="border:1px solid #999;">
-    <td style="padding:6px; border:1px solid #999;"><p><strong>उत्तरवादी का विवरण</strong></p></td>
-    <td style="padding:6px; border:1px solid #999;"><p>${fcf.accusedDetailsBlock}</p></td>
-  </tr>
-  <tr style="border:1px solid #999;">
-    <td style="padding:6px; border:1px solid #999;"><p><strong>परिवाद में लगाए गए आरोप</strong></p></td>
-    <td style="padding:6px; border:1px solid #999;"><p>${fcf.actDescription}</p></td>
-  </tr>
-  <tr style="border:1px solid #999;">
-    <td style="padding:6px; border:1px solid #999;"><p><strong>रिपोर्ट दिनांक</strong></p></td>
-    <td style="padding:6px; border:1px solid #999;"><p>${datecf}</p></td>
-  </tr>
-  <tr style="border:1px solid #999;">
-    <td style="padding:6px; border:1px solid #999;"><p><strong>नागरिक संतुष्टि</strong></p></td>
-    <td style="padding:6px; border:1px solid #999;"><p><br></p></td>
-  </tr>
-  <tr style="border:1px solid #999;">
-    <td style="padding:6px; border:1px solid #999;"><p><strong>जांच अधिकारी की अंतिम रिपोर्ट</strong></p></td>
-    <td style="padding:6px; border:1px solid #999;"><p><br></p></td>
-  </tr>
+            case 'enquiry_civil_finance':
+        return `<table style="width:100%; border-collapse:collapse; border:1px solid #333;">
+  <tr><td style="padding:12px; border:1px solid #333;"><p><strong>DEPARTMENT - POLICE</strong></p></td></tr>
+  <tr><td style="padding:12px; border:1px solid #333;"><p><strong>CITIZEN DETAIL -<br>NAME -<br>MOBILE NO -<br>ADDRESS -</strong></p></td></tr>
+  <tr><td style="padding:12px; border:1px solid #333;"><p><strong>ALLEGATIONS MADE IN THE COMPLAINT -</strong></p></td></tr>
+  <tr><td style="padding:12px; border:1px solid #333;"><p><strong>DATE OF REPORT -</strong></p></td></tr>
+  <tr><td style="padding:12px; border:1px solid #333;"><p><strong>CITIZEN SATISFACTION -</strong></p></td></tr>
+  <tr><td style="padding:12px; border:1px solid #333;"><p><strong>FINAL REPORT ON THE ENQUIRY CONDUCTED BY THE INVESTIGATING OFFICER -</strong></p></td></tr>
 </table>`;
-      }
 
-      case 'enquiry_transfer': {
+case 'enquiry_transfer': {
         const ft = getBaseFields(complaint);
         const ct = complaint || {};
         const pst = ct.policeStation || (profile?.policeStation) || '_______';
@@ -1311,22 +1274,22 @@ ${extraHtml}
 <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;थाना ${psn}, जिला ${distn}</p>`;
       }
 
-      case 'enquiry_fir':
+            case 'enquiry_fir':
         return `<p><strong>पुलिस विभाग &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;जिला-</strong></p>
 <p>श्रीमान जी </p>
-<p>&nbsp;&nbsp;&nbsp;&nbsp; परिवाद नम्बरी: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; पेशी दिनांक: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; शिकायतकर्ता: </p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp; परिवाद नम्बरी &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; पेशी दिनांक- &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; शिकायतकर्ता संपदा अधिकारी ह.श.वि.प्रा. पानीपत</p>
 <p>जांच हेतु प्राप्त हुई |</p>
-<p>परिवाद की जांच रिपोर्ट इस प्रकार है-<br /></p>
-<table>
+<p>परिवाद की जांच रिपोर्ट इस प्रकार है-</p>
+<table style="width:100%; border-collapse:collapse; border:1px solid #333; text-align:left;">
   <tr>
-    <td><p><strong>शिकायतकर्ता द्वारा लगाए गये आरोप (बिन्दुवार)</strong></p></td>
-    <td><p><strong>जांच का विवरण (सही/गलत) बिन्दुवार कारण सहित</strong></p></td>
-    <td><p><strong>स्थानीय पुलिस /एस.एच.ओ. द्वारा की गई कार्यवाही</strong></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><strong>शिकायतकर्ता द्वारा लगाए गये आरोप(बिन्दुवार)</strong></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><strong>जांच का विवरण (सही/गलत) बिन्दुवार कारण सहित</strong></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><strong>स्थानीय पुलिस /एस.एच.ओ. द्वारा की गई कार्यवाही</strong></p></td>
   </tr>
   <tr>
-    <td><p><br></p></td>
-    <td><p><br></p></td>
-    <td><p><br></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><br><br><br></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><br></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><br></p></td>
   </tr>
 </table>`;
 
