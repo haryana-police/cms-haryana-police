@@ -90,6 +90,58 @@ export default function Enquiry({ onBack, preSelectedComplaintId }) {
     sessionStorage.setItem('enquiry_documentText', documentText);
   }, [documentText]);
 
+  // Notice template tracking states — declared here (before their useEffects to avoid TDZ)
+  const [noticeIsDefault, setNoticeIsDefault] = useState(
+    () => sessionStorage.getItem('enquiry_noticeIsDefault') === 'true'
+  );
+  const [currentUploadedTemplateId, setCurrentUploadedTemplateId] = useState(
+    () => sessionStorage.getItem('enquiry_currentUploadedTemplateId') || null
+  );
+
+  useEffect(() => {
+    sessionStorage.setItem('enquiry_noticeIsDefault', noticeIsDefault);
+  }, [noticeIsDefault]);
+
+  useEffect(() => {
+    sessionStorage.setItem('enquiry_currentUploadedTemplateId', currentUploadedTemplateId || '');
+  }, [currentUploadedTemplateId]);
+
+  // Email template tracking states
+  const [emailRecipient, setEmailRecipient] = useState(
+    () => sessionStorage.getItem('enquiry_emailRecipient') || 'complainant'
+  );
+  const [emailOtherPersonName, setEmailOtherPersonName] = useState(
+    () => sessionStorage.getItem('enquiry_emailOtherPersonName') || ''
+  );
+  const [emailOtherPersonAddress, setEmailOtherPersonAddress] = useState(
+    () => sessionStorage.getItem('enquiry_emailOtherPersonAddress') || ''
+  );
+  const [emailSelectedAccusedIndices, setEmailSelectedAccusedIndices] = useState(
+    () => {
+      try {
+        return JSON.parse(sessionStorage.getItem('enquiry_emailSelectedAccusedIndices')) || [];
+      } catch (_) {
+        return [];
+      }
+    }
+  );
+
+  useEffect(() => {
+    sessionStorage.setItem('enquiry_emailRecipient', emailRecipient);
+  }, [emailRecipient]);
+
+  useEffect(() => {
+    sessionStorage.setItem('enquiry_emailOtherPersonName', emailOtherPersonName);
+  }, [emailOtherPersonName]);
+
+  useEffect(() => {
+    sessionStorage.setItem('enquiry_emailOtherPersonAddress', emailOtherPersonAddress);
+  }, [emailOtherPersonAddress]);
+
+  useEffect(() => {
+    sessionStorage.setItem('enquiry_emailSelectedAccusedIndices', JSON.stringify(emailSelectedAccusedIndices));
+  }, [emailSelectedAccusedIndices]);
+
   const [ioList, setIoList] = useState([]);
   const [selectedIoForAssign, setSelectedIoForAssign] = useState(null);
   const [statusUpdate, setStatusUpdate] = useState('');
@@ -106,6 +158,9 @@ export default function Enquiry({ onBack, preSelectedComplaintId }) {
   const [emailPrompt, setEmailPrompt] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isReportTranslating, setIsReportTranslating] = useState(false);
+
+  // Enquiry Report modification prompt state
+  const [reportPrompt, setReportPrompt] = useState('');
 
   // Custom templates state
   const [customTemplates, setCustomTemplates] = useState(() => 
@@ -428,12 +483,39 @@ export default function Enquiry({ onBack, preSelectedComplaintId }) {
     }
   };
 
-  const fillTemplatePlaceholders = (text, complaint) => {
+  // recipientCtx (optional): { toName, toAddress, toType } for notice recipient-aware placeholders
+  const fillTemplatePlaceholders = (text, complaint, recipientCtx = null) => {
     if (!text) return '';
     const f = getBaseFields(complaint);
     const dateToday = dayjs().format('DD-MM-YYYY');
 
-    return text
+    // Recipient-aware substitutions (used in notice templates)
+    const toName    = recipientCtx?.toName    ?? f.accName;
+    const toAddress = recipientCtx?.toAddress ?? f.accAddress;
+    const toType    = recipientCtx?.toType    ?? 'उत्तरवादी';
+
+    // When sending notice to specific accused — override {{accusedName}} with the selected ones
+    // This makes templates using {{accusedName}} work without requiring {{toName}} placeholder
+    const dynamicAccName    = (recipientCtx && toType === 'उत्तरवादी') ? toName    : f.accName;
+    const dynamicAccAddress = (recipientCtx && toType === 'उत्तरवादी') ? toAddress : f.accAddress;
+
+    const ps = complaint?.policeStation || (profile?.policeStation) || '_______';
+    const dist = complaint?.district || (profile?.district) || '_______';
+    const formattedRegDate = complaint?.registrationDate
+      ? dayjs(complaint.registrationDate).format('DD/MM/YYYY')
+      : (complaint?.dateOfComplaint ? dayjs(complaint.dateOfComplaint).format('DD/MM/YYYY') : '_______');
+    const appearanceDate = dayjs().add(7, 'day').format('DD/MM/YYYY');
+    const email = `sho${ps.toLowerCase().replace(/\s+/g, '')}@gmail.com`;
+
+    let resultText = text
+      // Recipient-aware placeholders (for uploaded notice templates)
+      .replace(/\{\{toName\}\}/g, toName)
+      .replace(/\{\{toAddress\}\}/g, toAddress)
+      .replace(/\{\{toType\}\}/g, toType)
+      .replace(/\{\{noticeToName\}\}/g, toName)
+      .replace(/\{\{noticeToAddress\}\}/g, toAddress)
+      .replace(/\{\{noticeToType\}\}/g, toType)
+      // Standard complaint placeholders (accused overridden when recipient context given)
       .replace(/\{\{complaintId\}\}/g, f.complaintId)
       .replace(/\$\{complaintId\}/g, f.complaintId)
       .replace(/\{\{complainantName\}\}/g, f.compName)
@@ -442,10 +524,10 @@ export default function Enquiry({ onBack, preSelectedComplaintId }) {
       .replace(/\$\{compPhone\}/g, f.compPhone)
       .replace(/\{\{complainantAddress\}\}/g, f.compAddress)
       .replace(/\$\{compAddress\}/g, f.compAddress)
-      .replace(/\{\{accusedName\}\}/g, f.accName)
-      .replace(/\$\{accName\}/g, f.accName)
-      .replace(/\{\{accusedAddress\}\}/g, f.accAddress)
-      .replace(/\$\{accAddress\}/g, f.accAddress)
+      .replace(/\{\{accusedName\}\}/g, dynamicAccName)
+      .replace(/\$\{accName\}/g, dynamicAccName)
+      .replace(/\{\{accusedAddress\}\}/g, dynamicAccAddress)
+      .replace(/\$\{accAddress\}/g, dynamicAccAddress)
       .replace(/\{\{accusedInlineBlock\}\}/g, f.accusedInlineBlock)
       .replace(/\{\{accusedDetailsBlock\}\}/g, f.accusedDetailsBlock)
       .replace(/\{\{incidentClass\}\}/g, f.incidentClass)
@@ -459,6 +541,97 @@ export default function Enquiry({ onBack, preSelectedComplaintId }) {
       .replace(/\{\{dateToday\}\}/g, dateToday)
       .replace(/\{\{date\}\}/g, dateToday)
       .replace(/\$\{dateToday\}/g, dateToday);
+
+    // Smart replacement of hardcoded test values from Notice_Transcribed.docx & SHO_Official_Email_Hindi.docx
+    // 1. Complaint ID (485-Peshi):
+    resultText = resultText.replace(/485-Peshi/g, f.complaintId);
+
+    // 2. Dates:
+    // Registration Date (20/04/2026):
+    resultText = resultText.replace(/20\/04\/2026/g, formattedRegDate);
+    // Appearance Date (04/06/2026):
+    resultText = resultText.replace(/04\/06\/2026/g, appearanceDate);
+    // Support if it is written as 17/06/2026 or 18/06/2026
+    resultText = resultText.replace(/(?:17|18)\/06\/2026/g, appearanceDate);
+
+    // 3. Email (shosamalkha@gmail.com):
+    resultText = resultText.replace(/shosamalkha@gmail\.com/g, email);
+
+    // 4. Police Station & District references:
+    resultText = resultText.replace(/थाना\s+समालखा,\s+जिला\s+पानीपत/g, `थाना ${ps}, जिला ${dist}`);
+    resultText = resultText.replace(/थाना\s+समालखा\s+पानीपत/g, `थाना ${ps} ${dist}`);
+
+    // 5. Dynamic Recipient Types:
+    resultText = resultText.replace(/आप\s+उत्तरवादी\s+को/g, `आप ${toType} <strong>${toName}</strong> को`);
+    resultText = resultText.replace(/आप\s+परिवादी\s+को/g, `आप ${toType} <strong>${toName}</strong> को`);
+
+    // 6. Complainant / Recipient names & addresses replacement:
+    if (/रामधन\s+सरपंच/.test(resultText)) {
+      const regex = /परिवादी\s+(?:श्री\s+)?रामधन\s+सरपंच(?:\s+गांव\s+राक्?सेडा(?:\s+थाना\s+समालखा\s+पानीपत)?)?/g;
+      let matchCount = 0;
+      resultText = resultText.replace(regex, (match) => {
+        matchCount++;
+        if (matchCount === 1) {
+          return `परिवादी ${f.compName} निवासी ${f.compAddress}`;
+        } else {
+          return `${toType} ${toName} निवासी ${toAddress}`;
+        }
+      });
+
+      // Also replace isolated complainant name if any left
+      resultText = resultText.replace(/(?:श्री\s+)?रामधन\s+सरपंच/g, f.compName);
+    }
+
+    // 7. Spaced header placeholders at the top
+    resultText = resultText.replace(/थाना\s*-\s*(\s{5,})\s*जिला\s*-\s*/g, 'थाना - ' + ps + '$1जिला- ' + dist);
+    // Replace any empty district/station references:
+    resultText = resultText.replace(/थाना\s*-\s* जिला\s*-\s*$/g, `थाना - ${ps} जिला- ${dist}`);
+
+    return resultText;
+  };
+
+  // Build recipient context object based on current UI selection
+  const getRecipientContext = (recipient, selAccusedInds = [], isEmail = false) => {
+    const c = selectedComplaint || {};
+    const f = getBaseFields(selectedComplaint);
+    if (recipient === 'complainant') {
+      return { toName: f.compName, toAddress: f.compAddress, toType: 'परिवादी' };
+    } else if (recipient === 'other') {
+      return {
+        toName: (isEmail ? emailOtherPersonName : otherPersonName) || '_______',
+        toAddress: (isEmail ? emailOtherPersonAddress : otherPersonAddress) || '_______',
+        toType: 'अन्य व्यक्ति'
+      };
+    } else {
+      // accused — respect specific selection
+      const rawList = (c.accusedList && c.accusedList.length > 0)
+        ? c.accusedList
+        : (c.accusedName ? [{ name: c.accusedName, address: c.accusedAddress || '' }] : [{ name: '[Accused Name]', address: '' }]);
+      const selected = selAccusedInds && selAccusedInds.length > 0
+        ? rawList.filter((_, i) => selAccusedInds.includes(i))
+        : rawList;
+      return {
+        toName: selected.map(a => a.name).join(', '),
+        toAddress: selected.map(a => a.address || '_______').join(' / '),
+        toType: 'उत्तरवादी'
+      };
+    }
+  };
+
+  // Re-fill an uploaded template with updated recipient context
+  // Returns the refilled HTML string, or null if no template found
+  const refillUploadedTemplate = (templateId, recipient, selAccusedInds, category = 'notice', allTemplates = customTemplates) => {
+    // Fallback: find any uploaded template in this category if ID is missing (e.g. after page reload)
+    const tmpl = allTemplates.find(t => t.id === templateId)
+      || allTemplates.find(t => t.category === category);
+    if (!tmpl) return null;
+    // Update currentUploadedTemplateId if it was null
+    if (!templateId || templateId !== tmpl.id) {
+      setCurrentUploadedTemplateId(tmpl.id);
+    }
+    const isEmail = (category === 'email');
+    const ctx = getRecipientContext(recipient, selAccusedInds, isEmail);
+    return fillTemplatePlaceholders(tmpl.content, selectedComplaint, ctx);
   };
 
   // handleToggleRecording replaced by useWhisperSTT hook
@@ -585,6 +758,10 @@ Only output the translated HTML. Do not include any explanations, preambles, or 
       otherPersonAddress,
       customSections,
       selectedAccusedIndices,
+      emailRecipient,
+      emailOtherPersonName,
+      emailOtherPersonAddress,
+      emailSelectedAccusedIndices,
       updatedAt: new Date().toISOString()
     };
     
@@ -601,6 +778,10 @@ Only output the translated HTML. Do not include any explanations, preambles, or 
     setOtherPersonAddress(savedDraft.otherPersonAddress || '');
     setCustomSections(savedDraft.customSections || []);
     setSelectedAccusedIndices(savedDraft.selectedAccusedIndices || []);
+    setEmailRecipient(savedDraft.emailRecipient || 'complainant');
+    setEmailOtherPersonName(savedDraft.emailOtherPersonName || '');
+    setEmailOtherPersonAddress(savedDraft.emailOtherPersonAddress || '');
+    setEmailSelectedAccusedIndices(savedDraft.emailSelectedAccusedIndices || []);
     setSavedDraft(null); // Clear the alert once resumed
     message.success('Draft loaded successfully!');
   };
@@ -793,6 +974,11 @@ Only output the translated HTML. Do not include any explanations, preambles, or 
     setCustomSection('');
     setEmailPrompt('');
     setSelectedAccusedIndices([]);
+    setEmailRecipient('complainant');
+    setEmailOtherPersonName('');
+    setEmailOtherPersonAddress('');
+    setEmailSelectedAccusedIndices([]);
+    setReportPrompt('');
   };
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -839,33 +1025,126 @@ Only output the translated HTML. Do not include any explanations, preambles, or 
 
   // Build notice addressed to the selected recipient
   const generateNoticeText = (complaint, recipient, otherName, otherAddr, extraSections, selAccusedInds = []) => {
-    return `NOTICE FOR APPEARANCE
+    const f = getBaseFields(complaint);
+    const c = complaint || {};
+    const ps = c.policeStation || (profile?.policeStation) || '_______';
+    const dist = c.district || (profile?.district) || '_______';
+    const dateToday = dayjs().format('DD-MM-YYYY');
+    const formattedRegDate = c.registrationDate ? dayjs(c.registrationDate).format('DD/MM/YYYY') : '_______';
+    const appearanceDate = dayjs().add(7, 'day').format('DD/MM/YYYY');
+    const email = `sho${ps.toLowerCase().replace(/\s+/g, '')}@gmail.com`;
 
-Notice Number: _________________
-Date: _________________
-Complaint ID: _________________
+    // Determine recipient name & address
+    let toName = '';
+    let toAddress = '';
+    if (recipient === 'complainant') {
+      toName = f.compName;
+      toAddress = f.compAddress;
+    } else if (recipient === 'other') {
+      toName = otherName || '_______';
+      toAddress = otherAddr || '_______';
+    } else {
+      // accused — respect selected indices
+      const rawList = (c.accusedList && c.accusedList.length > 0)
+        ? c.accusedList
+        : (c.accusedName ? [{ name: c.accusedName, address: c.accusedAddress || '' }] : [{ name: '[Accused Name]', address: '[Accused Address]' }]);
+      const selected = selAccusedInds && selAccusedInds.length > 0
+        ? rawList.filter((_, i) => selAccusedInds.includes(i))
+        : rawList;
+      toName = selected.map(a => a.name).join(', ');
+      toAddress = selected.map(a => a.address || '_______').join(' / ');
+    }
 
-To,
-Name: _________________
-Address: _________________
+    const extraHtml = extraSections && extraSections.length > 0
+      ? extraSections.map(sec => `<p>${sec}</p><p>&nbsp;</p>`).join('')
+      : '';
 
-Subject: Notice for appearance.
+    return `<table style="width:100%; border-collapse:collapse; font-family:Arial,sans-serif;">
+  <tr>
+    <td style="width:50%;"><strong>थाना - ${ps}</strong></td>
+    <td style="width:50%; text-align:right;"><strong>जिला- ${dist}</strong></td>
+  </tr>
+</table>
+<p><strong>क्रमांक - &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>दिनांक - ${dateToday}</strong></p>
+<p>आपको इस नोटिस के माध्यम से सूचित किया जाता है कि ${recipient === 'complainant' ? 'परिवादी' : 'उत्तरवादी'} <strong>${toName}</strong> निवासी ${toAddress} के विरुद्ध/द्वारा परिवाद नंबर <strong>${f.complaintId}</strong>-Peshi दिनांक ${formattedRegDate} को प्राप्त हुई है।</p>
+<p>इसलिए आप ${recipient === 'complainant' ? 'परिवादी' : 'उत्तरवादी'} <strong>${toName}</strong> निवासी ${toAddress} को निर्देश दिया जाता है कि आप दिनांक <strong>${appearanceDate}</strong> को समय <strong>11:00 AM</strong> पर प्रारंभिक जांच में सभी दस्तावेज़ों, साक्षों और सामग्री के साथ व्यक्तिगत रूप से शामिल हों। या अपनी प्रतिनिधि को भेजें शिकायत की जांच के सम्बन्ध में यदि आप अपनी उपस्थिति को वीडियो कॉन्फ्रेंस के माध्यम से चाहते हैं तो थाना प्रभारी की ईमेल <strong>${email}</strong> पर लिखित निवेदन ${appearanceDate} से पहले भेजना सुनिश्चित करें।</p>
+${extraHtml}
+<p>&nbsp;</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;थाना प्रभारी</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;थाना ${ps}, जिला ${dist}</p>`;
+  };
 
-WHEREAS, a complaint has been registered at this Police Station against:
-__________________________________________________________________
+  const generateEmailText = (complaint, recipient, otherName, otherAddr, selAccusedInds = []) => {
+    const fe = getBaseFields(complaint);
+    const ce = complaint || {};
+    const pse = ce.policeStation || (profile?.policeStation) || '_______';
+    const diste = ce.district || (profile?.district) || '_______';
+    const dateE = dayjs().format('DD-MM-YYYY');
+    const regDate = ce.registrationDate ? dayjs(ce.registrationDate).format('DD/MM/YYYY') : '_______';
 
-BRIEF FACT OF COMPLAINT:
-__________________________________________________________________
+    let toName = '';
+    let toAddress = '';
+    let toPhone = '';
+    let toTypeLabel = '';
 
-Therefore, in exercise of the powers conferred upon me, you are hereby directed to appear before the undersigned at the Police Station on __-__-____ at __:__ AM/PM for the purpose of further enquiry and to present your side of the facts along with relevant documents/evidence, if any.
+    const rawList = (ce.accusedList && ce.accusedList.length > 0)
+      ? ce.accusedList
+      : (ce.accusedName ? [{ name: ce.accusedName, address: ce.accusedAddress || '' }] : [{ name: '[Accused Name]', address: '' }]);
+    const selected = selAccusedInds && selAccusedInds.length > 0
+      ? rawList.filter((_, i) => selAccusedInds.includes(i))
+      : rawList;
+    const selectedAccusedNames = selected.map(a => a.name).join(', ');
+    const selectedAccusedAddresses = selected.map(a => a.address || '_______').join(' / ');
+    
+    if (recipient === 'complainant') {
+      toName = fe.compName;
+      toAddress = fe.compAddress;
+      toPhone = fe.compPhone;
+      toTypeLabel = 'परिवादी';
+    } else if (recipient === 'other') {
+      toName = otherName || '_______';
+      toAddress = otherAddr || '_______';
+      toPhone = '';
+      toTypeLabel = 'अन्य व्यक्ति';
+    } else {
+      // accused
+      toName = selectedAccusedNames;
+      toAddress = selectedAccusedAddresses;
+      toPhone = '';
+      toTypeLabel = 'उत्तरवादी';
+    }
 
-Please note that failure to comply with the terms of this notice may render you liable for action under relevant provisions of law.
+    const phoneLine = toPhone ? `<br>मो. ${toPhone}` : '';
+    
+    let bodyIntro = '';
+    if (recipient === 'complainant') {
+      bodyIntro = `उपरोक्त विषयान्तर्गत आपको सूचित किया जाता है कि आपका परिवाद संख्या <strong>${fe.complaintId}</strong>, जो दिनांक ${regDate} को इस थाने में प्राप्त हुआ था, की प्रारंभिक जांच जारी है।`;
+    } else if (recipient === 'accused') {
+      bodyIntro = `उपरोक्त विषयान्तर्गत आपको सूचित किया जाता है कि आपके विरुद्ध परिवाद संख्या <strong>${fe.complaintId}</strong>, जो दिनांक ${regDate} को इस थाने में प्राप्त हुआ था, की प्रारंभिक जांच जारी है।`;
+    } else {
+      bodyIntro = `उपरोक्त विषयान्तर्गत आपको सूचित किया जाता है कि परिवाद संख्या <strong>${fe.complaintId}</strong>, जो दिनांक ${regDate} को इस थाने में प्राप्त हुआ था, की प्रारंभिक जांच जारी है।`;
+    }
 
+    const targetAccusedName = (recipient === 'accused' || (selAccusedInds && selAccusedInds.length > 0)) ? selectedAccusedNames : fe.accName;
+    const targetAccusedAddress = (recipient === 'accused' || (selAccusedInds && selAccusedInds.length > 0)) ? selectedAccusedAddresses : fe.accAddress;
 
-Signature of Investigating Officer
-Name: _________________
-Designation: _________________
-Police Station: _________________`;
+    return `<table style="width:100%; border-collapse:collapse; font-family:Arial,sans-serif;">
+  <tr>
+    <td style="width:50%;"><strong>थाना - ${pse}</strong></td>
+    <td style="width:50%; text-align:right;"><strong>जिला- ${diste}</strong></td>
+  </tr>
+</table>
+<p><strong>क्रमांक - &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</strong>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>दिनांक - ${dateE}</strong></p>
+<p><strong>विषय:</strong> परिवाद संख्या <strong>${fe.complaintId}</strong> के सम्बन्ध में स्थिति अद्यतन।</p>
+<p>सेवा में,</p>
+<p><strong>${toTypeLabel === 'अन्य व्यक्ति' ? toName : `${toTypeLabel} ${toName}`}</strong><br>${toAddress}${phoneLine}</p>
+<p>महोदय/महोदया,</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;${bodyIntro}</p>
+<p>परिवाद में लगाए गए आरोपों की जांच उत्तरवादी <strong>${targetAccusedName}</strong> निवासी ${targetAccusedAddress} के विरुद्ध की जा रही है। जांच प्रक्रिया के अंतर्गत आवश्यक साक्ष्य एकत्रित किए जा रहे हैं।</p>
+<p>किसी भी जानकारी हेतु थाना <strong>${pse}</strong> से संपर्क किया जा सकता है।</p>
+<p>&nbsp;</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;थाना प्रभारी</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;थाना ${pse}, जिला ${diste}</p>`;
   };
 
   const generateTemplateText = (templateType, complaint) => {
@@ -873,30 +1152,9 @@ Police Station: _________________`;
       case 'notice':
         return generateNoticeText(complaint, noticeRecipient, otherPersonName, otherPersonAddress, customSections, selectedAccusedIndices);
 
-      case 'email':
-        return `Subject: Status Update on Complaint Registration - 
-
-Dear Sir/Madam,
-
-This is to officially inform you that we are in receipt of your complaint (ID: ) regarding the incident of "".
-
-COMPLAINT DETAILS:
-- Complainant Name: 
-- Complainant Contact: 
-- Accused Detail(s):
-
-- Alleged Incident Place: 
-- Date of Occurrence: 
-
-We have documented your submission and the matter is currently under preliminary enquiry. Our Investigating Officer will be reaching out to you shortly for any further clarifications or statements required as per the procedure.
-
-For any interim query, you may contact the Helpdesk at the undersigned Police Station.
-
-Sincerely,
-
-Station House Officer (SHO)
-[Police Station Name]
-Date: `;
+      case 'email': {
+        return generateEmailText(complaint, emailRecipient, emailOtherPersonName, emailOtherPersonAddress, emailSelectedAccusedIndices);
+      }
 
       case 'enquiry_rajinama':
         return `<p><strong>पुलिस विभाग &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; जिला -</strong> <br />			जांच रिपोर्ट परिवाद नम्बरी – </p>
@@ -940,99 +1198,117 @@ Date: `;
   </tr>
 </table>`;
 
-      case 'enquiry_civil_finance':
-        return `<table>
+      case 'enquiry_civil_finance': {
+        const fcf = getBaseFields(complaint);
+        const ccf = complaint || {};
+        const pscf = ccf.policeStation || (profile?.policeStation) || '_______';
+        const distcf = ccf.district || (profile?.district) || '_______';
+        const datecf = dayjs().format('DD-MM-YYYY');
+        const regDatecf = ccf.registrationDate ? dayjs(ccf.registrationDate).format('DD/MM/YYYY') : '_______';
+        return `<table style="width:100%; border-collapse:collapse; font-family:Arial,sans-serif;">
   <tr>
-    <td><p><strong>DEPARTMENT - POLICE</strong></p></td>
+    <td style="width:50%;"><strong>थाना - ${pscf}</strong></td>
+    <td style="width:50%; text-align:right;"><strong>जिला- ${distcf}</strong></td>
   </tr>
-  <tr>
-    <td>
-      <p><strong>CITIZEN DETAIL </strong>- </p>
-      <p><strong>NAME </strong>- <br />
-      <strong>MOBILE NO </strong>- </p>
-      <p><strong>ADDRESS </strong>- </p>
-    </td>
+</table>
+<p><strong>क्रमांक - &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</strong>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>दिनांक - ${datecf}</strong></p>
+<p><strong>जांच रिपोर्ट परिवाद नम्बरी – ${fcf.complaintId}</strong></p>
+<table style="width:100%; border-collapse:collapse; border:1px solid #999;">
+  <tr style="border:1px solid #999;">
+    <td style="padding:6px; border:1px solid #999; width:35%;"><p><strong>परिवादी का विवरण</strong></p></td>
+    <td style="padding:6px; border:1px solid #999;"><p>${fcf.compName}<br>मो. ${fcf.compPhone}<br>${fcf.compAddress}</p></td>
   </tr>
-  <tr>
-    <td><p><strong>ALLEGATIONS MADE IN THE COMPLAINT</strong> - <br></p></td>
+  <tr style="border:1px solid #999;">
+    <td style="padding:6px; border:1px solid #999;"><p><strong>परिवाद प्राप्ति दिनांक</strong></p></td>
+    <td style="padding:6px; border:1px solid #999;"><p>${regDatecf}</p></td>
   </tr>
-  <tr>
-    <td><p><strong>DATE OF REPORT </strong>- <br></p></td>
+  <tr style="border:1px solid #999;">
+    <td style="padding:6px; border:1px solid #999;"><p><strong>उत्तरवादी का विवरण</strong></p></td>
+    <td style="padding:6px; border:1px solid #999;"><p>${fcf.accusedDetailsBlock}</p></td>
   </tr>
-  <tr>
-    <td><p><strong>CITIZEN SATISFACTION </strong>- <br></p></td>
+  <tr style="border:1px solid #999;">
+    <td style="padding:6px; border:1px solid #999;"><p><strong>परिवाद में लगाए गए आरोप</strong></p></td>
+    <td style="padding:6px; border:1px solid #999;"><p>${fcf.actDescription}</p></td>
   </tr>
-  <tr>
-    <td><p><strong>FINAL REPORT ON THE ENQUIRY CONDUCTED BY THE INVESTIGATING OFFICER </strong>- <br></p></td>
+  <tr style="border:1px solid #999;">
+    <td style="padding:6px; border:1px solid #999;"><p><strong>रिपोर्ट दिनांक</strong></p></td>
+    <td style="padding:6px; border:1px solid #999;"><p>${datecf}</p></td>
+  </tr>
+  <tr style="border:1px solid #999;">
+    <td style="padding:6px; border:1px solid #999;"><p><strong>नागरिक संतुष्टि</strong></p></td>
+    <td style="padding:6px; border:1px solid #999;"><p><br></p></td>
+  </tr>
+  <tr style="border:1px solid #999;">
+    <td style="padding:6px; border:1px solid #999;"><p><strong>जांच अधिकारी की अंतिम रिपोर्ट</strong></p></td>
+    <td style="padding:6px; border:1px solid #999;"><p><br></p></td>
   </tr>
 </table>`;
+      }
 
-      case 'enquiry_transfer':
-        return `ENQUIRY REPORT - TRANSFER OF COMPLAINT TO OTHER POLICE STATION
+      case 'enquiry_transfer': {
+        const ft = getBaseFields(complaint);
+        const ct = complaint || {};
+        const pst = ct.policeStation || (profile?.policeStation) || '_______';
+        const distt = ct.district || (profile?.district) || '_______';
+        const datet = dayjs().format('DD-MM-YYYY');
+        const regDatet = ct.registrationDate ? dayjs(ct.registrationDate).format('DD/MM/YYYY') : '_______';
+        return `<table style="width:100%; border-collapse:collapse; font-family:Arial,sans-serif;">
+  <tr>
+    <td style="width:50%;"><strong>थाना - ${pst}</strong></td>
+    <td style="width:50%; text-align:right;"><strong>जिला- ${distt}</strong></td>
+  </tr>
+</table>
+<p><strong>क्रमांक - &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</strong>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>दिनांक - ${datet}</strong></p>
+<p><strong>जांच रिपोर्ट परिवाद नम्बरी – ${ft.complaintId}</strong> (अन्य थाने को स्थानांतरण हेतु)</p>
+<p><strong>1. संदर्भ परिवाद विवरण</strong></p>
+<table style="width:100%; border-collapse:collapse; border:1px solid #999;">
+  <tr><td style="padding:6px; border:1px solid #999; width:35%;"><strong>परिवादी</strong></td><td style="padding:6px; border:1px solid #999;">${ft.compName}, मो. ${ft.compPhone}<br>${ft.compAddress}</td></tr>
+  <tr><td style="padding:6px; border:1px solid #999;"><strong>उत्तरवादी</strong></td><td style="padding:6px; border:1px solid #999;">${ft.accusedDetailsBlock}</td></tr>
+  <tr><td style="padding:6px; border:1px solid #999;"><strong>परिवाद प्राप्ति दिनांक</strong></td><td style="padding:6px; border:1px solid #999;">${regDatet}</td></tr>
+  <tr><td style="padding:6px; border:1px solid #999;"><strong>घटना का स्थान</strong></td><td style="padding:6px; border:1px solid #999;">${ft.placeOfIncident}</td></tr>
+  <tr><td style="padding:6px; border:1px solid #999;"><strong>घटना दिनांक एवं समय</strong></td><td style="padding:6px; border:1px solid #999;">${ft.dateOfInc} समय ${ft.timeOfInc}</td></tr>
+</table>
+<p><strong>2. परिवाद का सार</strong></p>
+<p>${ft.actDescription}</p>
+<p><strong>3. जांच एवं क्षेत्राधिकार के तथ्य</strong></p>
+<p>प्रारंभिक जांच की गई। घटना स्थल का सत्यापन किया गया। सत्यापन से ज्ञात हुआ कि घटना की संपूर्ण कार्यवाही थाना ____________, जिला ____________ की सीमा में घटित हुई है। घटना का कोई भी भाग इस थाने की सीमा में नहीं आता।</p>
+<p><strong>4. निष्कर्ष एवं सिफारिश</strong></p>
+<p>क्षेत्राधिकार नियमों के अनुसार इस थाने द्वारा इस परिवाद की जांच नहीं की जा सकती। अतः यह परिवाद सम्बन्धित सभी दस्तावेजों सहित थाना ____________, जिला ____________ को BNSS के प्रावधानों के अन्तर्गत आगे की कार्यवाही हेतु स्थानांतरित करना उचित है।</p>
+<p>&nbsp;</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;जांच अधिकारी</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;थाना ${pst}, जिला ${distt}</p>`;
+      }
 
-Date: 
-Complaint ID: 
-
-1. REFERENCE COMPLAINT
-Complainant: 
-Accused Detail(s):
-
-Subject/Category: Transfer Request
-Date & Place of Incident: 
-
-2. BRIEF OF COMPLAINT
-Briefly, the complainant states that:
-""
-
-3. ENQUIRY CONDUCTED & JURISDICTIONAL FINDINGS
-A preliminary enquiry was conducted. Factual verification of the place of occurrence of the alleged incident was carried out. 
-
-The spot verification and facts gathered reveal that the entire occurrence took place within the territorial jurisdiction of Police Station ____________, District ____________. No part of the cause of action or incident occurred within the territorial jurisdiction of this Police Station.
-
-4. CONCLUSION & RECOMMENDATION
-In view of territorial jurisdiction regulations, this Police Station cannot register or investigate this matter. It is legally appropriate to transfer this complaint along with all relevant documents to the concerned Police Station.
-
-Therefore, it is recommended to transfer this complaint to Police Station ____________, District ____________ for further legal proceedings under BNSS.
-
-
-Submitted by:
-[IO Signature]
-Name/Rank: _______________`;
-
-      case 'enquiry_ncr':
-        return `NON-COGNIZABLE REPORT (NCR) / ENQUIRY REPORT
-
-Date: 
-Complaint ID: 
-
-1. COMPLAINANT DETAILS
-Name: 
-Address: 
-Contact: 
-
-2. ACCUSED DETAILS
-
-
-3. INCIDENT DETAILS
-Category: 
-Date & Time: 
-Place of Occurrence: 
-
-4. FACTS OF THE COMPLAINT
-The complainant has reported that:
-""
-
-5. IO'S OPINION & ACTION TAKEN
-Upon careful perusal of the complaint and preliminary enquiry, it is concluded that the allegations raised by the complainant disclose the commission of a strictly Non-Cognizable Offence.
-
-Accordingly, the substance of the information has been duly entered into the Daily Diary Document (Rapt/DDR). The police cannot investigate a non-cognizable case without the order of a Magistrate having power to try such cases.
-
-The complainant, , has been properly informed and legally advised to approach the Honourable Magistrate under the relevant sections of the BNSS for further judicial remedy.
-
-
-Prepared by:
-[IO Signature]
-Name/Rank: _______________`;
+      case 'enquiry_ncr': {
+        const fn = getBaseFields(complaint);
+        const cn = complaint || {};
+        const psn = cn.policeStation || (profile?.policeStation) || '_______';
+        const distn = cn.district || (profile?.district) || '_______';
+        const daten = dayjs().format('DD-MM-YYYY');
+        const regDaten = cn.registrationDate ? dayjs(cn.registrationDate).format('DD/MM/YYYY') : '_______';
+        return `<table style="width:100%; border-collapse:collapse; font-family:Arial,sans-serif;">
+  <tr>
+    <td style="width:50%;"><strong>थाना - ${psn}</strong></td>
+    <td style="width:50%; text-align:right;"><strong>जिला- ${distn}</strong></td>
+  </tr>
+</table>
+<p><strong>क्रमांक - &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</strong>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>दिनांक - ${daten}</strong></p>
+<p><strong>जांच रिपोर्ट परिवाद नम्बरी – ${fn.complaintId}</strong> (असंज्ञेय अपराध / NCR)</p>
+<table style="width:100%; border-collapse:collapse; border:1px solid #999;">
+  <tr><td style="padding:6px; border:1px solid #999; width:35%;"><strong>1. परिवादी विवरण</strong></td><td style="padding:6px; border:1px solid #999;">${fn.compName}<br>मो. ${fn.compPhone}<br>${fn.compAddress}</td></tr>
+  <tr><td style="padding:6px; border:1px solid #999;"><strong>2. उत्तरवादी विवरण</strong></td><td style="padding:6px; border:1px solid #999;">${fn.accusedDetailsBlock}</td></tr>
+  <tr><td style="padding:6px; border:1px solid #999;"><strong>3. घटना विवरण</strong></td><td style="padding:6px; border:1px solid #999;">श्रेणी: ${fn.incidentClass}<br>दिनांक एवं समय: ${fn.dateOfInc}, ${fn.timeOfInc}<br>घटना स्थान: ${fn.placeOfIncident}</td></tr>
+  <tr><td style="padding:6px; border:1px solid #999;"><strong>4. परिवाद के तथ्य</strong></td><td style="padding:6px; border:1px solid #999;">${fn.actDescription}</td></tr>
+  <tr><td style="padding:6px; border:1px solid #999;"><strong>परिवाद प्राप्ति दिनांक</strong></td><td style="padding:6px; border:1px solid #999;">${regDaten}</td></tr>
+</table>
+<p><strong>5. जांच अधिकारी की राय एवं की गई कार्यवाही</strong></p>
+<p>परिवाद के सावधानीपूर्वक अवलोकन एवं प्रारंभिक जांच के उपरांत यह निष्कर्ष निकाला गया है कि परिवादी <strong>${fn.compName}</strong> द्वारा लगाए गए आरोप एक पूर्णतः <strong>असंज्ञेय अपराध (Non-Cognizable Offence)</strong> को इंगित करते हैं।</p>
+<p>तदनुसार, इस सूचना का सार रोजनामचा दैनिक (Rapt/DDR) में विधिवत दर्ज कर लिया गया है। पुलिस बिना किसी सक्षम मजिस्ट्रेट के आदेश के असंज्ञेय मामले की जांच नहीं कर सकती।</p>
+<p>परिवादी <strong>${fn.compName}</strong> को विधिवत सूचित कर दिया गया है तथा उन्हें BNSS की संबंधित धाराओं के अंतर्गत माननीय मजिस्ट्रेट के समक्ष जाने की विधिक सलाह दी गई है।</p>
+<p>&nbsp;</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;जांच अधिकारी</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;थाना ${psn}, जिला ${distn}</p>`;
+      }
 
       case 'enquiry_fir':
         return `<p><strong>पुलिस विभाग &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;जिला-</strong></p>
@@ -1061,41 +1337,108 @@ Name/Rank: _______________`;
   const handleTemplateSelect = (value, templatesList = customTemplates) => {
     setSelectedTemplate(value);
     if (value && value.startsWith('custom_')) {
+      // Explicitly selected custom template by ID
+      setNoticeIsDefault(false);
       const found = templatesList.find(t => t.id === value);
       if (found) {
-        const generatedText = fillTemplatePlaceholders(found.content, selectedComplaint);
+        setCurrentUploadedTemplateId(found.id);
+        const isEmail = (found.category === 'email');
+        const ctx = getRecipientContext(
+          isEmail ? emailRecipient : noticeRecipient,
+          isEmail ? emailSelectedAccusedIndices : selectedAccusedIndices,
+          isEmail
+        );
+        const generatedText = fillTemplatePlaceholders(found.content, selectedComplaint, ctx);
         setDocumentText(generatedText);
       } else {
         message.error('Custom template not found.');
+        setCurrentUploadedTemplateId(null);
         setDocumentText('');
       }
     } else {
-      // Check if there is an uploaded custom template for this category first
+      // Category-based selection — check for uploaded template first
       const uploaded = templatesList.find(t => t.category === value);
       if (uploaded) {
-        const generatedText = fillTemplatePlaceholders(uploaded.content, selectedComplaint);
+        // User has an uploaded custom template → preserve its format, re-fill with current recipient
+        setNoticeIsDefault(false);
+        setCurrentUploadedTemplateId(uploaded.id);
+        const isEmail = (value === 'email');
+        const ctx = (value === 'notice' || value === 'email')
+          ? getRecipientContext(
+              isEmail ? emailRecipient : noticeRecipient,
+              isEmail ? emailSelectedAccusedIndices : selectedAccusedIndices,
+              isEmail
+            )
+          : null;
+        const generatedText = fillTemplatePlaceholders(uploaded.content, selectedComplaint, ctx);
         setDocumentText(generatedText);
       } else {
+        // No uploaded template → using built-in default
+        setNoticeIsDefault(value === 'notice' || value === 'email');
+        setCurrentUploadedTemplateId(null);
         const generatedText = generateTemplateText(value, selectedComplaint);
         setDocumentText(generatedText);
       }
     }
   };
 
-  // Regenerate notice whenever recipient changes
+  // When recipient/accused changes: re-fill uploaded template OR regenerate default
   const handleNoticeRecipientChange = (val) => {
     setNoticeRecipient(val);
-    if (val !== 'other' && selectedTemplate === 'notice') {
+    // Only act when a notice template is active
+    const noticeActive = selectedTemplate === 'notice' || customTemplates.some(t => t.id === selectedTemplate && t.category === 'notice');
+    if (!noticeActive) return;
+    if (noticeIsDefault) {
+      // Built-in default — full regenerate
       const text = generateNoticeText(selectedComplaint, val, otherPersonName, otherPersonAddress, customSections, selectedAccusedIndices);
       setDocumentText(text);
+    } else {
+      // Uploaded template — re-fill with new recipient, same layout
+      // refillUploadedTemplate falls back to any notice-category template if ID is missing
+      const text = refillUploadedTemplate(currentUploadedTemplateId, val, selectedAccusedIndices, 'notice');
+      if (text !== null) setDocumentText(text);
     }
   };
 
   const handleAccusedSelectionChange = (checkedValues) => {
     setSelectedAccusedIndices(checkedValues);
-    if (selectedTemplate === 'notice') {
+    const noticeActive = selectedTemplate === 'notice' || customTemplates.some(t => t.id === selectedTemplate && t.category === 'notice');
+    if (!noticeActive) return;
+    if (noticeIsDefault) {
       const text = generateNoticeText(selectedComplaint, noticeRecipient, otherPersonName, otherPersonAddress, customSections, checkedValues);
       setDocumentText(text);
+    } else {
+      const text = refillUploadedTemplate(currentUploadedTemplateId, noticeRecipient, checkedValues, 'notice');
+      if (text !== null) setDocumentText(text);
+    }
+  };
+
+  const handleEmailRecipientChange = (val) => {
+    setEmailRecipient(val);
+    // Only act when an email template is active
+    const emailActive = selectedTemplate === 'email' || customTemplates.some(t => t.id === selectedTemplate && t.category === 'email');
+    if (!emailActive) return;
+    if (noticeIsDefault) {
+      // Built-in default — full regenerate
+      const text = generateEmailText(selectedComplaint, val, emailOtherPersonName, emailOtherPersonAddress, emailSelectedAccusedIndices);
+      setDocumentText(text);
+    } else {
+      // Uploaded template — re-fill with new recipient, same layout
+      const text = refillUploadedTemplate(currentUploadedTemplateId, val, emailSelectedAccusedIndices, 'email');
+      if (text !== null) setDocumentText(text);
+    }
+  };
+
+  const handleEmailAccusedSelectionChange = (checkedValues) => {
+    setEmailSelectedAccusedIndices(checkedValues);
+    const emailActive = selectedTemplate === 'email' || customTemplates.some(t => t.id === selectedTemplate && t.category === 'email');
+    if (!emailActive) return;
+    if (noticeIsDefault) {
+      const text = generateEmailText(selectedComplaint, emailRecipient, emailOtherPersonName, emailOtherPersonAddress, checkedValues);
+      setDocumentText(text);
+    } else {
+      const text = refillUploadedTemplate(currentUploadedTemplateId, emailRecipient, checkedValues, 'email');
+      if (text !== null) setDocumentText(text);
     }
   };
 
@@ -1104,15 +1447,19 @@ Name/Rank: _______________`;
     const updated = [...customSections, customSection.trim()];
     setCustomSections(updated);
     setCustomSection('');
-    const text = generateNoticeText(selectedComplaint, noticeRecipient, otherPersonName, otherPersonAddress, updated, selectedAccusedIndices);
-    setDocumentText(text);
+    if (noticeIsDefault && selectedTemplate === 'notice') {
+      const text = generateNoticeText(selectedComplaint, noticeRecipient, otherPersonName, otherPersonAddress, updated, selectedAccusedIndices);
+      setDocumentText(text);
+    }
   };
 
   const handleRemoveCustomSection = (idx) => {
     const updated = customSections.filter((_, i) => i !== idx);
     setCustomSections(updated);
-    const text = generateNoticeText(selectedComplaint, noticeRecipient, otherPersonName, otherPersonAddress, updated, selectedAccusedIndices);
-    setDocumentText(text);
+    if (noticeIsDefault && selectedTemplate === 'notice') {
+      const text = generateNoticeText(selectedComplaint, noticeRecipient, otherPersonName, otherPersonAddress, updated, selectedAccusedIndices);
+      setDocumentText(text);
+    }
   };
 
   const handleGenerateEmailWithAI = async () => {
@@ -1164,6 +1511,67 @@ Output ONLY the email text, no explanation.`,
     } catch (err) {
       console.error(err);
       message.error('AI request failed. Check your API key and connection.');
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const handleModifyReportWithAI = async () => {
+    if (!reportPrompt.trim()) {
+      message.warning('Please describe how you want to modify the report.');
+      return;
+    }
+    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+    if (!apiKey) {
+      message.error('Groq API key is not set in environment variables.');
+      return;
+    }
+
+    setIsAiLoading(true);
+    message.loading({ content: 'Modifying report with AI...', key: 'modifyReportMsg' });
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            {
+              role: 'system',
+              content: `You are an expert police officer and assistant specializing in legal reports and police documentation for Haryana Police.
+Your task is to modify the official Enquiry Report HTML content provided by the user based on their instruction/prompt.
+Follow these rules strictly:
+1. Maintain all existing HTML structures, tables, cells, rows, labels, and CSS formatting exactly as they are.
+2. Only modify or fill in the content details (such as details of complainant, accused, investigation status, facts, or conclusions) as requested by the user's prompt.
+3. Keep the formal, legal Hindi language style intact.
+4. Output ONLY the modified HTML content. Do not include any explanations, markdown code fences (like \`\`\`html), preambles, or postscripts.`
+            },
+            {
+              role: 'user',
+              content: `Original HTML Content:\n${documentText}\n\nUser Instruction/Prompt: ${reportPrompt}`
+            }
+          ],
+          temperature: 0.3,
+          max_tokens: 4000,
+        })
+      });
+
+      const data = await res.json();
+      const updatedContent = data?.choices?.[0]?.message?.content?.trim();
+      if (updatedContent) {
+        let cleaned = updatedContent;
+        if (cleaned.startsWith('```')) {
+          cleaned = cleaned.replace(/^```html\s*|\s*```$/gi, '');
+        }
+        setDocumentText(cleaned);
+        setReportPrompt('');
+        message.success({ content: 'Report modified successfully!', key: 'modifyReportMsg', duration: 2 });
+      } else {
+        message.error({ content: 'AI modification failed.', key: 'modifyReportMsg', duration: 2 });
+      }
+    } catch (err) {
+      console.error(err);
+      message.error({ content: 'AI modification failed: ' + err.message, key: 'modifyReportMsg', duration: 2 });
     } finally {
       setIsAiLoading(false);
     }
@@ -1632,75 +2040,6 @@ Output ONLY the email text, no explanation.`,
   const handleShoApproval = async (complaintId, isApproved) => {
     const targetC = complaints.find(c => c.id === complaintId && c.ioStatus === 'Pending SHO Approval');
     if (!targetC) return;
-
-    // ── Special case: approving "Convert to FIR" ────────────────────────────
-    if (isApproved && targetC.pendingIoStatus === 'Convert to FIR') {
-      const hide = message.loading('Creating FIR record…', 0);
-      try {
-        const firPayload = {
-          district: targetC.district || 'Unknown',
-          police_station: profile?.station_id || 'Unknown',
-          date_time_of_fir: new Date().toISOString().slice(0, 16),
-          acts_sections: [],
-          complainant_name: [targetC.firstName, targetC.lastName].filter(Boolean).join(' ') || 'Unknown',
-          complainant_phone: targetC.mobileNumber || '',
-          complainant_present_address: [
-            targetC.houseNumber, targetC.streetName, targetC.colonyArea,
-            targetC.villageTown, targetC.tehsilBlock, targetC.district,
-            targetC.state, targetC.pinCode,
-          ].filter(Boolean).join(', '),
-          place_address: targetC.placeOfIncident || '',
-          occurrence_date_from: targetC.dateOfIncident ? String(targetC.dateOfIncident).slice(0, 10) : '',
-          fir_content:
-            targetC.investigationReport ||
-            targetC.descriptionOfComplaint ||
-            `FIR converted from Complaint ${complaintId}. Please update the FIR details.`,
-          accused_details: (targetC.accusedList || []).map(a => ({
-            name: a.name || 'Unknown',
-            address: a.address || '',
-          })),
-          complaint_id: complaintId,
-        };
-
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/firs`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(firPayload),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to create FIR');
-
-        // Persist linked FIR info in the complaint record via PATCH API
-        const updates = {
-          ioStatus: 'Convert to FIR',
-          pendingIoStatus: null,
-          linkedFirId: data.id,
-          linkedFirNumber: data.fir_number,
-        };
-
-        const patchRes = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints/${complaintId}`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(updates),
-        });
-        if (!patchRes.ok) throw new Error('Failed to update complaint record with FIR reference');
-
-        hide();
-        message.success(`✅ FIR ${data.fir_number} registered from Complaint ${complaintId}. Now visible in FIR Module.`, 5);
-        await loadComplaints();
-      } catch (err) {
-        hide();
-        message.error('FIR creation failed: ' + err.message);
-      }
-      return;
-    }
-
     // ── Normal approval / rejection ─────────────────────────────────────────
     let msg = '';
     let updates = {};
@@ -1741,6 +2080,11 @@ Output ONLY the email text, no explanation.`,
     const q = searchVal.toLowerCase();
     return !q || name.includes(q) || (c.id && c.id.toLowerCase().includes(q)) || (c.mobileNumber && c.mobileNumber.includes(q));
   });
+
+  const isEnquiryReport = selectedTemplate && (
+    selectedTemplate.startsWith('enquiry_') ||
+    customTemplates.some(t => t.id === selectedTemplate && t.category.startsWith('enquiry_'))
+  );
 
   return (
     <div>
@@ -1867,7 +2211,9 @@ Output ONLY the email text, no explanation.`,
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: '72vh', overflowY: 'auto', paddingRight: 4 }}>
                     {renderTemplateSection('notice', 'Notice for Appearance', 'default')}
                     {renderTemplateSection('email', 'Email / Status Update', 'default')}
-                    <Divider style={{ margin: '8px 0', fontSize: 12 }}>Enquiry Reports</Divider>
+                    <div style={{ margin: '20px 0 12px 0', textAlign: 'center', background: 'rgba(24, 144, 255, 0.08)', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(24, 144, 255, 0.35)', boxShadow: '0 0 6px rgba(24,144,255,0.1)' }}>
+                      <Text strong style={{ color: '#1890ff', fontSize: 13, letterSpacing: '0.8px', textTransform: 'uppercase', textShadow: '0 0 4px rgba(24,144,255,0.2)' }}>Enquiry Reports</Text>
+                    </div>
                     {renderTemplateSection('enquiry_rajinama', 'Rajinama (Mutual Settlement)', 'dashed')}
                     {renderTemplateSection('enquiry_civil_land', 'Civil Nature (Land Dispute)', 'dashed')}
                     {renderTemplateSection('enquiry_civil_finance', 'Civil Nature (Financial Dispute)', 'dashed')}
@@ -1933,31 +2279,82 @@ Output ONLY the email text, no explanation.`,
 
                       {/* -- Email Configuration Header -- */}
                       {selectedTemplate === 'email' && (
+                        <div style={{ marginBottom: 16, padding: '16px', background: 'rgba(255, 255, 255, 0.04)', border: '1px solid #434343', borderRadius: 8 }}>
+                          <Text strong style={{ display: 'block', marginBottom: 12 }}>Email Recipient:</Text>
+                          <Radio.Group 
+                            value={emailRecipient} 
+                            onChange={e => handleEmailRecipientChange(e.target.value)}
+                            style={{ marginBottom: 16 }}
+                          >
+                            <Radio value="accused">Accused</Radio>
+                            <Radio value="complainant">Complainant</Radio>
+                            <Radio value="other">Other Person</Radio>
+                          </Radio.Group>
+
+                          {emailRecipient === 'accused' && selectedComplaint?.accusedList?.length > 1 && (
+                            <div style={{ marginBottom: 16, background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8 }}>
+                              <Text strong style={{ display: 'block', marginBottom: 8, color: '#1890ff' }}>Select Specific Accused for Email:</Text>
+                              <Checkbox.Group 
+                                options={selectedComplaint.accusedList.map((a, i) => ({ label: a.name, value: i }))} 
+                                value={emailSelectedAccusedIndices} 
+                                onChange={handleEmailAccusedSelectionChange} 
+                              />
+                              <Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+                                (If none selected, email will be addressed to all accused)
+                              </Text>
+                            </div>
+                          )}
+
+                          {emailRecipient === 'other' && (
+                            <Row gutter={16} style={{ marginBottom: 16 }}>
+                              <Col span={10}>
+                                <Input 
+                                  placeholder="Name" 
+                                  value={emailOtherPersonName} 
+                                  onChange={e => setEmailOtherPersonName(e.target.value)} 
+                                  onBlur={() => handleEmailRecipientChange('other')}
+                                />
+                              </Col>
+                              <Col span={14}>
+                                <Input 
+                                  placeholder="Full Address" 
+                                  value={emailOtherPersonAddress} 
+                                  onChange={e => setEmailOtherPersonAddress(e.target.value)}
+                                  onBlur={() => handleEmailRecipientChange('other')}
+                                />
+                              </Col>
+                            </Row>
+                          )}
+                        </div>
+                      )}
+
+                      {/* -- Enquiry Report Configuration Header (AI Prompt Block) -- */}
+                      {isEnquiryReport && (
                         <div style={{ marginBottom: 16, padding: '16px', background: 'rgba(24, 144, 255, 0.1)', borderRadius: 8, border: '1px solid rgba(24, 144, 255, 0.3)' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                             <div>
                               <Text strong style={{ display: 'block', marginBottom: 4, color: '#1890ff' }}>
                                 <RobotOutlined style={{ marginRight: 6 }} />
-                                Draft Email with AI
+                                Modify Report with AI
                               </Text>
                               <Text type="secondary" style={{ fontSize: 13 }}>
-                                The AI knows the details of Complaint {selectedComplaint?.id}. Just tell it who to email and what to say.
+                                Tell the AI what details to modify, add, or fill in this Enquiry Report.
                               </Text>
                             </div>
                             <Button 
                               type="primary" 
                               icon={<RobotOutlined />} 
-                              onClick={handleGenerateEmailWithAI}
+                              onClick={handleModifyReportWithAI}
                               loading={isAiLoading}
                             >
-                              Draft Email
+                              Modify Report
                             </Button>
                           </div>
                           <TextArea 
                             rows={2} 
-                            placeholder="E.g., Write an email to the SHO requesting more time because the accused is out of town." 
-                            value={emailPrompt}
-                            onChange={e => setEmailPrompt(e.target.value)}
+                            placeholder="E.g., Write that complainant and accused settled the dispute and signed the settlement copy." 
+                            value={reportPrompt}
+                            onChange={e => setReportPrompt(e.target.value)}
                             style={{ resize: 'none', width: '100%' }}
                           />
                         </div>

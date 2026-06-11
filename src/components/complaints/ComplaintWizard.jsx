@@ -738,8 +738,29 @@ ${textToProcess}
     const actDescription = d.descriptionOfComplaint || '[Description of Complaint]';
 
     switch (templateType) {
-      case 'notice':
-        return `NOTICE FOR APPEARANCE\n\nNotice Number: _______\nDate: ${dateToday}\n\nTo,\n${accusedBlockNotice}\n\nSubject: Notice for appearance regarding complaint filed by ${compName}.\n\nWHEREAS, a complaint has been registered against you at this Police Station by ${compName} (R/o ${compAddress}).\n\nBRIEF FACT OF COMPLAINT:\nThe complainant alleges that an incident of "${incidentClass}" occurred at ${placeOfIncident} on ${dateOfInc} around ${timeOfInc}. \n\nTherefore, in exercise of the powers conferred upon me, you are hereby directed to appear before the undersigned at the Police Station on __-__-____ at __:__ AM/PM for the purpose of further enquiry and to present your side of the facts along with relevant documents/evidence, if any.\n\nPlease note that failure to comply with the terms of this notice may render you liable for action under relevant provisions of law.\n\n\nSignature of Investigating Officer\nName: _______________\nDesignation: _______________\nPolice Station: _______________`;
+      case 'notice': {
+        const ps = (d.policeStation || 'समालखा').toUpperCase();
+        const dist = (d.district || 'पानीपत').toUpperCase();
+        const formattedRegDate = d.registrationDate || d.registeredAt
+          ? dayjs(d.registrationDate || d.registeredAt).format('DD/MM/YYYY')
+          : dayjs(d.dateOfComplaint).isValid() ? dayjs(d.dateOfComplaint).format('DD/MM/YYYY') : dayjs().format('DD/MM/YYYY');
+        const appearanceDate = dayjs().add(7, 'day').format('DD/MM/YYYY'); // default to 7 days from now
+        
+        return `थाना - ${ps}                                                                    जिला- ${dist}
+
+क्रमांक -      दिनांक - ${dateToday}
+
+आपको इस नोटिस के माध्यम से सूचित किया जाता है कि परिवादी ${compName} निवासी ${compAddress} की शिकायत/परिवाद नम्बर ${d.id || '_______'} दिनांक ${formattedRegDate} को प्राप्त हुई है (प्रतिलिपि संलग्न है)
+
+इसलिए आप परिवादी ${compName} निवासी ${compAddress} को निर्देश दिया जाता है कि आप दिनांक ${appearanceDate} को समय 11.00 AM पर प्रारम्भिक जांच में सभी दस्तावेजों, साक्ष्यों और सामग्री के साथ व्यक्तिगत रूप से शामिल हो। या अपनी प्रतिनिधि को भेजे शिकायत की जांच के सम्बन्ध में यदि आप अपनी उपस्थिति को वीडियो कॉन्फ्रेंस के माध्यम से चाहते है तो थाना प्रभारी की ईमेल sho${ps.toLowerCase().replace(/\s+/g, '')}@gmail.com पर लिखित निवेदन ${appearanceDate} से पहले भेजना सुनिश्चित करे।
+
+इस नोटिस पत्र सम्बन्ध में आपको भी स्पष्ट किया जाता है कि आप यह नोटिस केवल शिकायत की जांच के सम्बन्ध में जारी किया गया है। अभी तक आपके विरुद्ध कोई भी मुकदमा दर्ज नही किया गया है। शिकायत की जांच के दौरान आपको गिरफ्तार नही किया जाएगा।
+
+जांचकर्ता अधिकारी
+थाना - ${ps}
+मोबाइल नं० - 
+दिनांक -`;
+      }
         
       case 'email':
         return `Subject: Status Update on Complaint Registration - ${incidentClass}\n\nDear Sir/Madam,\n\nThis is to officially inform you that we are in receipt of your complaint regarding the incident of "${incidentClass}".\n\nCOMPLAINT DETAILS:\n- Complainant Name: ${compName}\n- Complainant Contact: ${compPhone}\n- Accused Details:\n${accusedBlockInline}\n- Alleged Incident Place: ${placeOfIncident}\n- Date of Occurrence: ${dateOfInc}\n\nWe have documented your submission and the matter is currently under preliminary enquiry. Our Investigating Officer will be reaching out to you shortly for any further clarifications or statements required as per the procedure.\n\nFor any interim query, you may contact the Helpdesk at the undersigned Police Station.\n\nSincerely,\n\nStation House Officer (SHO)\n[Police Station Name]\nDate: ${dateToday}`;

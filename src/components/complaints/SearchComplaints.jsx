@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { Table, Input, Button, Typography, Tag, Modal, Card, Row, Col, Divider, Badge } from 'antd';
-import { SearchOutlined, EyeOutlined, UserOutlined, EnvironmentOutlined, SafetyOutlined, FileTextOutlined, TeamOutlined, InfoCircleOutlined, ArrowLeftOutlined } from '@ant-design/icons';
+import { SearchOutlined, EyeOutlined, UserOutlined, EnvironmentOutlined, SafetyOutlined, FileTextOutlined, TeamOutlined, InfoCircleOutlined, ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { jsPDF } from 'jspdf';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -224,12 +225,247 @@ export function ComplaintDetailView({ record }) {
   );
 }
 
+const loadImage = (src) => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.src = src;
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+  });
+};
+
 export default function SearchComplaints({ onBack, onStartEnquiry, hideHeader }) {
   const [searchText, setSearchText] = useState('');
   const [viewComplaint, setViewComplaint] = useState(null);
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  const handlePrintReceipt = async (d) => {
+    if (!d) return;
+
+    // Load logo images
+    const [logoSquare, logoShield] = await Promise.all([
+      loadImage('/hp-logo-square.png'),
+      loadImage('/hp-logo-shield.png')
+    ]);
+
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    // Page Border
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(1);
+    doc.rect(5, 5, 200, 287);
+
+    // Header Banner
+    doc.setFillColor(255, 255, 255);
+    doc.rect(5, 5, 200, 25, 'F');
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.5);
+    doc.line(5, 30, 205, 30);
+
+    // Add Logo Images inside white banner
+    // Square Logo (Pic 1) on Left: x=10, y=7.5, width=20, height=20
+    if (logoSquare) {
+      doc.addImage(logoSquare, 'PNG', 10, 7.5, 20, 20);
+    }
+
+    // Shield Logo (Pic 2) on Right: x=180, y=7.5, width=20, height=20 (matching 1:1 aspect ratio after transparent crop)
+    if (logoShield) {
+      doc.addImage(logoShield, 'PNG', 180, 7.5, 20, 20);
+    }
+
+    // Title text inside banner
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('HARYANA POLICE', 105, 14, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont('Helvetica', 'normal');
+    doc.text('Smart Case Management System - Complaint Receipt', 105, 21, { align: 'center' });
+
+    // Reset styles for body
+    doc.setTextColor(33, 33, 33);
+    let y = 42;
+
+    const addField = (label, value, xOffset = 15, width = 85) => {
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text(`${label}:`, xOffset, y);
+      doc.setFont('Helvetica', 'normal');
+      const textLines = doc.splitTextToSize(String(value || 'N/A'), width);
+      doc.text(textLines, xOffset + 32, y);
+    };
+
+    // Section 1: Basic Info
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text('1. BASIC INFORMATION', 15, y);
+    doc.line(15, y + 2, 195, y + 2);
+    doc.setTextColor(33, 33, 33);
+    y += 8;
+
+    addField('Complaint ID', d.id, 15);
+    const dateStr = d.registrationDate || d.registeredAt ? dayjs(d.registrationDate || d.registeredAt).format('DD MMM YYYY hh:mm A') : 'N/A';
+    addField('Registration Date', dateStr, 110);
+    y += 8;
+
+    addField('Status', d.ioStatus || 'Registered', 15);
+    addField('Category', d.classOfIncident || 'N/A', 110);
+    y += 12;
+
+    // Section 2: Complainant Details
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text('2. COMPLAINANT DETAILS', 15, y);
+    doc.line(15, y + 2, 195, y + 2);
+    doc.setTextColor(33, 33, 33);
+    y += 8;
+
+    const compName = `${d.firstName || ''} ${d.lastName || ''}`.trim() || 'Unknown';
+    addField('Full Name', compName, 15);
+    addField('Mobile Number', d.mobileNumber || 'N/A', 110);
+    y += 8;
+
+    const addrParts = [d.houseNumber, d.streetName, d.colonyArea, d.villageTown, d.district, d.state, d.pinCode];
+    const compAddress = addrParts.filter(Boolean).join(', ') || 'N/A';
+    
+    doc.setFont('Helvetica', 'bold');
+    doc.text('Address:', 15, y);
+    doc.setFont('Helvetica', 'normal');
+    const addrLines = doc.splitTextToSize(compAddress, 145);
+    doc.text(addrLines, 47, y);
+    y += Math.max(8, addrLines.length * 5 + 2);
+
+    // Section 3: Incident Details
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text('3. INCIDENT DETAILS', 15, y);
+    doc.line(15, y + 2, 195, y + 2);
+    doc.setTextColor(33, 33, 33);
+    y += 8;
+
+    addField('Place of Incident', d.placeOfIncident || 'N/A', 15);
+    const incDate = d.dateOfIncident ? dayjs(d.dateOfIncident).format('DD MMM YYYY') : 'N/A';
+    addField('Date of Incident', incDate, 110);
+    y += 8;
+
+    const incTime = d.timeOfIncident ? dayjs(d.timeOfIncident).format('hh:mm A') : 'N/A';
+    addField('Time of Incident', incTime, 15);
+    addField('Mode of Receipt', d.modeOfReceipt || 'N/A', 110);
+    y += 12;
+
+    // Section 4: Accused Details
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text('4. ACCUSED DETAILS', 15, y);
+    doc.line(15, y + 2, 195, y + 2);
+    doc.setTextColor(33, 33, 33);
+    y += 8;
+
+    const accusedList = d.accusedList || (d.accusedName ? [{ name: d.accusedName, address: d.accusedAddress || '' }] : []);
+    if (accusedList.length === 0) {
+      doc.setFont('Helvetica', 'normal');
+      doc.text('No accused specified / Unknown', 15, y);
+      y += 8;
+    } else {
+      accusedList.forEach((acc, idx) => {
+        if (y + 15 > 270) {
+          doc.addPage();
+          doc.setDrawColor(0, 0, 0);
+          doc.setLineWidth(1);
+          doc.rect(5, 5, 200, 287);
+          y = 20;
+        }
+        doc.setFont('Helvetica', 'bold');
+        doc.text(`${idx + 1}. Name:`, 15, y);
+        doc.setFont('Helvetica', 'normal');
+        doc.text(acc.name || 'Unknown', 32, y);
+
+        doc.setFont('Helvetica', 'bold');
+        doc.text('Address:', 100, y);
+        doc.setFont('Helvetica', 'normal');
+        const accAddrLines = doc.splitTextToSize(acc.address || 'Unknown', 70);
+        doc.text(accAddrLines, 120, y);
+        y += Math.max(8, accAddrLines.length * 5);
+      });
+    }
+    y += 4;
+
+    // Section 5: Description
+    if (y + 20 > 270) {
+      doc.addPage();
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(1);
+      doc.rect(5, 5, 200, 287);
+      y = 20;
+    }
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text('5. DESCRIPTION OF COMPLAINT', 15, y);
+    doc.line(15, y + 2, 195, y + 2);
+    doc.setTextColor(33, 33, 33);
+    y += 8;
+
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(10);
+    const descLines = doc.splitTextToSize(d.descriptionOfComplaint || 'N/A', 175);
+    
+    // Page break handling for long descriptions
+    descLines.forEach((line) => {
+      if (y > 270) {
+        doc.addPage();
+        doc.setDrawColor(0, 0, 0);
+        doc.setLineWidth(1);
+        doc.rect(5, 5, 200, 287);
+        y = 20;
+      }
+      doc.text(line, 15, y);
+      y += 5;
+    });
+
+    // Signature Block/Stamp placeholder
+    if (y + 35 > 270) {
+      doc.addPage();
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(1);
+      doc.rect(5, 5, 200, 287);
+      y = 20;
+    }
+    y += 10;
+
+    const rawStation = profile?.station_id || d.policeStation || 'Haryana Police';
+    const stationLabel = rawStation.toUpperCase() !== 'HARYANA POLICE' ? `PS ${rawStation.toUpperCase()}` : 'Haryana Police Station';
+
+    // Left: Investigating Officer Stamp / Signature
+    doc.setFont('Helvetica', 'bold');
+    doc.text('Investigating Officer (IO)', 15, y);
+    doc.setFont('Helvetica', 'normal');
+    doc.text(stationLabel, 15, y + 5);
+
+    // Right: Signature / Stamp of SHO
+    doc.setFont('Helvetica', 'bold');
+    doc.text('Station House Officer (SHO)', 115, y);
+    doc.setFont('Helvetica', 'normal');
+    doc.text(stationLabel, 115, y + 5);
+
+    // Footer on the final page
+    doc.setFont('Helvetica', 'italic');
+    doc.setFontSize(8);
+    doc.setTextColor(120, 120, 120);
+    doc.text('This is a computer-generated receipt. Authentic documents are verified at the station.', 105, 282, { align: 'center' });
+
+    doc.save(`Complaint_Receipt_${d.id}.pdf`);
+  };
 
   const [complaintsList, setComplaintsList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -476,6 +712,9 @@ export default function SearchComplaints({ onBack, onStartEnquiry, hideHeader })
           }
         }}
         footer={[
+          <Button key="print-receipt" type="primary" icon={<PrinterOutlined />} onClick={() => handlePrintReceipt(viewComplaint)}>
+            Print Receipt
+          </Button>,
           viewComplaint?.ioStatus !== 'Convert to FIR' && (
             <Button key="enquire" type="primary" onClick={() => { setViewComplaint(null); if (onStartEnquiry) onStartEnquiry(viewComplaint?.id); }}>
               Start Enquiry

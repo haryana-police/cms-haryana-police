@@ -167,6 +167,8 @@ export default function Login() {
                   <Divider plain style={{ fontSize: 12, color: '#555' }}>Dev: Quick Login</Divider>
                   <Space style={{ width: '100%', justifyContent: 'center' }} size="small" wrap>
                     <Button size="small" onClick={() => quickLogin('admin', 'admin123')}>Admin</Button>
+                    <Button size="small" onClick={() => quickLogin('sho_1', 'sho123')}>SHO (old)</Button>
+                    <Button size="small" onClick={() => quickLogin('io_1', 'io123')}>IO</Button>
                   </Space>
                 </>
               ),

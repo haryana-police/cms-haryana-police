@@ -495,6 +495,7 @@ export default function FIRForm() {
   const [complaintsLoading, setComplaintsLoading] = useState(false);
   const [complaintSearch, setComplaintSearch] = useState('');
   const [fillingFromComplaint, setFillingFromComplaint] = useState(false);
+  const [selectedComplaintId, setSelectedComplaintId] = useState(null);
 
   const fetchComplaints = async (searchTerm = '') => {
     setComplaintsLoading(true);
@@ -507,7 +508,9 @@ export default function FIRForm() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load complaints');
-      setComplaints(data);
+      // Show only complaints that are approved for conversion but not yet converted to FIR
+      const approvedOnly = data.filter(c => c.ioStatus === 'Convert to FIR' && c.status !== 'converted_to_fir');
+      setComplaints(approvedOnly);
     } catch (err) {
       message.error(err.message);
     } finally {
@@ -526,17 +529,21 @@ export default function FIRForm() {
       // Build the fields to set
       const updates = {
         complaint_id: complaint.id,
-        complainant_name: complaint.complainant_name || '',
+        complainant_name: [complaint.firstName, complaint.lastName].filter(Boolean).join(' ') || complaint.complainant_name || '',
         complainant_father_name: complaint.complainant_father_name || '',
         complainant_dob: complaint.complainant_dob || '',
         complainant_nationality: complaint.complainant_nationality || 'INDIA',
-        complainant_phone: complaint.complainant_phone || '',
+        complainant_phone: complaint.mobileNumber || complaint.complainant_phone || '',
         complainant_occupation: complaint.complainant_occupation || '',
-        complainant_present_address: complaint.complainant_present_address || '',
+        complainant_present_address: [
+          complaint.houseNumber, complaint.streetName, complaint.colonyArea,
+          complaint.villageTown, complaint.tehsilBlock, complaint.district,
+          complaint.state, complaint.pinCode,
+        ].filter(Boolean).join(', ') || complaint.complainant_present_address || '',
         complainant_permanent_address: complaint.complainant_permanent_address || '',
-        complainant_uid: complaint.complainant_uid || '',
-        place_address: complaint.incident_place || '',
-        fir_content: complaint.complaint_text || '',
+        complainant_uid: complaint.idNumber || complaint.complainant_uid || '',
+        place_address: complaint.placeOfIncident || complaint.incident_place || '',
+        fir_content: complaint.investigationReport || complaint.descriptionOfComplaint || complaint.complaint_text || '',
       };
 
       // Handle district + PS dropdown
@@ -544,23 +551,27 @@ export default function FIRForm() {
         updates.district = complaint.district;
         setSelectedDistrict(complaint.district);
       }
-      if (complaint.police_station) {
-        updates.police_station = complaint.police_station;
+      if (complaint.policeStation || complaint.police_station) {
+        updates.police_station = complaint.policeStation || complaint.police_station;
       }
 
       form.setFieldsValue(updates);
       const filledKeys = Object.keys(updates);
       setAutoFilledFields(prev => [...new Set([...prev, ...filledKeys])]);
 
-      // Mark complaint as converted
-      await fetch(`${import.meta.env.VITE_API_URL}/complaints/${complaint.id}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status: 'converted_to_fir' }),
-      });
+      if (complaint.accusedList && complaint.accusedList.length > 0) {
+        setAccused(complaint.accusedList.map(a => ({
+          name: a.name || 'Unknown',
+          alias: '',
+          relative_name: '',
+          phone: '',
+          address: a.address || '',
+        })));
+      }
 
+      setSelectedComplaintId(complaint.id);
       setComplaintModalOpen(false);
-      message.success(`Complaint ${complaint.complaint_number} se data auto-fill ho gaya! highlighted fields check karein.`);
+      message.success(`Complaint ${complaint.complaint_number || complaint.id} se data auto-fill ho gaya! highlighted fields check karein.`);
     } catch (err) {
       message.error('Auto-fill mein error aaya: ' + err.message);
     } finally {
@@ -638,6 +649,7 @@ export default function FIRForm() {
         officer_rank: values.officer_rank,
         officer_no: values.officer_no,
         dispatch_date_time: fmtDT(values.dispatch_date_time),
+        complaint_id: selectedComplaintId,
       };
 
       const res = await fetch(`${import.meta.env.VITE_API_URL}/firs`, {
@@ -651,6 +663,24 @@ export default function FIRForm() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to register FIR');
       message.success(`FIR #${data.fir_number} registered successfully!`);
+
+      // Update complaint status & link the registered FIR
+      if (selectedComplaintId) {
+        await fetch(`${import.meta.env.VITE_API_URL}/complaints/${selectedComplaintId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            status: 'converted_to_fir',
+            ioStatus: 'Convert to FIR',
+            linkedFirId: data.id,
+            linkedFirNumber: data.fir_number
+          })
+        });
+      }
+
       // save full data so the printable template has all fields
       setRegisteredFir({
         ...data,

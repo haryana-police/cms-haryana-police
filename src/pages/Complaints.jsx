@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { Typography, Row, Col, Card, Button, Alert, Spin } from 'antd';
-import { SearchOutlined, FormOutlined, FileTextOutlined, SwapOutlined } from '@ant-design/icons';
+import { Typography, Row, Col, Card, Button, Alert, Spin, Modal, Table, Tag, Space } from 'antd';
+import { SearchOutlined, FormOutlined, FileTextOutlined, SwapOutlined, WarningOutlined, EyeOutlined } from '@ant-design/icons';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import ComplaintWizard from '../components/complaints/ComplaintWizard';
 import Enquiry from '../components/complaints/Enquiry';
-import SearchComplaints from '../components/complaints/SearchComplaints';
+import SearchComplaints, { ComplaintDetailView } from '../components/complaints/SearchComplaints';
 import TransferComplaint from '../components/complaints/TransferComplaint';
 import { useAuth } from '../hooks/useAuth';
 
-const { Title, Paragraph } = Typography;
+const { Title, Paragraph, Text } = Typography;
 
 // Error boundary to catch render crashes (e.g. corrupted localStorage)
 class WizardErrorBoundary extends React.Component {
@@ -68,6 +68,57 @@ export default function Complaints() {
   const [syncVersion, setSyncVersion] = useState(0);
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showHabitualModal, setShowHabitualModal] = useState(false);
+  const [viewComplaint, setViewComplaint] = useState(null);
+
+  const getHabitualReason = (c) => {
+    const phone = (c.mobileNumber || '').trim();
+    const desc = (c.descriptionOfComplaint || '').trim();
+    const reasons = [];
+
+    // Mobile Number Checks
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.length > 0) {
+      if (cleanPhone.length !== 10) {
+        reasons.push('Invalid length (Must be 10 digits)');
+      } else {
+        if (!/^[6-9]/.test(cleanPhone)) {
+          reasons.push('Invalid starting digit (Must start with 6, 7, 8, or 9)');
+        }
+        if (/^(\d)\1{9}$/.test(cleanPhone)) {
+          reasons.push('Repetitive digits (e.g. 1111111111)');
+        }
+        if (/^(\d\d)\1{4}$/.test(cleanPhone)) {
+          reasons.push('Alternating digits (e.g. 1212121212)');
+        }
+        if (cleanPhone === '1234567890' || cleanPhone === '0987654321') {
+          reasons.push('Sequential digits (e.g. 1234567890)');
+        }
+      }
+    }
+
+    // Description Checks
+    if (!desc) {
+      reasons.push('Empty description');
+    } else if (desc.length < 15) {
+      reasons.push('Extremely short description (Less than 15 chars)');
+    } else {
+      const words = desc.split(/\s+/);
+      const hasKeyboardMash = /asdf|qwerty|zxcv/i.test(desc);
+      const longConsonantWord = words.some(w => w.length > 8 && !/[aeiouyअआइईउऊएऐओऔक-ह]/i.test(w));
+      const repeatingLetters = /(\w)\1{4}/.test(desc);
+      const uniqueWords = new Set(words);
+      const wordRepeatRatio = uniqueWords.size / words.length;
+      const isHighlyRepetitive = words.length > 5 && wordRepeatRatio < 0.3;
+
+      if (hasKeyboardMash) reasons.push('Gibberish content (Keyboard mash detected)');
+      if (longConsonantWord) reasons.push('Unreadable word (Gibberish consonant cluster)');
+      if (repeatingLetters) reasons.push('Repetitive letters (e.g. aaaaa)');
+      if (isHighlyRepetitive) reasons.push('Highly repetitive text (Spam)');
+    }
+
+    return reasons;
+  };
 
   const fetchComplaints = async () => {
     try {
@@ -197,7 +248,21 @@ export default function Complaints() {
               Register, Search, and Enquire Complaints
             </Paragraph>
           </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <Button 
+              type="primary" 
+              size="large" 
+              icon={<WarningOutlined />}
+              onClick={() => setShowHabitualModal(true)}
+              style={{ 
+                borderRadius: '8px', 
+                fontWeight: 'bold',
+                backgroundColor: '#1677ff',
+                borderColor: '#1677ff'
+              }}
+            >
+              Habitual Complainants ({saved.filter(c => getHabitualReason(c).length > 0).length})
+            </Button>
             <Button 
               type="primary" 
               size="large" 
@@ -221,12 +286,6 @@ export default function Complaints() {
             <Card style={{ borderRadius: '12px', background: '#141414', borderColor: '#303030' }} bodyStyle={{ padding: '16px 20px' }}>
               <Paragraph type="secondary" style={{ margin: 0, marginBottom: '4px' }}>Pending Enquiry</Paragraph>
               <Title level={2} style={{ margin: 0 }}>{pendingEnquiry}</Title>
-            </Card>
-          </Col>
-          <Col style={{ flex: 1, minWidth: '180px' }}>
-            <Card style={{ borderRadius: '12px', background: '#141414', borderColor: '#303030' }} bodyStyle={{ padding: '16px 20px' }}>
-              <Paragraph type="secondary" style={{ margin: 0, marginBottom: '4px' }}>Under Investigation</Paragraph>
-              <Title level={2} style={{ margin: 0 }}>{underInvestigation}</Title>
             </Card>
           </Col>
           <Col style={{ flex: 1, minWidth: '180px' }}>
@@ -270,6 +329,139 @@ export default function Complaints() {
             hideHeader={true}
           />
         </div>
+
+        {/* Habitual Complainants Modal */}
+        <Modal
+          title={
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 18 }}>
+              <WarningOutlined style={{ color: '#ff4d4f' }} />
+              Habitual Complainants & Suspicious Submissions
+            </span>
+          }
+          open={showHabitualModal}
+          onCancel={() => setShowHabitualModal(false)}
+          footer={[
+            <Button key="close" type="primary" onClick={() => setShowHabitualModal(false)}>
+              Close
+            </Button>
+          ]}
+          width={950}
+        >
+          <Table 
+            dataSource={saved.filter(c => getHabitualReason(c).length > 0)}
+            columns={[
+              {
+                title: 'Complaint ID',
+                dataIndex: 'id',
+                key: 'id',
+                render: (text) => <Tag color="blue">{text}</Tag>
+              },
+              {
+                title: 'Complainant',
+                key: 'complainantName',
+                render: (_, record) => `${record.firstName || ''} ${record.lastName || ''}`
+              },
+              {
+                title: 'Mobile Number',
+                dataIndex: 'mobileNumber',
+                key: 'mobileNumber',
+                render: (text) => <Text style={{ fontFamily: 'monospace' }}>{text}</Text>
+              },
+              {
+                title: 'Description',
+                dataIndex: 'descriptionOfComplaint',
+                key: 'descriptionOfComplaint',
+                ellipsis: true,
+                render: (text) => (
+                  <Text title={text} style={{ maxWidth: 220, display: 'inline-block' }} ellipsis>
+                    {text}
+                  </Text>
+                )
+              },
+              {
+                title: 'Reason Flagged',
+                key: 'reasons',
+                render: (_, record) => {
+                  const reasons = getHabitualReason(record);
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {reasons.map((r, idx) => (
+                        <Tag key={idx} color="red">{r}</Tag>
+                      ))}
+                    </div>
+                  );
+                }
+              },
+              {
+                title: 'Action',
+                key: 'action',
+                render: (_, record) => (
+                  <Space size="middle">
+                    <Button 
+                      type="default" 
+                      size="small" 
+                      icon={<EyeOutlined />}
+                      onClick={() => setViewComplaint(record)}
+                    >
+                      View
+                    </Button>
+                    <Button 
+                      type="primary" 
+                      size="small" 
+                      onClick={() => {
+                        setShowHabitualModal(false);
+                        handleStartEnquiry(record.id);
+                      }}
+                    >
+                      Enquire
+                    </Button>
+                  </Space>
+                )
+              }
+            ]}
+            rowKey="id"
+            pagination={{ pageSize: 5 }}
+            style={{ marginTop: 16 }}
+          />
+        </Modal>
+
+        {/* Complaint Details Modal */}
+        <Modal
+          title={
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <EyeOutlined style={{ color: '#1890ff' }} />
+              <span>Complaint Details</span>
+            </div>
+          }
+          open={!!viewComplaint}
+          onCancel={() => setViewComplaint(null)}
+          footer={[
+            viewComplaint?.ioStatus !== 'Convert to FIR' && (
+              <Button 
+                key="enquire" 
+                type="primary" 
+                onClick={() => { 
+                  setViewComplaint(null); 
+                  setShowHabitualModal(false); 
+                  handleStartEnquiry(viewComplaint?.id); 
+                }}
+              >
+                Enquire
+              </Button>
+            ),
+            <Button key="close" onClick={() => setViewComplaint(null)}>Close</Button>,
+          ]}
+          width={860}
+          styles={{
+            body: { background: '#111827', padding: '20px' },
+            header: { background: '#1a2236', borderBottom: '1px solid rgba(255,255,255,0.08)' },
+            footer: { background: '#1a2236', borderTop: '1px solid rgba(255,255,255,0.08)' },
+            content: { background: '#111827' },
+            mask: { backdropFilter: 'blur(4px)' },
+          }}
+        >
+          <ComplaintDetailView record={viewComplaint} />
+        </Modal>
       </div>
     );
   };
