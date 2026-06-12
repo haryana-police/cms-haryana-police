@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { Card, Button, Typography, Row, Col, Divider, Input, message, Select, Tag, Empty, Radio, Space, Spin, Modal, List, Checkbox, Upload, Alert, Popover } from 'antd';
 import { DownloadOutlined, ArrowLeftOutlined, SearchOutlined, FileTextOutlined, RobotOutlined, PlusOutlined, SwapOutlined, CheckCircleOutlined, EyeOutlined, UploadOutlined, DeleteOutlined, PaperClipOutlined } from '@ant-design/icons';
 import { districts, policeStationsByDistrict } from '../../data/districtPoliceStations';
@@ -1059,15 +1059,12 @@ Only output the translated HTML. Do not include any explanations, preambles, or 
       ? extraSections.map(sec => `<p>${sec}</p><p>&nbsp;</p>`).join('')
       : '';
 
-    return `<table style="width:100%; border-collapse:collapse; font-family:Arial,sans-serif;">
-  <tr>
-    <td style="width:50%;"><strong>थाना - ${ps}</strong></td>
-    <td style="width:50%; text-align:right;"><strong>जिला- ${dist}</strong></td>
-  </tr>
-</table>
-<p><strong>क्रमांक - &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>दिनांक - ${dateToday}</strong></p>
-<p>आपको इस नोटिस के माध्यम से सूचित किया जाता है कि ${recipient === 'complainant' ? 'परिवादी' : 'उत्तरवादी'} <strong>${toName}</strong> निवासी ${toAddress} के विरुद्ध/द्वारा परिवाद नंबर <strong>${f.complaintId}</strong>-Peshi दिनांक ${formattedRegDate} को प्राप्त हुई है।</p>
+    return `<p>थाना - ${ps}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;जिला- ${dist}</p>
+<br/>
+<p>क्रमांक - &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;दिनांक - ${dateToday}</p>
+<p>आपको इस नोटिस के माध्यम से सूचित किया जाता है कि ${recipient === 'complainant' ? 'परिवादी' : 'उत्तरवादी'} <strong>${toName}</strong> निवासी ${toAddress} के विरुद्ध/द्वारा परिवाद नंबर <strong>${f.complaintId}</strong> दिनांक ${formattedRegDate} को प्राप्त हुई है (प्रतिलिपि संलग्न है)।</p>
 <p>इसलिए आप ${recipient === 'complainant' ? 'परिवादी' : 'उत्तरवादी'} <strong>${toName}</strong> निवासी ${toAddress} को निर्देश दिया जाता है कि आप दिनांक <strong>${appearanceDate}</strong> को समय <strong>11:00 AM</strong> पर प्रारंभिक जांच में सभी दस्तावेज़ों, साक्षों और सामग्री के साथ व्यक्तिगत रूप से शामिल हों। या अपनी प्रतिनिधि को भेजें शिकायत की जांच के सम्बन्ध में यदि आप अपनी उपस्थिति को वीडियो कॉन्फ्रेंस के माध्यम से चाहते हैं तो थाना प्रभारी की ईमेल <strong>${email}</strong> पर लिखित निवेदन ${appearanceDate} से पहले भेजना सुनिश्चित करें।</p>
+<p>इस नोटिस पत्र सम्बन्ध में आपको भी स्पष्ट किया जाता है कि आप यह नोटिस केवल शिकायत की जांच के सम्बन्ध में जारी किया गया है। अभी तक आपके विरुद्ध कोई भी मुकदमा दर्ज नही किया गया है। शिकायत की जांच के दौरान आपको गिरफ्तार नही किया जाएगा।</p>
 ${extraHtml}
 <p>&nbsp;</p>
 <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;थाना प्रभारी</p>
@@ -1132,20 +1129,21 @@ ${extraHtml}
       bodyPara3 = `यदि आप शिकायत की जांच के संबंध में वीडियो कॉन्फ्रेंसिंग के माध्यम से अपनी उपस्थिति दर्ज कराना चाहते हैं, तो कृपया दिनांक <strong>${appearanceDate}</strong> से पूर्व थाना प्रभारी के ईमेल <strong>${shoEmail}</strong> पर लिखित अनुरोध प्रेषित करना सुनिश्चित करें।`;
     }
 
-    return `<table style="width:100%; border-collapse:collapse; font-family:Arial,sans-serif;">
-  <tr>
-    <td style="width:50%;"><strong>थाना - ${pse}</strong></td>
-    <td style="width:50%; text-align:right;"><strong>जिला- ${diste}</strong></td>
-  </tr>
-</table>
+    return `<p>थाना - ${pse}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;जिला- ${diste}</p>
+<br/>
 <p><strong>विषय:</strong> परिवाद संख्या <strong>${fe.complaintId}</strong> दिनांक ${regDate} के संबंध में प्रारंभिक जांच हेतु सूचना</p>
 <p>महोदय,</p>
 <p>&nbsp;&nbsp;&nbsp;&nbsp;${bodyPara1}</p>
 <p>&nbsp;&nbsp;&nbsp;&nbsp;${bodyPara2}</p>
 <p>&nbsp;&nbsp;&nbsp;&nbsp;${bodyPara3}</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;यह भी स्पष्ट किया जाता है कि यह सूचना केवल शिकायत की प्रारम्भिक जांच के उद्देश्य से जारी की जा रही है। वर्तमान में आपके विरुद्ध कोई अभियोग/मुकदमा दर्ज नहीं किया गया है। शिकायत की जांच के दौरान आपको गिरफ्तार नहीं किया जाएगा।</p>
+<p>&nbsp;&nbsp;&nbsp;&nbsp;आपसे अपेक्षा है कि जांच प्रक्रिया में पूर्ण सहयोग प्रदान करेंगे।</p>
+<p>भवदीय,</p>
 <p>&nbsp;</p>
-<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;थाना प्रभारी</p>
-<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;थाना ${pse}, जिला ${diste}</p>`;
+<p><strong>थाना प्रभारी</strong></p>
+<p>थाना –</p>
+<p>मोबाइल नं0 -</p>
+<p>दिनांक -</p>`;
   };
 
   const generateTemplateText = (templateType, complaint) => {
@@ -1235,30 +1233,26 @@ case 'enquiry_ncr': {
         const cn = complaint || {};
         const psn = cn.policeStation || (profile?.policeStation) || '_______';
         const distn = cn.district || (profile?.district) || '_______';
-        const daten = dayjs().format('DD-MM-YYYY');
-        const regDaten = cn.registrationDate ? dayjs(cn.registrationDate).format('DD/MM/YYYY') : '_______';
-        return `<table style="width:100%; border-collapse:collapse; font-family:Arial,sans-serif;">
+        return `<p>पुलिस विभाग &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;जिला -</p>
+			जांच रिपोर्ट परिवाद नम्बरी – <br/>
+<table style="width:100%; border-collapse:collapse; border:1px solid #333;">
   <tr>
-    <td style="width:50%;"><strong>थाना - ${psn}</strong></td>
-    <td style="width:50%; text-align:right;"><strong>जिला- ${distn}</strong></td>
+    <td style="padding:8px; border:1px solid #333; width:30%;"><p><strong>परिवादी</strong></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><br></p></td>
   </tr>
-</table>
-<p><strong>क्रमांक - &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</strong>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>दिनांक - ${daten}</strong></p>
-<p><strong>जांच रिपोर्ट परिवाद नम्बरी – ${fn.complaintId}</strong> (असंज्ञेय अपराध / NCR)</p>
-<table style="width:100%; border-collapse:collapse; border:1px solid #999;">
-  <tr><td style="padding:6px; border:1px solid #999; width:35%;"><strong>1. परिवादी विवरण</strong></td><td style="padding:6px; border:1px solid #999;">${fn.compName}<br>मो. ${fn.compPhone}<br>${fn.compAddress}</td></tr>
-  <tr><td style="padding:6px; border:1px solid #999;"><strong>2. उत्तरवादी विवरण</strong></td><td style="padding:6px; border:1px solid #999;">${fn.accusedDetailsBlock}</td></tr>
-  <tr><td style="padding:6px; border:1px solid #999;"><strong>3. घटना विवरण</strong></td><td style="padding:6px; border:1px solid #999;">श्रेणी: ${fn.incidentClass}<br>दिनांक एवं समय: ${fn.dateOfInc}, ${fn.timeOfInc}<br>घटना स्थान: ${fn.placeOfIncident}</td></tr>
-  <tr><td style="padding:6px; border:1px solid #999;"><strong>4. परिवाद के तथ्य</strong></td><td style="padding:6px; border:1px solid #999;">${fn.actDescription}</td></tr>
-  <tr><td style="padding:6px; border:1px solid #999;"><strong>परिवाद प्राप्ति दिनांक</strong></td><td style="padding:6px; border:1px solid #999;">${regDaten}</td></tr>
-</table>
-<p><strong>5. जांच अधिकारी की राय एवं की गई कार्यवाही</strong></p>
-<p>परिवाद के सावधानीपूर्वक अवलोकन एवं प्रारंभिक जांच के उपरांत यह निष्कर्ष निकाला गया है कि परिवादी <strong>${fn.compName}</strong> द्वारा लगाए गए आरोप एक पूर्णतः <strong>असंज्ञेय अपराध (Non-Cognizable Offence)</strong> को इंगित करते हैं।</p>
-<p>तदनुसार, इस सूचना का सार रोजनामचा दैनिक (Rapt/DDR) में विधिवत दर्ज कर लिया गया है। पुलिस बिना किसी सक्षम मजिस्ट्रेट के आदेश के असंज्ञेय मामले की जांच नहीं कर सकती।</p>
-<p>परिवादी <strong>${fn.compName}</strong> को विधिवत सूचित कर दिया गया है तथा उन्हें BNSS की संबंधित धाराओं के अंतर्गत माननीय मजिस्ट्रेट के समक्ष जाने की विधिक सलाह दी गई है।</p>
-<p>&nbsp;</p>
-<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;जांच अधिकारी</p>
-<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;थाना ${psn}, जिला ${distn}</p>`;
+  <tr>
+    <td style="padding:8px; border:1px solid #333;"><p><strong>परिवाद का सार</strong></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><br></p></td>
+  </tr>
+  <tr>
+    <td style="padding:8px; border:1px solid #333;"><p><strong>उत्तरवादी का विवरण</strong></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><br></p></td>
+  </tr>
+  <tr>
+    <td style="padding:8px; border:1px solid #333;"><p><strong>जांच की स्थिति का विवरण</strong></p></td>
+    <td style="padding:8px; border:1px solid #333;"><p><br></p></td>
+  </tr>
+</table>`;
       }
 
             case 'enquiry_fir':
