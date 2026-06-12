@@ -2,17 +2,17 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Form, Input, Button, Card, Typography, Alert, message,
-  Divider, Space, Select, Tabs,
+  Divider, Space, Tabs,
 } from 'antd';
+
 import {
   UserOutlined, LockOutlined, SafetyCertificateOutlined,
-  SearchOutlined, BankOutlined, TeamOutlined,
+  BankOutlined, TeamOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../hooks/useAuth';
 import '../styles/login.css';
 
 const { Title, Text } = Typography;
-const { Option } = Select;
 
 const HARYANA_DISTRICTS = {
   'AMBALA': ['AMBALA CANTT','AMBALA CITY','AMBALA SADAR','BALDEV NAGAR','BARARA','MAHESH NAGAR','MULLANA','NAGGAL','NARAINGARH','PANJOKHRA','PARAO AMBALA CANTT','SAHA','SECTOR-9 AMBALA CITY','SHAHZADPUR','WOMEN POLICE STATION NARAINGARH AMBALA','WOMEN POLICE STATION AMBALA'],
@@ -99,7 +99,7 @@ export default function Login() {
     setShoLookupLoading(true);
     try {
       const res = await fetch(
-        `http://localhost:3000/api/users/lookup-sho?station=${encodeURIComponent(station)}`
+        `/api/users/lookup-sho?station=${encodeURIComponent(station)}`
       );
       const data = await res.json();
       if (res.ok && data.username) {
@@ -167,8 +167,8 @@ export default function Login() {
                   <Divider plain style={{ fontSize: 12, color: '#555' }}>Dev: Quick Login</Divider>
                   <Space style={{ width: '100%', justifyContent: 'center' }} size="small" wrap>
                     <Button size="small" onClick={() => quickLogin('admin', 'admin123')}>Admin</Button>
-                    <Button size="small" onClick={() => quickLogin('io_1', 'io123')}>IO</Button>
                     <Button size="small" onClick={() => quickLogin('sho_1', 'sho123')}>SHO (old)</Button>
+                    <Button size="small" onClick={() => quickLogin('io_1', 'io123')}>IO</Button>
                   </Space>
                 </>
               ),
@@ -191,44 +191,54 @@ export default function Login() {
                     Apna <strong>District</strong> aur <strong>Police Station</strong> chunein — username auto-fill ho jayega.
                   </div>
 
-                  {/* District */}
+                   {/* District */}
                   <div style={{ marginBottom: 12 }}>
                     <div style={{ fontSize: 12, color: '#aaa', marginBottom: 6 }}>District Chunein</div>
-                    <Select
-                      showSearch
-                      placeholder="District chunein..."
-                      style={{ width: '100%' }}
-                      optionFilterProp="children"
-                      onChange={(val) => {
-                        setSelectedDistrict(val);
+                    <select
+                      style={{
+                        width: '100%', padding: '8px 12px', borderRadius: 8,
+                        background: '#1e2130', border: '1px solid #374151',
+                        color: '#d1d5db', fontSize: 14, cursor: 'pointer', outline: 'none',
+                      }}
+                      value={selectedDistrict || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSelectedDistrict(val || null);
                         setSelectedStation(null);
                         setShoInfo(null);
                       }}
                     >
+                      <option value="">-- District chunein --</option>
                       {Object.keys(HARYANA_DISTRICTS).sort().map(d => (
-                        <Option key={d} value={d}>{d}</Option>
+                        <option key={d} value={d}>{d}</option>
                       ))}
-                    </Select>
+                    </select>
                   </div>
 
                   {/* Police Station */}
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ fontSize: 12, color: '#aaa', marginBottom: 6 }}>Police Station Chunein</div>
-                    <Select
-                      showSearch
-                      placeholder={selectedDistrict ? 'Station chunein...' : 'Pehle district chunein'}
+                    <select
                       disabled={!selectedDistrict}
-                      style={{ width: '100%' }}
-                      optionFilterProp="children"
-                      loading={shoLookupLoading}
-                      onChange={handleStationSelect}
-                      value={selectedStation}
+                      style={{
+                        width: '100%', padding: '8px 12px', borderRadius: 8,
+                        background: selectedDistrict ? '#1e2130' : '#161923',
+                        border: '1px solid #374151', color: selectedDistrict ? '#d1d5db' : '#4b5563',
+                        fontSize: 14, cursor: selectedDistrict ? 'pointer' : 'not-allowed', outline: 'none',
+                      }}
+                      value={selectedStation || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val) handleStationSelect(val);
+                      }}
                     >
+                      <option value="">{selectedDistrict ? '-- Station chunein --' : '-- Pehle district chunein --'}</option>
                       {(HARYANA_DISTRICTS[selectedDistrict] || []).map(ps => (
-                        <Option key={ps} value={ps}>{ps}</Option>
+                        <option key={ps} value={ps}>{ps}</option>
                       ))}
-                    </Select>
+                    </select>
                   </div>
+
 
                   {/* Result card */}
                   {shoInfo && (

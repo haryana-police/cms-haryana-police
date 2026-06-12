@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { Table, Input, Button, Typography, Tag, Modal, Card, Row, Col, Divider, Badge } from 'antd';
-import { SearchOutlined, EyeOutlined, UserOutlined, EnvironmentOutlined, SafetyOutlined, FileTextOutlined, TeamOutlined, InfoCircleOutlined, ArrowLeftOutlined } from '@ant-design/icons';
+import { SearchOutlined, EyeOutlined, UserOutlined, EnvironmentOutlined, SafetyOutlined, FileTextOutlined, TeamOutlined, InfoCircleOutlined, ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuth } from '../../hooks/useAuth';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { jsPDF } from 'jspdf';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -44,7 +46,7 @@ const sectionCard = (icon, title, color = '#1890ff') => ({
 });
 
 // Full Detail View Component
-function ComplaintDetailView({ record }) {
+export function ComplaintDetailView({ record }) {
   if (!record) return null;
 
   const d = record;
@@ -223,30 +225,334 @@ function ComplaintDetailView({ record }) {
   );
 }
 
+const loadImage = (src) => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.src = src;
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+  });
+};
+
 export default function SearchComplaints({ onBack, onStartEnquiry, hideHeader }) {
   const [searchText, setSearchText] = useState('');
   const [viewComplaint, setViewComplaint] = useState(null);
   const { profile } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const handlePrintReceipt = async (d) => {
+    if (!d) return;
+
+    // Load logo images
+    const [logoSquare, logoShield] = await Promise.all([
+      loadImage('/hp-logo-square.png'),
+      loadImage('/hp-logo-shield.png')
+    ]);
+
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    // Page Border
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(1);
+    doc.rect(5, 5, 200, 287);
+
+    // Header Banner
+    doc.setFillColor(255, 255, 255);
+    doc.rect(5, 5, 200, 25, 'F');
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.5);
+    doc.line(5, 30, 205, 30);
+
+    // Add Logo Images inside white banner
+    // Square Logo (Pic 1) on Left: x=10, y=7.5, width=20, height=20
+    if (logoSquare) {
+      doc.addImage(logoSquare, 'PNG', 10, 7.5, 20, 20);
+    }
+
+    // Shield Logo (Pic 2) on Right: x=180, y=7.5, width=20, height=20 (matching 1:1 aspect ratio after transparent crop)
+    if (logoShield) {
+      doc.addImage(logoShield, 'PNG', 180, 7.5, 20, 20);
+    }
+
+    // Title text inside banner
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('HARYANA POLICE', 105, 14, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont('Helvetica', 'normal');
+    doc.text('Smart Case Management System - Complaint Receipt', 105, 21, { align: 'center' });
+
+    // Reset styles for body
+    doc.setTextColor(33, 33, 33);
+    let y = 42;
+
+    const addField = (label, value, xOffset = 15, width = 85) => {
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text(`${label}:`, xOffset, y);
+      doc.setFont('Helvetica', 'normal');
+      const textLines = doc.splitTextToSize(String(value || 'N/A'), width);
+      doc.text(textLines, xOffset + 32, y);
+    };
+
+    // Section 1: Basic Info
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text('1. BASIC INFORMATION', 15, y);
+    doc.line(15, y + 2, 195, y + 2);
+    doc.setTextColor(33, 33, 33);
+    y += 8;
+
+    addField('Complaint ID', d.id, 15);
+    const dateStr = d.registrationDate || d.registeredAt ? dayjs(d.registrationDate || d.registeredAt).format('DD MMM YYYY hh:mm A') : 'N/A';
+    addField('Registration Date', dateStr, 110);
+    y += 8;
+
+    addField('Status', d.ioStatus || 'Registered', 15);
+    addField('Category', d.classOfIncident || 'N/A', 110);
+    y += 12;
+
+    // Section 2: Complainant Details
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text('2. COMPLAINANT DETAILS', 15, y);
+    doc.line(15, y + 2, 195, y + 2);
+    doc.setTextColor(33, 33, 33);
+    y += 8;
+
+    const compName = `${d.firstName || ''} ${d.lastName || ''}`.trim() || 'Unknown';
+    addField('Full Name', compName, 15);
+    addField('Mobile Number', d.mobileNumber || 'N/A', 110);
+    y += 8;
+
+    const addrParts = [d.houseNumber, d.streetName, d.colonyArea, d.villageTown, d.district, d.state, d.pinCode];
+    const compAddress = addrParts.filter(Boolean).join(', ') || 'N/A';
+    
+    doc.setFont('Helvetica', 'bold');
+    doc.text('Address:', 15, y);
+    doc.setFont('Helvetica', 'normal');
+    const addrLines = doc.splitTextToSize(compAddress, 145);
+    doc.text(addrLines, 47, y);
+    y += Math.max(8, addrLines.length * 5 + 2);
+
+    // Section 3: Incident Details
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text('3. INCIDENT DETAILS', 15, y);
+    doc.line(15, y + 2, 195, y + 2);
+    doc.setTextColor(33, 33, 33);
+    y += 8;
+
+    addField('Place of Incident', d.placeOfIncident || 'N/A', 15);
+    const incDate = d.dateOfIncident ? dayjs(d.dateOfIncident).format('DD MMM YYYY') : 'N/A';
+    addField('Date of Incident', incDate, 110);
+    y += 8;
+
+    const incTime = d.timeOfIncident ? dayjs(d.timeOfIncident).format('hh:mm A') : 'N/A';
+    addField('Time of Incident', incTime, 15);
+    addField('Mode of Receipt', d.modeOfReceipt || 'N/A', 110);
+    y += 12;
+
+    // Section 4: Accused Details
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text('4. ACCUSED DETAILS', 15, y);
+    doc.line(15, y + 2, 195, y + 2);
+    doc.setTextColor(33, 33, 33);
+    y += 8;
+
+    const accusedList = d.accusedList || (d.accusedName ? [{ name: d.accusedName, address: d.accusedAddress || '' }] : []);
+    if (accusedList.length === 0) {
+      doc.setFont('Helvetica', 'normal');
+      doc.text('No accused specified / Unknown', 15, y);
+      y += 8;
+    } else {
+      accusedList.forEach((acc, idx) => {
+        if (y + 15 > 270) {
+          doc.addPage();
+          doc.setDrawColor(0, 0, 0);
+          doc.setLineWidth(1);
+          doc.rect(5, 5, 200, 287);
+          y = 20;
+        }
+        doc.setFont('Helvetica', 'bold');
+        doc.text(`${idx + 1}. Name:`, 15, y);
+        doc.setFont('Helvetica', 'normal');
+        doc.text(acc.name || 'Unknown', 32, y);
+
+        doc.setFont('Helvetica', 'bold');
+        doc.text('Address:', 100, y);
+        doc.setFont('Helvetica', 'normal');
+        const accAddrLines = doc.splitTextToSize(acc.address || 'Unknown', 70);
+        doc.text(accAddrLines, 120, y);
+        y += Math.max(8, accAddrLines.length * 5);
+      });
+    }
+    y += 4;
+
+    // Section 5: Description
+    if (y + 20 > 270) {
+      doc.addPage();
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(1);
+      doc.rect(5, 5, 200, 287);
+      y = 20;
+    }
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text('5. DESCRIPTION OF COMPLAINT', 15, y);
+    doc.line(15, y + 2, 195, y + 2);
+    doc.setTextColor(33, 33, 33);
+    y += 8;
+
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(10);
+    const descLines = doc.splitTextToSize(d.descriptionOfComplaint || 'N/A', 175);
+    
+    // Page break handling for long descriptions
+    descLines.forEach((line) => {
+      if (y > 270) {
+        doc.addPage();
+        doc.setDrawColor(0, 0, 0);
+        doc.setLineWidth(1);
+        doc.rect(5, 5, 200, 287);
+        y = 20;
+      }
+      doc.text(line, 15, y);
+      y += 5;
+    });
+
+    // Signature Block/Stamp placeholder
+    if (y + 35 > 270) {
+      doc.addPage();
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(1);
+      doc.rect(5, 5, 200, 287);
+      y = 20;
+    }
+    y += 10;
+
+    const rawStation = profile?.station_id || d.policeStation || 'Haryana Police';
+    const stationLabel = rawStation.toUpperCase() !== 'HARYANA POLICE' ? `PS ${rawStation.toUpperCase()}` : 'Haryana Police Station';
+
+    // Left: Investigating Officer Stamp / Signature
+    doc.setFont('Helvetica', 'bold');
+    doc.text('Investigating Officer (IO)', 15, y);
+    doc.setFont('Helvetica', 'normal');
+    doc.text(stationLabel, 15, y + 5);
+
+    // Right: Signature / Stamp of SHO
+    doc.setFont('Helvetica', 'bold');
+    doc.text('Station House Officer (SHO)', 115, y);
+    doc.setFont('Helvetica', 'normal');
+    doc.text(stationLabel, 115, y + 5);
+
+    // Footer on the final page
+    doc.setFont('Helvetica', 'italic');
+    doc.setFontSize(8);
+    doc.setTextColor(120, 120, 120);
+    doc.text('This is a computer-generated receipt. Authentic documents are verified at the station.', 105, 282, { align: 'center' });
+
+    doc.save(`Complaint_Receipt_${d.id}.pdf`);
+  };
+
+  const [complaintsList, setComplaintsList] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchComplaints = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setComplaintsList(data);
+      }
+    } catch (e) {
+      console.error("Error loading complaints:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchComplaints();
+  }, []);
+
+  React.useEffect(() => {
+    const openId = searchParams.get('open_id');
+    if (openId && complaintsList.length > 0) {
+      const found = complaintsList.find(c => c.id === openId);
+      if (found) {
+        setViewComplaint(found);
+      }
+    }
+  }, [searchParams, complaintsList]);
 
   const complaints = useMemo(() => {
-    let saved = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
-    if (profile?.role === 'io') {
-      saved = saved.filter(c => String(c.assignedIoId).trim() === String(profile?.id).trim());
-    }
-    saved.sort((a, b) => new Date(b.registrationDate) - new Date(a.registrationDate));
-    return saved;
-  }, [profile]);
+    const list = [...complaintsList];
+    list.sort((a, b) => new Date(b.registrationDate || b.registeredAt) - new Date(a.registrationDate || a.registeredAt));
+    return list;
+  }, [complaintsList]);
 
   const filteredComplaints = useMemo(() => {
     if (!searchText) return complaints;
     const lower = searchText.toLowerCase();
-    return complaints.filter(c =>
-      (c.id && c.id.toLowerCase().includes(lower)) ||
-      (c.firstName && c.firstName.toLowerCase().includes(lower)) ||
-      (c.lastName && c.lastName.toLowerCase().includes(lower)) ||
-      (c.mobileNumber && c.mobileNumber.includes(lower))
-    );
-  }, [complaints, searchText]);
+    return complaints.filter(c => {
+      // 1. Existing search criteria (ID, Name, Mobile Number)
+      const matchesExisting = 
+        (c.id && c.id.toLowerCase().includes(lower)) ||
+        (c.firstName && c.firstName.toLowerCase().includes(lower)) ||
+        (c.lastName && c.lastName.toLowerCase().includes(lower)) ||
+        (c.mobileNumber && c.mobileNumber.includes(lower));
+
+      if (matchesExisting) return true;
+
+      // 2. Status matching (based on UI status cards & tags)
+      const rawStatus = (c.ioStatus || 'Registered').toLowerCase();
+      
+      // Determine if transferred in to this station
+      const isDestination =
+        c.ioStatus === 'Transferred' &&
+        profile?.role !== 'admin' &&
+        (c.policeStation || 'SAMALKHA') === profile?.station_id &&
+        (c.originalStation || 'SAMALKHA') !== profile?.station_id;
+
+      // Build array of matching display labels for status
+      const displayLabels = [rawStatus];
+      if (isDestination) {
+        displayLabels.push('pending (transferred in)', 'pending', 'transferred in');
+      } else {
+        if (rawStatus === 'pending' || rawStatus === 'pending sho approval' || rawStatus === 'registered') {
+          displayLabels.push('pending enquiry', 'pending', 'enquiry', 'registered');
+        } else if (rawStatus === 'under investigation') {
+          displayLabels.push('under investigation', 'investigation');
+        } else if (rawStatus === 'disposed') {
+          displayLabels.push('disposed');
+        } else if (rawStatus === 'convert to fir') {
+          displayLabels.push('convert to fir', 'fir');
+        } else if (rawStatus === 'transferred') {
+          displayLabels.push('transferred');
+        }
+      }
+
+      // Check if any computed status string matches the query
+      return displayLabels.some(label => label.includes(lower));
+    });
+  }, [complaints, searchText, profile]);
 
   const columns = [
     {
@@ -254,7 +560,15 @@ export default function SearchComplaints({ onBack, onStartEnquiry, hideHeader })
       dataIndex: 'id',
       key: 'id',
       width: '12%',
-      render: text => <strong>{text}</strong>,
+      render: (text, record) => (
+        <Button 
+          type="link" 
+          style={{ padding: 0, fontWeight: 700, height: 'auto', color: '#177ddc' }}
+          onClick={() => setViewComplaint(record)}
+        >
+          {text}
+        </Button>
+      ),
     },
     {
       title: 'Date',
@@ -281,13 +595,37 @@ export default function SearchComplaints({ onBack, onStartEnquiry, hideHeader })
       key: 'status',
       width: '14%',
       render: (_, record) => {
+        // If complaint was transferred TO this station (we are the destination)
+        // show it as 'Pending (Transferred In)' not 'Transferred'
+        const isDestination =
+          record.ioStatus === 'Transferred' &&
+          profile?.role !== 'admin' &&
+          (record.policeStation || 'SAMALKHA') === profile?.station_id &&
+          (record.originalStation || 'SAMALKHA') !== profile?.station_id;
+
         let color = 'green';
         let label = record.ioStatus || 'Registered';
-        if (label === 'Pending') color = 'orange';
-        if (label === 'Under Investigation') color = 'blue';
-        if (label === 'Disposed') color = 'purple';
-        if (label === 'Convert to FIR') color = 'red';
-        return <Tag color={color}>{label}</Tag>;
+        if (isDestination) { label = 'Pending (Transferred In)'; color = 'orange'; }
+        else if (label === 'Pending') color = 'orange';
+        else if (label === 'Under Investigation') color = 'blue';
+        else if (label === 'Disposed') color = 'purple';
+        else if (label === 'Convert to FIR') color = 'red';
+        else if (label === 'Transferred') color = 'volcano';
+        return (
+          <div>
+            <Tag color={color}>{label}</Tag>
+            {record.ioStatus === 'Convert to FIR' && record.linkedFirNumber && (
+              <div style={{ marginTop: 3 }}>
+                <Tag color="volcano" style={{ fontSize: 10, fontFamily: 'monospace' }}>FIR: {record.linkedFirNumber}</Tag>
+              </div>
+            )}
+            {isDestination && record.transferredFrom && (
+              <div style={{ marginTop: 3 }}>
+                <Tag color="geekblue" style={{ fontSize: 10 }}>From: {record.transferredFrom}</Tag>
+              </div>
+            )}
+          </div>
+        );
       },
     },
     {
@@ -303,7 +641,7 @@ export default function SearchComplaints({ onBack, onStartEnquiry, hideHeader })
       key: 'action',
       width: '18%',
       render: (_, record) => (
-        <div style={{ display: 'flex', gap: '6px' }}>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           <Button
             type="default"
             icon={<EyeOutlined />}
@@ -312,13 +650,15 @@ export default function SearchComplaints({ onBack, onStartEnquiry, hideHeader })
           >
             View
           </Button>
-          <Button
-            type="primary"
-            size="small"
-            onClick={() => { if (onStartEnquiry) onStartEnquiry(record.id); }}
-          >
-            Enquire
-          </Button>
+          {record.ioStatus !== 'Convert to FIR' && (
+            <Button
+              type="primary"
+              size="small"
+              onClick={() => { if (onStartEnquiry) onStartEnquiry(record.id); }}
+            >
+              Enquire
+            </Button>
+          )}
         </div>
       ),
     },
@@ -363,12 +703,36 @@ export default function SearchComplaints({ onBack, onStartEnquiry, hideHeader })
           </div>
         }
         open={!!viewComplaint}
-        onCancel={() => setViewComplaint(null)}
+        onCancel={() => {
+          setViewComplaint(null);
+          const params = new URLSearchParams(window.location.search);
+          if (params.has('open_id')) {
+            params.delete('open_id');
+            setSearchParams(params);
+          }
+        }}
         footer={[
-          <Button key="enquire" type="primary" onClick={() => { setViewComplaint(null); if (onStartEnquiry) onStartEnquiry(viewComplaint?.id); }}>
-            Start Enquiry
+          <Button key="print-receipt" type="primary" icon={<PrinterOutlined />} onClick={() => handlePrintReceipt(viewComplaint)}>
+            Print Receipt
           </Button>,
-          <Button key="close" onClick={() => setViewComplaint(null)}>Close</Button>,
+          viewComplaint?.ioStatus !== 'Convert to FIR' && (
+            <Button key="enquire" type="primary" onClick={() => { setViewComplaint(null); if (onStartEnquiry) onStartEnquiry(viewComplaint?.id); }}>
+              Start Enquiry
+            </Button>
+          ),
+          viewComplaint?.ioStatus === 'Convert to FIR' && (
+            <Button key="view-fir" type="primary" danger onClick={() => { setViewComplaint(null); navigate('/fir'); }}>
+              View FIR
+            </Button>
+          ),
+          <Button key="close" onClick={() => {
+            setViewComplaint(null);
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('open_id')) {
+              params.delete('open_id');
+              setSearchParams(params);
+            }
+          }}>Close</Button>,
         ]}
         width={860}
         styles={{

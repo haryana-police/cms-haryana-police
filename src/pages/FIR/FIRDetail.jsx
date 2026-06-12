@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Typography, Card, Descriptions, Tag, Button, Spin, message, Tabs, Space } from 'antd';
-import { ArrowLeftOutlined, EyeOutlined, BuildOutlined, PrinterOutlined } from '@ant-design/icons';
 import {
   Typography, Card, Descriptions, Tag, Button, Spin, message,
   Tabs, Modal, Form, Input, Select, Tooltip, Space,
@@ -12,6 +10,8 @@ import {
   PlusOutlined, DeleteOutlined, AuditOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../../hooks/useAuth';
+import { ComplaintDetailView } from '../../components/complaints/SearchComplaints';
+import '../../styles/fir.css';
 
 // Investigation Components
 import CDRManagement from './investigation/CDRManagement';
@@ -84,6 +84,94 @@ export default function FIRDetail() {
   const [fir, setFir] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const [viewComplaintId, setViewComplaintId] = useState(null);
+  const [viewComplaintData, setViewComplaintData] = useState(null);
+  const [viewComplaintLoading, setViewComplaintLoading] = useState(false);
+
+  useEffect(() => {
+    if (!viewComplaintId) {
+      setViewComplaintData(null);
+      return;
+    }
+    const fetchComplaint = async () => {
+      try {
+        setViewComplaintLoading(true);
+        // Check localStorage first
+        const allSaved = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
+        const found = allSaved.find(c => c.id === viewComplaintId);
+        if (found) {
+          setViewComplaintData(found);
+          return;
+        }
+
+        // Fetch from database
+        const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints/${viewComplaintId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        let data;
+        if (!res.ok) {
+          // Fallback: If not found in DB, try to find in current FIR details
+          if (fir && fir.complaint_id === viewComplaintId) {
+            data = {
+              id: viewComplaintId,
+              created_at: fir.date_time_of_fir,
+              complainant_name: fir.complainant_name || 'Unknown',
+              complainant_phone: fir.complainant_phone || '',
+              complainant_present_address: fir.complainant_present_address || '',
+              district: fir.district || '',
+              incident_place: fir.place_address || 'Unknown',
+              incident_date: fir.date_time_of_fir ? fir.date_time_of_fir.slice(0, 10) : null,
+              complaint_text: fir.fir_content || '',
+              status: 'Convert to FIR'
+            };
+          } else {
+            throw new Error('Failed to load complaint details');
+          }
+        } else {
+          data = await res.json();
+        }
+        
+        // Normalize
+        const normalized = {
+          id: data.id || data.complaint_number,
+          registrationDate: data.created_at,
+          firstName: data.complainant_name || 'Unknown',
+          lastName: '',
+          mobileNumber: data.complainant_phone || '',
+          gender: data.complainant_gender || 'Male',
+          natureOfComplaint: 'Citizen/General Public',
+          typeOfAccused: 'Against Private Person',
+          villageTown: data.complainant_present_address || '',
+          district: data.district || '',
+          state: 'Haryana',
+          nationality: data.complainant_nationality || 'Indian',
+          idType: 'Aadhar Card',
+          idNumber: data.complainant_uid || '',
+          classOfIncident: 'Other IPC/BNS Crimes',
+          placeOfIncident: data.incident_place || 'Unknown',
+          dateOfIncident: data.incident_date || null,
+          dateOfComplaint: data.created_at || null,
+          typeOfComplaint: 'Fresh Complaint',
+          typeOfComplainant: 'Private Person',
+          complaintPurpose: 'FIR Registration',
+          isFirRegistered: 'Yes',
+          modeOfReceipt: 'In-Person/By Hand',
+          descriptionOfComplaint: data.complaint_text || '',
+          ioStatus: data.status || 'Registered',
+          accusedList: []
+        };
+        setViewComplaintData(normalized);
+      } catch (err) {
+        message.error(err.message);
+        setViewComplaintId(null);
+      } finally {
+        setViewComplaintLoading(false);
+      }
+    };
+    fetchComplaint();
+  }, [viewComplaintId, token]);
+
   useEffect(() => {
     const fetchFIR = async () => {
       try {
@@ -115,7 +203,9 @@ export default function FIRDetail() {
     return <div>FIR not found</div>;
   }
 
-  const isIO = profile?.role === 'io' || profile?.role === 'sho' || profile?.role === 'admin';
+  const isIO   = profile?.role === 'io'  || profile?.role === 'sho' || profile?.role === 'admin';
+  const isSHO  = profile?.role === 'sho' || profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin';
 
   // IO Change Modal state
   const [ioModalOpen, setIoModalOpen] = useState(false);
@@ -327,26 +417,9 @@ export default function FIRDetail() {
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '24px', gap: '16px', flexWrap: 'wrap' }}>
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/fir')} shape="circle" />
         <Title level={2} style={{ margin: 0 }}>FIR {fir.fir_number} / {fir.year}</Title>
-        <Tag color={fir.status === 'closed' ? 'green' : fir.status === 'chargesheeted' ? 'purple' : 'blue'}>
+        <Tag color={fir.status === 'closed' ? 'green' : fir.status === 'chargesheeted' ? 'purple' : fir.status === 'under_investigation' ? 'orange' : 'blue'}>
           {fir.status.toUpperCase().replace('_', ' ')}
         </Tag>
-        <div style={{ marginLeft: 'auto' }}>
-  // ── Guards ───────────────────────────────────────────────────────────────────
-  if (loading) {
-    return <div style={{ textAlign: 'center', padding: '100px' }}><Spin size="large" /></div>;
-  }
-
-  if (!fir) {
-    return <div>FIR not found</div>;
-  }
-
-  const isIO   = profile?.role === 'io'  || profile?.role === 'sho' || profile?.role === 'admin';
-  const isSHO  = profile?.role === 'sho' || profile?.role === 'admin';
-  const isAdmin = profile?.role === 'admin';
-
-  // ── Render ───────────────────────────────────────────────────────────────────
-      {/* ── Header ── */}
-        <Tag color={fir.status === 'closed' ? 'green' : fir.status === 'chargesheeted' ? 'purple' : fir.status === 'under_investigation' ? 'orange' : 'blue'}>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {isSHO && (
             <Tooltip title="SHO: IO badlein is FIR ke liye">
@@ -415,13 +488,44 @@ export default function FIRDetail() {
         </div>
       </div>
 
+      {/* Converted from Complaint banner */}
+      {fir?.complaint_id && (
+        <div style={{
+          background: 'rgba(255,120,117,0.1)',
+          border: '1px solid rgba(255,77,79,0.4)',
+          borderRadius: 8,
+          padding: '10px 18px',
+          marginBottom: 16,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+        }}>
+          <SwapOutlined style={{ color: '#ff4d4f', fontSize: 18, flexShrink: 0 }} />
+          <div style={{ fontSize: 13 }}>
+            <span style={{ color: '#ff7875', fontWeight: 700 }}>Converted from Complaint</span>
+            <span style={{ color: '#d9d9d9', marginLeft: 10 }}>
+              Yeh FIR Complaint{' '}
+              <Tooltip title="View Linked Complaint">
+                <Tag
+                  color="volcano"
+                  style={{ fontFamily: 'monospace', fontWeight: 700, margin: '0 3px', cursor: 'pointer' }}
+                  onClick={() => setViewComplaintId(fir.complaint_id)}
+                >
+                  {fir.complaint_id}
+                </Tag>
+              </Tooltip>
+              {' '}se convert ki gayi hai. Complaint Module mein bhi is record ka link mojood hai.
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Hidden print-ready document */}
       <div style={{ display: 'none' }}>
         <FIRPrintDocument fir={fir} />
       </div>
 
-      <Tabs 
-        defaultActiveKey="1" 
+
       {/* ── Change IO Modal ── */}
       <Modal
         open={ioModalOpen}
@@ -742,13 +846,8 @@ export default function FIRDetail() {
                   <Descriptions.Item label="Date of Registration">{new Date(fir.date_time_of_fir).toLocaleString()}</Descriptions.Item>
                   <Descriptions.Item label="Complainant">{fir.complainant_name}</Descriptions.Item>
                   <Descriptions.Item label="Place of Occurrence">{fir.place_address || 'N/A'}</Descriptions.Item>
-                  <Descriptions.Item label="Investigating Officer">{fir.io_name || 'Unassigned'} ({fir.io_rank})</Descriptions.Item>
                   <Descriptions.Item label="Registered By">{fir.registered_by_name}</Descriptions.Item>
                   
-                  <Descriptions.Item label="Acts & Sections" span={3}>
-                    {fir.acts_sections?.map((act, i) => (
-                      <Tag key={i} color="geekblue" style={{ marginBottom: 4 }}>{act.act} - Sec {act.sections}</Tag>
-                    ))}
                   <Descriptions.Item label="Investigating Officer">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                       <span>
@@ -859,6 +958,32 @@ export default function FIRDetail() {
           ] : [])
         ]}
       />
+
+      {/* Linked Complaint View Modal */}
+      <Modal
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <SwapOutlined style={{ color: '#1890ff' }} />
+            <span>Complaint Details</span>
+          </div>
+        }
+        open={!!viewComplaintId}
+        onCancel={() => setViewComplaintId(null)}
+        footer={[
+          <Button key="close" onClick={() => setViewComplaintId(null)}>Close</Button>
+        ]}
+        width={860}
+        loading={viewComplaintLoading}
+        styles={{
+          body: { background: '#111827', padding: '20px' },
+          header: { background: '#1a2236', borderBottom: '1px solid rgba(255,255,255,0.08)' },
+          footer: { background: '#1a2236', borderTop: '1px solid rgba(255,255,255,0.08)' },
+          content: { background: '#111827' },
+          mask: { backdropFilter: 'blur(4px)' },
+        }}
+      >
+        {viewComplaintData && <ComplaintDetailView record={viewComplaintData} />}
+      </Modal>
     </div>
   );
 }

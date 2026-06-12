@@ -50,7 +50,7 @@ const ROLE_COLORS = { admin: 'red', sho: 'blue', io: 'green' };
 export default function UserManagement() {
   const { token, profile } = useAuth();
   const navigate = useNavigate();
-  const API = import.meta.env.VITE_API_URL;
+  const API = import.meta.env.VITE_API_URL || '/api';
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);

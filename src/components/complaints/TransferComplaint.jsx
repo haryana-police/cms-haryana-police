@@ -647,6 +647,7 @@ export default function TransferComplaint({ onBack }) {
           layout="vertical"
           onFinish={handleFinish}
           initialValues={{ wantToTransfer: 'Yes' }}
+          requiredMark={false}
         >
           <Form.Item 
             name="wantToTransfer" 

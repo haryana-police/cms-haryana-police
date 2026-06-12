@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Button, Form, Typography, Input, message, Skeleton, List, Divider, Select } from 'antd';
 import { Card, Button, Form, Typography, Input, message, Skeleton, List, Divider } from 'antd';
 import { BookOutlined, AudioOutlined, PlusCircleOutlined } from '@ant-design/icons';
 import { useAuth } from '../../../hooks/useAuth';
@@ -141,41 +140,27 @@ export default function CaseDiaryManagement({ firId }) {
               style={{ paddingBottom: '40px' }}
             />
           </Form.Item>
-          {/* Voice to text button absolutely positioned inside the text area visual space */}
-          <div style={{ marginTop: '-48px', marginBottom: '24px', marginLeft: '12px', zIndex: 1, position: 'relative', display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <Button 
-              type={isRecording ? "primary" : "default"} 
-              danger={isRecording}
-              shape="round" 
-              icon={<AudioOutlined />} 
-              onClick={handleVoiceToText}
-              size="small"
-            >
-              {isRecording ? "Listening..." : "Dictate Notes"}
-            </Button>
-            <Select 
-              size="small" 
-              value={dictationLang} 
-              onChange={setDictationLang} 
-              style={{ width: 100 }}
-              disabled={isRecording}
-            >
-              <Select.Option value="en-US">English</Select.Option>
-              <Select.Option value="hi-IN">Hindi</Select.Option>
-            </Select>
           {/* Hindi Dictate + Translate buttons */}
           <div style={{ marginTop: '-48px', marginBottom: '24px', marginLeft: '12px', zIndex: 1, position: 'relative', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
             <Button
               type={isRecording ? 'primary' : 'default'}
+              danger={isRecording}
               shape="round"
               icon={<AudioOutlined />}
+              onClick={handleVoiceToText}
+              size="small"
+            >
               {isRecording ? '🎙️ सुन रहा है...' : '🎙️ हिंदी में बोलें'}
+            </Button>
             <Button
               shape="round"
+              size="small"
               loading={translating}
               onClick={handleTranslateToEnglish}
               style={{ background: '#1565c0', color: '#fff', border: 'none' }}
+            >
               {translating ? 'Translating...' : '🌐 English में बदलें'}
+            </Button>
           </div>
 
           <Button type="primary" htmlType="submit" size="large" loading={adding} icon={<PlusCircleOutlined />} style={{ width: '100%', marginTop: '16px' }}>

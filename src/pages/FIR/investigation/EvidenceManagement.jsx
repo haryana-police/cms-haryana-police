@@ -438,19 +438,8 @@ export default function EvidenceManagement({ firId, firData }) {
                 <EditOutlined /> 3. फर्द का मसौदा (Seizure Narrative)
               </Divider>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ color: '#fff' }}>Hindi Narrative (फर्द का पाठ)</span>
-                <Button 
-                  type={isRecording ? "primary" : "default"} 
-                  danger={isRecording}
-                  shape="round" 
-                  icon={<AudioOutlined />} 
-                  onClick={handleVoiceToText}
-                  size="small"
-                >
-                  {isRecording ? "Listening..." : "Dictate (Voice)"}
-                </Button>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                <span style={{ color: '#fff' }}>Hindi Narrative (फर्द का पाठ)</span>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <Button
                     type={isRecording ? 'primary' : 'default'}
@@ -639,8 +628,7 @@ export default function EvidenceManagement({ firId, firData }) {
         ]}
         width={600}
       >
-        <div style={{ background: '#f5f5f5', padding: '24px', borderRadius: '8px', minHeight: '300px', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
-          {docContent}
+
         <div style={{ background: '#f5f5f5', color: '#000', padding: '24px', borderRadius: '8px', minHeight: '300px', whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.6' }}>
           {typeof docContent === 'string' ? docContent.replace(/\\n/g, '\n') : docContent}
         </div>
