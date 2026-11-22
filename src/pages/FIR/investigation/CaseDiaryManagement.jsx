@@ -18,10 +18,11 @@ export default function CaseDiaryManagement({ firId }) {
   const fetchDiaries = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/firs/${firId}/case-diaries`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/firs/${firId}/case-diaries`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.ok) setDiaries(await res.json());
+      if (!res.ok) throw new Error('Failed to load Case Diaries');
+      setDiaries(await res.json());
     } catch (e) {
       message.error("Failed to load Case Diaries");
     } finally {
@@ -34,16 +35,15 @@ export default function CaseDiaryManagement({ firId }) {
   const handleAddDiary = async (vals) => {
     setAdding(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/firs/${firId}/case-diaries`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/firs/${firId}/case-diaries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(vals)
       });
-      if (res.ok) {
-        message.success("Case Diary Entry Added Successfully!");
-        form.resetFields();
-        fetchDiaries();
-      }
+      if (!res.ok) throw new Error('Failed to add case diary');
+      message.success("Case Diary Entry Added Successfully!");
+      form.resetFields();
+      fetchDiaries();
     } catch (e) {
       message.error("Error adding case diary");
     } finally {
@@ -103,6 +103,7 @@ export default function CaseDiaryManagement({ firId }) {
       const res = await fetch(
         `https://api.mymemory.translated.net/get?q=${encodeURIComponent(hindiText)}&langpair=hi|en`
       );
+      if (!res.ok) throw new Error('Translation failed');
       const data = await res.json();
       if (data.responseStatus === 200) {
         form.setFieldsValue({ entry_text: data.responseData.translatedText });

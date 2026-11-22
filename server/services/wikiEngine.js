@@ -48,6 +48,29 @@ function appendToLog(caseId, entry) {
 }
 
 // ── Entity persistence helpers ────────────────────────────────────────────────
+// 'officer' is only storable when the case_persons.role CHECK permits it.
+// The current schema allows accused/victim/witness, so AI-extracted officers
+// are recorded as witnesses instead of causing a constraint violation.
+let officerRoleAllowed;
+function canStoreOfficerRole() {
+  if (officerRoleAllowed !== undefined) return officerRoleAllowed;
+  try {
+    const constraints = db.prepare(`
+      SELECT pg_get_constraintdef(c.oid) AS definition
+      FROM pg_constraint c
+      JOIN pg_class t ON t.oid = c.conrelid
+      WHERE c.contype = 'c' AND t.relname = 'case_persons'
+    `).all();
+    const roleCheck = constraints.find(c => /role/i.test(c.definition));
+    // No role constraint at all means any role string is accepted.
+    officerRoleAllowed = !roleCheck || roleCheck.definition.includes("'officer'");
+  } catch (e) {
+    console.error('Unable to inspect case_persons role constraint:', e.message);
+    officerRoleAllowed = false;
+  }
+  return officerRoleAllowed;
+}
+
 function persistPersons(caseId, persons) {
   const insert = db.prepare(`
     INSERT OR IGNORE INTO case_persons (id, case_id, name, role, phone, address, age)
@@ -57,11 +80,14 @@ function persistPersons(caseId, persons) {
   const inserted = [];
   persons.forEach(p => {
     const id = `per-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const role = ['accused', 'victim', 'witness', 'officer'].includes(p.role) ? p.role : 'witness';
+    let role = ['accused', 'victim', 'witness', 'officer'].includes(p.role) ? p.role : 'witness';
+    if (role === 'officer' && !canStoreOfficerRole()) role = 'witness';
     try {
       const result = insert.run(id, caseId, p.name, role, p.phone || null, p.address || null, p.age || null);
       if (result.changes > 0) inserted.push(p);
-    } catch {}
+    } catch (e) {
+      console.error('Failed to persist person:', e.message);
+    }
   });
   return inserted;
 }
@@ -95,7 +121,9 @@ function persistBankTransactions(caseId, records, csvHeaders) {
         null
       );
       count++;
-    } catch {}
+    } catch (e) {
+      console.error('Failed to persist bank transaction:', e.message);
+    }
   });
   return count;
 }
@@ -123,7 +151,9 @@ function persistCDRRecords(caseId, records, csvHeaders) {
         null
       );
       count++;
-    } catch {}
+    } catch (e) {
+      console.error('Failed to persist CDR record:', e.message);
+    }
   });
   return count;
 }
@@ -191,7 +221,9 @@ export async function ingestDocument(caseId, docType, content, structuredData) {
     if (classification.doc_type === 'Other' && docType !== 'Other') {
       classification.doc_type = docType;
     }
-  } catch {}
+  } catch (e) {
+    console.error('Document classification failed, using provided type:', e.message);
+  }
 
   // 2. AI entity extraction (Gemini)
   let entities = { persons: [], phones: [], events: [], key_findings: [], method: 'none' };
@@ -241,7 +273,8 @@ export async function ingestDocument(caseId, docType, content, structuredData) {
         `);
         contradictions.forEach(c => {
           const id = `cont-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
-          try { insert.run(id, caseId, c.title, c.severity, c.category, c.description, c.document_a, c.document_b, c.recommended_action); } catch {}
+          try { insert.run(id, caseId, c.title, c.severity, c.category, c.description, c.document_a, c.document_b, c.recommended_action); }
+          catch (e) { console.error('Failed to persist contradiction:', e.message); }
         });
 
         const existing = getWikiPage(caseId, 'contradictions');
@@ -270,7 +303,9 @@ export async function ingestDocument(caseId, docType, content, structuredData) {
         try {
           insert.run(id, caseId, l.title, l.description, l.priority, l.confidence,
             l.category, JSON.stringify(l.sources || []), l.action, l.legal_basis || null);
-        } catch {}
+        } catch (e) {
+          console.error('Failed to persist lead:', e.message);
+        }
       });
 
       const existingLeads = getWikiPage(caseId, 'leads');
@@ -287,7 +322,9 @@ export async function ingestDocument(caseId, docType, content, structuredData) {
   try {
     db.prepare('INSERT INTO case_documents (id, case_id, doc_type, content_text, uploaded_at) VALUES (?, ?, ?, ?, ?)')
       .run(`doc-${Date.now()}`, caseId, classification.doc_type, content.substring(0, 50000), new Date().toISOString());
-  } catch {}
+  } catch (e) {
+    console.error('Failed to store raw document:', e.message);
+  }
 
   // 9. Update index and log
   buildIndexPage(caseId);
@@ -305,7 +342,7 @@ export async function ingestDocument(caseId, docType, content, structuredData) {
 
 // ── Core: Query Wiki (Groq for speed) ─────────────────────────────────────────
 export async function queryWiki(caseId, question) {
-  const pages = db.prepare('SELECT page_slug, content_md FROM case_wiki_pages WHERE case_id = ? AND page_slug NOT LIKE "query_%"').all(caseId);
+  const pages = db.prepare("SELECT page_slug, content_md FROM case_wiki_pages WHERE case_id = ? AND page_slug NOT LIKE 'query_%'").all(caseId);
 
   const wikiMap = {};
   pages.forEach(p => { wikiMap[p.page_slug] = p.content_md; });
@@ -355,7 +392,7 @@ export function lintWiki(caseId) {
 
 // ── Core: Generate Leads on Demand ────────────────────────────────────────────
 export async function refreshLeads(caseId) {
-  const wikiContent = db.prepare('SELECT page_slug, content_md FROM case_wiki_pages WHERE case_id = ? AND page_slug NOT LIKE "query_%"')
+  const wikiContent = db.prepare("SELECT page_slug, content_md FROM case_wiki_pages WHERE case_id = ? AND page_slug NOT LIKE 'query_%'")
     .all(caseId).map(p => `## ${p.page_slug}\n${p.content_md}`).join('\n\n');
 
   // Also include structured data summary

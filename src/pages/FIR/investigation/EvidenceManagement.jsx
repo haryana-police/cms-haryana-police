@@ -183,11 +183,13 @@ export default function EvidenceManagement({ firId, firData }) {
     try {
       setLoading(true);
       const [nRes, eRes] = await Promise.all([
-        fetch(`${import.meta.env.VITE_API_URL}/firs/${firId}/notices`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${import.meta.env.VITE_API_URL}/firs/${firId}/evidences`, { headers: { Authorization: `Bearer ${token}` } })
+        fetch(`${import.meta.env.VITE_API_URL || '/api'}/firs/${firId}/notices`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${import.meta.env.VITE_API_URL || '/api'}/firs/${firId}/evidences`, { headers: { Authorization: `Bearer ${token}` } })
       ]);
-      if (nRes.ok) setNotices(await nRes.json());
-      if (eRes.ok) setEvidences(await eRes.json());
+      if (!nRes.ok) throw new Error('Failed to load notices');
+      if (!eRes.ok) throw new Error('Failed to load evidences');
+      setNotices(await nRes.json());
+      setEvidences(await eRes.json());
     } catch (e) {
       message.error('डेटा लोड करने में त्रुटि');
     } finally {
@@ -201,12 +203,15 @@ export default function EvidenceManagement({ firId, firData }) {
   const handleGenerateNotice = async (vals) => {
     setGenerating(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/firs/${firId}/notices`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/firs/${firId}/notices`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(vals)
       });
-      if (res.ok) { message.success('Notice generated!'); noticeForm.resetFields(); fetchInvestigationData(); }
+      if (!res.ok) throw new Error('Error generating notice');
+      message.success('Notice generated!');
+      noticeForm.resetFields();
+      fetchInvestigationData();
     } catch { message.error('Error generating notice'); }
     finally { setGenerating(false); }
   };
@@ -229,7 +234,7 @@ export default function EvidenceManagement({ firId, firData }) {
       const payload = { ...vals, media_file: mediaFile };
       delete payload.media;
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/firs/${firId}/evidences`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/firs/${firId}/evidences`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload)
@@ -297,6 +302,7 @@ export default function EvidenceManagement({ firId, firData }) {
       const res = await fetch(
         `https://api.mymemory.translated.net/get?q=${encodeURIComponent(hindiText)}&langpair=hi|en`
       );
+      if (!res.ok) throw new Error('Translation failed');
       const data = await res.json();
       if (data.responseStatus === 200) {
         evidenceForm.setFieldsValue({ seizure_narrative: data.responseData.translatedText });

@@ -621,11 +621,12 @@ ${textToProcess}
       const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.ok) {
-        existing = await res.json();
-      }
+      if (!res.ok) throw new Error('Failed to fetch complaints for duplicate check');
+      existing = await res.json();
+      if (!Array.isArray(existing)) existing = [];
     } catch (e) {
       console.error("Error fetching complaints for duplicate check:", e);
+      message.error('Could not verify duplicates. Please try again.');
     }
 
     // STRICT duplicate detection — find all matching complaints
@@ -680,8 +681,8 @@ ${textToProcess}
       status: 'Registered',
       ioStatus: 'Pending',
       appliedTemplate: null,
-      policeStation: profile?.station_id || values.policeStation || 'SAMALKHA',
-      originalStation: profile?.station_id || values.policeStation || 'SAMALKHA',
+      policeStation: profile?.station_id || values.policeStation || '',
+      originalStation: profile?.station_id || values.policeStation || '',
     };
 
     try {

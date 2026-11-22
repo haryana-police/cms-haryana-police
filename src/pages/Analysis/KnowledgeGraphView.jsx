@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Spin, Empty, Tag, Divider, Slider, Tooltip } from 'antd';
+import { Spin, Empty, Tag, Divider, Slider, Tooltip, message } from 'antd';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faShareNodes, faCircleInfo, faXmark, faGear,
@@ -91,9 +91,9 @@ export default function KnowledgeGraphView({ caseId, headers, caseData }) {
   useEffect(() => {
     setLoading(true); setSelected(null); hasCentered.current = false;
     fetch(`/api/analysis/cases/${caseId}/graph`, { headers })
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error('Failed to load knowledge graph'); return r.json(); })
       .then(d => { setGraphData(d); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch(err => { message.error(err.message || 'Failed to load knowledge graph'); setLoading(false); });
   }, [caseId]);
 
   // Apply slider forces imperatively

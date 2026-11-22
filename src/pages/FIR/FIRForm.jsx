@@ -363,14 +363,14 @@ export default function FIRForm() {
     formData.append('file', file);
     setExtracting(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/firs/extract-pdf`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/firs/extract-pdf`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
+      if (!res.ok) throw new Error('Failed to extract PDF');
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to extract PDF');
-      
+
       const parsedData = { ...data };
       if (parsedData.date_time_of_fir) {
         parsedData.date_time_of_fir = dayjs(parsedData.date_time_of_fir);
@@ -393,14 +393,14 @@ export default function FIRForm() {
     formData.append('file', file);
     setExtractingContent(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/firs/extract-pdf`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/firs/extract-pdf`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
+      if (!res.ok) throw new Error('Failed to extract text from PDF');
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to extract text from PDF');
-      
+
       const currentVal = form.getFieldValue('fir_content') || '';
       const newText = data.fir_content || '';
       form.setFieldsValue({ fir_content: currentVal ? `${currentVal}\n\n${newText}` : newText });
@@ -464,6 +464,7 @@ export default function FIRForm() {
       const res = await fetch(
         `https://api.mymemory.translated.net/get?q=${encodeURIComponent(hindiText)}&langpair=hi|en`
       );
+      if (!res.ok) throw new Error('Translation failed');
       const data = await res.json();
       if (data.responseStatus === 200) {
         const translated = data.responseData.translatedText;
@@ -501,13 +502,13 @@ export default function FIRForm() {
     setComplaintsLoading(true);
     try {
       const url = searchTerm
-        ? `${import.meta.env.VITE_API_URL}/complaints?q=${encodeURIComponent(searchTerm)}`
-        : `${import.meta.env.VITE_API_URL}/complaints`;
+        ? `${import.meta.env.VITE_API_URL || '/api'}/complaints?q=${encodeURIComponent(searchTerm)}`
+        : `${import.meta.env.VITE_API_URL || '/api'}/complaints`;
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error('Failed to load complaints');
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to load complaints');
       // Show only complaints that are approved for conversion but not yet converted to FIR
       const approvedOnly = data.filter(c => c.ioStatus === 'Convert to FIR' && c.status !== 'converted_to_fir');
       setComplaints(approvedOnly);
@@ -649,10 +650,13 @@ export default function FIRForm() {
         officer_rank: values.officer_rank,
         officer_no: values.officer_no,
         dispatch_date_time: fmtDT(values.dispatch_date_time),
+        latitude: values.latitude ?? null,
+        longitude: values.longitude ?? null,
+        io_id: values.x ?? null,
         complaint_id: selectedComplaintId,
       };
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/firs`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/firs`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -660,13 +664,13 @@ export default function FIRForm() {
         },
         body: JSON.stringify(payload),
       });
+      if (!res.ok) throw new Error('Failed to register FIR');
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to register FIR');
       message.success(`FIR #${data.fir_number} registered successfully!`);
 
       // Update complaint status & link the registered FIR
       if (selectedComplaintId) {
-        await fetch(`${import.meta.env.VITE_API_URL}/complaints/${selectedComplaintId}`, {
+        const linkRes = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints/${selectedComplaintId}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -679,6 +683,7 @@ export default function FIRForm() {
             linkedFirNumber: data.fir_number
           })
         });
+        if (!linkRes.ok) throw new Error('FIR registered, but complaint link could not be updated');
       }
 
       // save full data so the printable template has all fields
@@ -766,7 +771,7 @@ export default function FIRForm() {
   }
 
   // ── Role Guard: Only SHO / Admin can register FIR ───────────────────────────
-  if (profile && profile.role === 'io') {
+  if (profile && !['sho', 'admin'].includes(profile.role)) {
     return (
       <div className="fir-form-container">
         <Result
@@ -817,25 +822,6 @@ export default function FIRForm() {
         scrollToFirstError
         className="fir-form"
       >
-
-        {/* ── AI AUTO-FILL UPLOAD ── */}
-        <Card className="fir-card" style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <Title level={5} style={{ color: '#e6f7ff', margin: 0 }}>AI Auto-Fill using Complaint PDF / Image</Title>
-              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>Upload an initial complaint document to automatically fill fields using AI.</Text>
-            </div>
-            <Upload 
-              beforeUpload={handlePdfUpload}
-              showUploadList={false}
-              accept=".pdf,image/*"
-            >
-              <Button type="primary" icon={<UploadOutlined />} loading={extracting} style={{ backgroundColor: '#52c41a' }}>
-                {extracting ? 'Extracting AI Data...' : 'Upload Doc & Auto-Fill'}
-              </Button>
-            </Upload>
-          </div>
-        </Card>
 
         {/* ── AUTO-FILL OPTIONS CARD ── */}
           <Row gutter={[16, 12]} align="middle">

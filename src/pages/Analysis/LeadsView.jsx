@@ -52,11 +52,12 @@ function LeadCard({ lead, headers, caseId, onStatusChange }) {
   const handleStatus = async (status) => {
     setUpdating(true);
     try {
-      await fetch(`/api/analysis/cases/${caseId}/leads/${lead.id}`, {
+      const res = await fetch(`/api/analysis/cases/${caseId}/leads/${lead.id}`, {
         method: 'PATCH',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
+      if (!res.ok) throw new Error('Failed to update lead status');
       onStatusChange(lead.id, status);
     } catch { message.error('Failed to update lead status'); }
     setUpdating(false);
@@ -152,8 +153,9 @@ export default function LeadsView({ caseId, headers }) {
   const fetchLeads = () => {
     setLoading(true);
     fetch(`/api/analysis/cases/${caseId}/leads`, { headers })
-      .then(r => r.json()).then(d => { setData(d); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then(r => { if (!r.ok) throw new Error('Failed to load leads'); return r.json(); })
+      .then(d => { setData(d); setLoading(false); })
+      .catch(err => { message.error(err.message || 'Failed to load leads'); setLoading(false); });
   };
 
   useEffect(() => { fetchLeads(); }, [caseId]);
@@ -166,6 +168,7 @@ export default function LeadsView({ caseId, headers }) {
     setScanning(true);
     try {
       const res = await fetch(`/api/analysis/cases/${caseId}/scan`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' } });
+      if (!res.ok) throw new Error('AI scan failed');
       const r = await res.json();
       message.success(`AI scan complete — ${r.newLeads || 0} new leads, ${r.contradictions?.length || 0} contradictions`);
       fetchLeads();

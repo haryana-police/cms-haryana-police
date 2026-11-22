@@ -28,6 +28,7 @@ data.db*
 .env
 # Environment variables (sensitive)
 .env.*
+!.env.example
 
 # OCR Tesseract binary data files
 *.traineddata

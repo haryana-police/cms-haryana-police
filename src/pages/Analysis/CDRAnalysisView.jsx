@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Input, Card, Row, Col, Tag, Typography, Spin, Empty, Alert, Badge, Tooltip, Tabs } from 'antd';
+import { Table, Input, Card, Row, Col, Tag, Typography, Spin, Empty, Alert, Badge, Tooltip, Tabs, message } from 'antd';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPhone, faMobileScreen, faNetworkWired, faHourglass, faSignal,
@@ -36,7 +36,7 @@ export default function CDRAnalysisView({ caseId, headers }) {
     fetch(`/api/analysis/cases/${caseId}/cdr`, { headers })
       .then(r => { if (!r.ok) throw new Error(`Server error ${r.status}`); return r.json(); })
       .then(d => { setData(d); setLoading(false); })
-      .catch(err => { setError(err.message); setData(null); setLoading(false); });
+      .catch(err => { message.error(err.message || 'Failed to load CDR analysis'); setError(err.message); setData(null); setLoading(false); });
   }, [caseId]);
 
   if (loading) return <div style={{ textAlign: 'center', padding: '80px 0' }}><Spin size="large" /><div style={{ marginTop: 14, color: 'var(--text-dim)', fontSize: 13 }}>Loading CDR records...</div></div>;

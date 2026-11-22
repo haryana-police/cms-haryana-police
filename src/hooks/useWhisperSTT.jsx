@@ -174,17 +174,7 @@ export function useWhisperSTT({
   };
 
   const transcribeAudio = async (audioBlob, extension, context) => {
-    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-    if (!apiKey) {
-      message.error('Groq API key is not set in environment variables.');
-      setIsTranscribing(false);
-      if (onFailure) {
-        onFailure(context);
-      }
-      return;
-    }
-
-    const hideLoading = message.loading('Transcribing audio with Groq Whisper...', 0);
+    const hideLoading = message.loading('Transcribing audio with Whisper...', 0);
 
     try {
       const formData = new FormData();
@@ -198,10 +188,11 @@ export function useWhisperSTT({
         formData.append('language', defaultLanguage);
       }
 
-      const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/ai/proxy/whisper`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: formData,
       });
@@ -210,7 +201,7 @@ export function useWhisperSTT({
         let errMsg = 'Failed to transcribe';
         try {
           const errData = await res.json();
-          errMsg = errData.error?.message || errMsg;
+          errMsg = errData.error || errData.error?.message || errMsg;
         } catch (_) {}
         throw new Error(errMsg);
       }
@@ -226,7 +217,7 @@ export function useWhisperSTT({
         }
       }
     } catch (err) {
-      console.error('Groq Whisper Transcription error:', err);
+      console.error('Whisper transcription error:', err);
       message.error(`Transcription error: ${err.message}`);
       if (onFailure) {
         onFailure(context);

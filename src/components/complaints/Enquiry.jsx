@@ -693,18 +693,16 @@ Only output the translated text. Do not include any explanations, preambles, or 
       message.warning('There is no text to translate.');
       return;
     }
-    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-    if (!apiKey) {
-      message.error('Groq API key is not set in environment variables.');
-      return;
-    }
-
     setIsAiLoading(true);
     message.loading({ content: `Translating document to ${targetLang}...`, key: 'translateMsg' });
     try {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/ai/proxy/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           model: 'llama-3.3-70b-versatile',
           messages: [
@@ -726,6 +724,7 @@ Only output the translated HTML. Do not include any explanations, preambles, or 
           max_tokens: 4000,
         }),
       });
+      if (!res.ok) throw new Error('Translation request failed.');
       const data = await res.json();
       const translated = data?.choices?.[0]?.message?.content?.trim();
       if (translated) {
@@ -1412,15 +1411,16 @@ case 'enquiry_ncr': {
       message.warning('Please describe what you want to write in the email.');
       return;
     }
-    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-    if (!apiKey) { message.error('Groq API key not set.'); return; }
-
     const f = getBaseFields(selectedComplaint);
     setIsAiLoading(true);
     try {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/ai/proxy/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           model: 'llama-3.3-70b-versatile',
           messages: [
@@ -1445,6 +1445,7 @@ Output ONLY the email text, no explanation.`,
           max_tokens: 800,
         }),
       });
+      if (!res.ok) throw new Error('AI request failed.');
       const data = await res.json();
       const draft = data?.choices?.[0]?.message?.content?.trim();
       if (draft) {
@@ -1455,7 +1456,7 @@ Output ONLY the email text, no explanation.`,
       }
     } catch (err) {
       console.error(err);
-      message.error('AI request failed. Check your API key and connection.');
+      message.error('AI request failed. Please try again.');
     } finally {
       setIsAiLoading(false);
     }
@@ -1466,18 +1467,16 @@ Output ONLY the email text, no explanation.`,
       message.warning('Please describe how you want to modify the report.');
       return;
     }
-    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-    if (!apiKey) {
-      message.error('Groq API key is not set in environment variables.');
-      return;
-    }
-
     setIsAiLoading(true);
     message.loading({ content: 'Modifying report with AI...', key: 'modifyReportMsg' });
     try {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/ai/proxy/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           model: 'llama-3.3-70b-versatile',
           messages: [
@@ -1501,6 +1500,7 @@ Follow these rules strictly:
         })
       });
 
+      if (!res.ok) throw new Error('AI modification request failed.');
       const data = await res.json();
       const updatedContent = data?.choices?.[0]?.message?.content?.trim();
       if (updatedContent) {

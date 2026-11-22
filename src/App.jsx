@@ -56,7 +56,9 @@ export default function App() {
               <Route path="/"             element={<S><Dashboard /></S>} />
               <Route path="/complaints"   element={<S><Complaints /></S>} />
               <Route path="/fir"          element={<S><FIRListPage /></S>} />
-              <Route path="/fir/new"      element={<S><FIRForm /></S>} />
+              <Route element={<ProtectedRoute allowedRoles={['sho', 'admin']} />}>
+                <Route path="/fir/new"    element={<S><FIRForm /></S>} />
+              </Route>
               <Route path="/fir/:id"      element={<S><FIRDetail /></S>} />
               <Route path="/investigation" element={<S><Investigation /></S>} />
               <Route path="/hc-reply"     element={<Placeholder title="M4: HC Reply" />} />
@@ -64,7 +66,9 @@ export default function App() {
               <Route path="/search"       element={<Placeholder title="M6: Smart Search" />} />
               <Route path="/crime-map"    element={<Placeholder title="M7: Preventive Policing" />} />
               <Route path="/gd"           element={<Placeholder title="M8: Smart GD" />} />
-              <Route path="/admin/users"  element={<S><UserManagement /></S>} />
+              <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
+                <Route path="/admin/users" element={<S><UserManagement /></S>} />
+              </Route>
               <Route path="*"             element={<Placeholder title="Page Not Found" />} />
             </Route>
           </Route>

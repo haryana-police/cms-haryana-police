@@ -8,7 +8,7 @@ const { Title, Text } = Typography;
 
 export default function Dashboard() {
   const { profile } = useAuth();
-  const role = profile?.role || 'constable';
+  const role = profile?.role;
   const navigate = useNavigate();
 
   const [firs, setFirs] = useState([]);

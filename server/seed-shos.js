@@ -1,4 +1,8 @@
 import db from './db.js';
+import { hashPassword } from './auth-utils.js';
+
+// Documented default password for every seeded SHO: sho123
+const SHO_PASSWORD_HASH = hashPassword('sho123');
 
 const DISTRICTS_STATIONS = {
   'AMBALA': ['AMBALA CANTT','AMBALA CITY','AMBALA SADAR','BALDEV NAGAR','BARARA','MAHESH NAGAR','MULLANA','NAGGAL','NARAINGARH','PANJOKHRA','PARAO AMBALA CANTT','SAHA','SECTOR-9 AMBALA CITY','SHAHZADPUR','WOMEN POLICE STATION NARAINGARH AMBALA','WOMEN POLICE STATION AMBALA'],
@@ -95,7 +99,7 @@ const seedTx = db.transaction(() => {
       const badgeNo = `SHO-${district.slice(0,3).toUpperCase().replace(/[^A-Z]/g,'')}-${station.slice(0,6).replace(/[^A-Z0-9]/gi,'').toUpperCase()}`;
       const fullName = `SHO ${station}`;
 
-      insertStmt.run(id, username, 'sho123', 'sho', fullName, badgeNo, 'Inspector', station);
+      insertStmt.run(id, username, SHO_PASSWORD_HASH, 'sho', fullName, badgeNo, 'Inspector', station);
       created++;
     }
   }

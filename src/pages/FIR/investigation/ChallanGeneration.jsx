@@ -17,10 +17,11 @@ export default function ChallanGeneration({ firId }) {
   const fetchChallans = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/firs/${firId}/challans`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/firs/${firId}/challans`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.ok) setChallans(await res.json());
+      if (!res.ok) throw new Error('Failed to load Challan data');
+      setChallans(await res.json());
     } catch (e) {
       message.error("Failed to load Challan data");
     } finally {
@@ -33,16 +34,15 @@ export default function ChallanGeneration({ firId }) {
   const handleGenerateChallan = async (vals) => {
     setGenerating(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/firs/${firId}/challans`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/firs/${firId}/challans`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(vals)
       });
-      if (res.ok) {
-        message.success("Challan (Final Report) Generated Successfully!");
-        form.resetFields();
-        fetchChallans();
-      }
+      if (!res.ok) throw new Error('Failed to generate challan');
+      message.success("Challan (Final Report) Generated Successfully!");
+      form.resetFields();
+      fetchChallans();
     } catch (e) {
       message.error("Error generating challan");
     } finally {
@@ -104,6 +104,7 @@ export default function ChallanGeneration({ firId }) {
       const res = await fetch(
         `https://api.mymemory.translated.net/get?q=${encodeURIComponent(hindiText)}&langpair=hi|en`
       );
+      if (!res.ok) throw new Error('Translation failed');
       const data = await res.json();
       if (data.responseStatus === 200) {
         form.setFieldsValue({ io_notes: data.responseData.translatedText });

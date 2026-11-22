@@ -3,11 +3,17 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "concurrently \"vite\" \"nodemon server/index.js\"",
+    "start": "node server/index.js",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "seed:ios": "node server/seed-ios.js",
+    "seed:shos": "node server/seed-shos.js"
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.1",

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Form, Input, Button, Card, Typography, Alert, message,
-  Divider, Space, Tabs,
+  Tabs,
 } from 'antd';
 
 import {
@@ -86,11 +86,6 @@ export default function Login() {
     }
   };
 
-  const quickLogin = (username, password) => {
-    form.setFieldsValue({ username, password });
-    handleLogin({ username, password });
-  };
-
   // Lookup SHO username for a police station
   const handleStationSelect = async (station) => {
     setSelectedStation(station);
@@ -117,7 +112,7 @@ export default function Login() {
 
   const handleUseShoCredentials = () => {
     if (!shoInfo) return;
-    form.setFieldsValue({ username: shoInfo.username, password: 'sho123' });
+    form.setFieldsValue({ username: shoInfo.username });
     message.info(`Username fill ho gaya: ${shoInfo.username}`);
   };
 
@@ -164,12 +159,6 @@ export default function Login() {
                     </Form.Item>
                   </Form>
 
-                  <Divider plain style={{ fontSize: 12, color: '#555' }}>Dev: Quick Login</Divider>
-                  <Space style={{ width: '100%', justifyContent: 'center' }} size="small" wrap>
-                    <Button size="small" onClick={() => quickLogin('admin', 'admin123')}>Admin</Button>
-                    <Button size="small" onClick={() => quickLogin('sho_1', 'sho123')}>SHO (old)</Button>
-                    <Button size="small" onClick={() => quickLogin('io_1', 'io123')}>IO</Button>
-                  </Space>
                 </>
               ),
             },
@@ -284,9 +273,6 @@ export default function Login() {
                     </div>
                   )}
 
-                  <div style={{ fontSize: 11, color: '#555', marginTop: 12, textAlign: 'center' }}>
-                    Default password: <code style={{ color: '#888' }}>sho123</code>
-                  </div>
                 </div>
               ),
             },

@@ -199,26 +199,16 @@ router.get('/cases/:id/graph', (req, res) => {
 // ─── GET /api/analysis/cases/:id/cdr ──────────────────────────────────────────
 router.get('/cases/:id/cdr', (req, res) => {
   let records = [];
+  let source = 'cdr_records';
   try {
-    records = db.prepare('SELECT * FROM cdr_records WHERE case_id = ? ORDER BY call_time ASC').all(req.params.id);
+    records = db.prepare('SELECT * FROM cdr_records WHERE case_id = ? ORDER BY call_time ASC').all(req.params.id) || [];
   } catch (e) {
-    console.warn("CDR Table error or empty:", e.message);
+    console.error('CDR query error:', e.message);
+    source = 'cdr_records (unavailable)';
   }
 
-  if (!records || records.length === 0) {
-    // Provide realistic dummy CDR data for representation
-    const baseTime = Date.now() - 3 * 24 * 3600000; // 3 days ago
-    records = [
-      { id: 1, case_id: req.params.id, caller: '9988776655', receiver: '9000000001', call_time: new Date(baseTime).toISOString(), duration: 120, type: 'outgoing', location: 'Sector 14' },
-      { id: 2, case_id: req.params.id, caller: '9000000001', receiver: '9988776655', call_time: new Date(baseTime + 300000).toISOString(), duration: 45, type: 'incoming', location: 'Unknown' },
-      { id: 3, case_id: req.params.id, caller: '9988776655', receiver: '9000000002', call_time: new Date(baseTime + 3600000).toISOString(), duration: 300, type: 'outgoing', location: 'Sector 14' },
-      { id: 4, case_id: req.params.id, caller: '9812345678', receiver: '9988776655', call_time: new Date(baseTime + 7200000).toISOString(), duration: 60, type: 'incoming', location: 'Sector 18' },
-      { id: 5, case_id: req.params.id, caller: '9988776655', receiver: '9000000001', call_time: new Date(baseTime + 86400000).toISOString(), duration: 15, type: 'outgoing', location: 'Sector 14' },
-      { id: 6, case_id: req.params.id, caller: '9000000001', receiver: '9988776655', call_time: new Date(baseTime + 86405000).toISOString(), duration: 30, type: 'incoming', location: 'Unknown' }, // Rapid call
-      { id: 7, case_id: req.params.id, caller: '9000000001', receiver: '9876543210', call_time: new Date(baseTime + 86410000).toISOString(), duration: 500, type: 'outgoing', location: 'Unknown' },
-      { id: 8, case_id: req.params.id, caller: '9988776655', receiver: '9812345678', call_time: new Date(baseTime + 172800000).toISOString(), duration: 210, type: 'outgoing', location: 'Sector 14 Market' },
-    ];
-  }
+  // Never fabricate CDR data — an empty result means no real records are on file.
+  if (records.length === 0 && source === 'cdr_records') source = 'none (no CDR records on file)';
 
   const freq = {};
   records.forEach(r => {
@@ -233,7 +223,9 @@ router.get('/cases/:id/cdr', (req, res) => {
   let knownPersonPhones = [];
   try {
     knownPersonPhones = db.prepare('SELECT phone, name, role FROM case_persons WHERE case_id = ? AND phone IS NOT NULL').all(req.params.id);
-  } catch (e) {}
+  } catch (e) {
+    console.error('Case persons lookup error:', e.message);
+  }
 
   const phoneToPersonMap = {};
   knownPersonPhones.forEach(p => { phoneToPersonMap[p.phone] = { name: p.name, role: p.role }; });
@@ -266,7 +258,7 @@ router.get('/cases/:id/cdr', (req, res) => {
     }));
   }
 
-  res.json({ records, frequency, suspiciousPatterns, phoneToPersonMap });
+  res.json({ records, frequency, suspiciousPatterns, phoneToPersonMap, source });
 });
 
 // ─── GET /api/analysis/cases/:id/bank ─────────────────────────────────────────
@@ -304,13 +296,21 @@ router.get('/cases/:id/leads', (req, res) => {
   const leads = db.prepare('SELECT * FROM case_leads WHERE case_id = ? ORDER BY CASE priority WHEN \'high\' THEN 1 WHEN \'medium\' THEN 2 ELSE 3 END, confidence DESC').all(req.params.id);
   const parsed = leads.map(l => ({
     ...l,
-    sources: (() => { try { return JSON.parse(l.sources || '[]'); } catch { return []; } })(),
+    sources: (() => {
+      try { return JSON.parse(l.sources || '[]'); }
+      catch (e) { console.error('Invalid lead sources for', l.id, e.message); return []; }
+    })(),
   }));
   res.json({ leads: parsed, total: leads.length, active: leads.filter(l => l.status === 'active').length });
 });
 
 // ─── PATCH /api/analysis/cases/:id/leads/:leadId ──────────────────────────────
 router.patch('/cases/:id/leads/:leadId', (req, res) => {
+  // Auth middleware is owned by the server entry point; guard here too when
+  // it populates req.user.
+  if (req.user && !['sho', 'admin'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Only SHO or admin may update lead status' });
+  }
   const { status } = req.body;
   if (!['active', 'actioned', 'closed'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
   db.prepare('UPDATE case_leads SET status = ? WHERE id = ? AND case_id = ?').run(status, req.params.leadId, req.params.id);
@@ -336,7 +336,8 @@ router.post('/cases/:id/scan', async (req, res) => {
       const insert = db.prepare('INSERT OR IGNORE INTO case_contradictions (id, case_id, title, severity, category, description, document_a, document_b, significance, recommended_action) VALUES (?,?,?,?,?,?,?,?,?,?)');
       contradictions.forEach(c => {
         const id = `cont-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
-        try { insert.run(id, req.params.id, c.title, c.severity, c.category, c.description, c.document_a, c.document_b, c.significance, c.recommended_action); } catch {}
+        try { insert.run(id, req.params.id, c.title, c.severity, c.category, c.description, c.document_a, c.document_b, c.significance, c.recommended_action); }
+        catch (e) { console.error('Failed to store contradiction:', e.message); }
       });
     }
 
@@ -345,7 +346,8 @@ router.post('/cases/:id/scan', async (req, res) => {
       const insert = db.prepare('INSERT OR IGNORE INTO case_leads (id, case_id, title, description, priority, confidence, category, sources, action, legal_basis) VALUES (?,?,?,?,?,?,?,?,?,?)');
       freshLeads.leads.forEach(l => {
         const id = `lead-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
-        try { insert.run(id, req.params.id, l.title, l.description, l.priority, l.confidence, l.category, JSON.stringify(l.sources || []), l.action, l.legal_basis || null); } catch {}
+        try { insert.run(id, req.params.id, l.title, l.description, l.priority, l.confidence, l.category, JSON.stringify(l.sources || []), l.action, l.legal_basis || null); }
+        catch (e) { console.error('Failed to store lead:', e.message); }
       });
     }
 

@@ -137,9 +137,6 @@ export default function Complaints() {
   };
 
   React.useEffect(() => {
-    // Clear old localStorage complaints to start fresh
-    localStorage.removeItem('registeredComplaints');
-    
     if (token) {
       fetchComplaints();
     }
@@ -191,34 +188,35 @@ export default function Complaints() {
     // Read complaints from state
     let saved = complaints;
     
+    const myStation = profile?.station_id || '';
+
     // Filter by role/station
     if (profile?.role === 'io') {
       saved = saved.filter(c => String(c.assignedIoId).trim() === String(profile?.id).trim());
     } else if (profile?.role === 'sho') {
       saved = saved.filter(c => {
-        const station = c.policeStation || 'SAMALKHA';
-        const origStation = c.originalStation || 'SAMALKHA';
-        return station === profile?.station_id || (origStation === profile?.station_id && c.ioStatus === 'Transferred');
+        const station = c.policeStation || myStation;
+        const origStation = c.originalStation || myStation;
+        return station === myStation || (origStation === myStation && c.ioStatus === 'Transferred');
       });
     }
 
-    const myStation = profile?.station_id;
     const isAdmin = profile?.role === 'admin';
 
     // Helper: complaint is currently AT this station (destination or originally registered here)
-    const atMyStation = (c) => isAdmin || (c.policeStation || 'SAMALKHA') === myStation;
+    const atMyStation = (c) => isAdmin || (c.policeStation || myStation) === myStation;
 
     // Helper: complaint was SENT AWAY from this station to another station
     const sentFromMyStation = (c) =>
       c.ioStatus === 'Transferred' &&
-      (isAdmin || ((c.originalStation || 'SAMALKHA') === myStation && (c.policeStation || 'SAMALKHA') !== myStation));
+      (isAdmin || ((c.originalStation || myStation) === myStation && (c.policeStation || myStation) !== myStation));
 
     // Helper: complaint was RECEIVED by this station (transferred IN from another station, no action yet)
     const receivedAtMyStation = (c) =>
       c.ioStatus === 'Transferred' &&
       !isAdmin &&
-      (c.policeStation || 'SAMALKHA') === myStation &&
-      (c.originalStation || 'SAMALKHA') !== myStation;
+      (c.policeStation || myStation) === myStation &&
+      (c.originalStation || myStation) !== myStation;
 
     const total = saved.filter(c => atMyStation(c)).length;
     const pendingEnquiry = saved.filter(c =>
@@ -312,7 +310,11 @@ export default function Complaints() {
           </Col>
           {profile?.role !== 'io' && (
             <Col style={{ flex: 1, minWidth: '180px' }}>
-              <Card style={{ borderRadius: '12px', background: '#141414', borderColor: '#303030', cursor: 'pointer' }} bodyStyle={{ padding: '16px 20px' }}>
+              <Card
+                onClick={() => setCurrentView('transfer')}
+                style={{ borderRadius: '12px', background: '#141414', borderColor: '#303030', cursor: 'pointer' }}
+                bodyStyle={{ padding: '16px 20px' }}
+              >
                 <Paragraph type="secondary" style={{ margin: 0, marginBottom: '4px' }}>Transferred</Paragraph>
                 <Title level={2} style={{ margin: 0 }}>{transferred}</Title>
               </Card>

@@ -2,37 +2,76 @@
 
 A mobile-first, AI-assisted case management system for the Haryana Police.
 
-## Developer Quickstart
+## Stack
 
-This project uses React, Vite, Ant Design, Express.js, and SQLite.
-All backend logic, database tables, and authentication rely on our local custom Node API.
-For development, we use `concurrently` to run the frontend and backend together natively on your machine without Docker.
+- **Frontend:** React 19 + Vite (dev server on port **3000**), Ant Design
+- **Backend:** Express.js on port **5000**
+- **Database:** PostgreSQL (`cms_haryana_police` by default) — there is no SQLite/`data.db` file
+- **Auth:** Custom JWT tokens stored in the frontend `localStorage`
 
-### Prerequisites
-- Node.js (v24+)
+## Prerequisites
 
-### Setup
+- Node.js **20 or newer** (`npm` included)
+- A running PostgreSQL server and a database named `cms_haryana_police`
 
-1. **Install Dependencies**
+## Setup
+
+1. Install dependencies:
+
    ```bash
    npm install
    ```
 
-2. **Start Development Server**
+2. Copy the example environment file and edit it:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Set `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`, `JWT_SECRET`, and optionally
+   `GROQ_API_KEY` / `GEMINI_API_KEY` / `CORS_ORIGIN`. Never commit the real `.env`.
+
+3. Start the frontend (port 3000) and backend (port 5000) together:
+
    ```bash
    npm run dev
    ```
-   *This command spins up the Vite frontend and Express backend. It will also automatically generate the SQLite `data.db` file and table schemas if they do not exist.*
 
-### Accessing the System
-- **React App:** `http://localhost:5173`
-- **Backend API:** `http://localhost:3000`
+   The Vite dev server proxies `/api`, `/cases`, `/kb-files`, and `/uploads` to
+   `http://localhost:5000`. The frontend uses `/api` from `VITE_API_URL` by default; change
+   `VITE_API_URL` only if the backend is hosted elsewhere (e.g. `https://example.com/api`).
 
-**Test User:** Use the "Quick Login Options" dynamically visible on the login screen, or type:
-- Username: `admin`
-- Password: `admin123`
+4. Optionally seed reference users on top of the schema/dev accounts created by `server/db.js`:
 
-### Rule: Database Architecture
-If you need to make changes to the schema, edit the `server/db.js` file and adjust the table creation logic manually. Data persistence is powered directly by SQLite.
+   ```bash
+   npm run seed:ios   # investigating officers
+   npm run seed:shos  # station house officers
+   ```
+
+## Accessing the System
+
+- **React app:** `http://localhost:3000`
+- **Backend API:** `http://localhost:5000` (use `http://localhost:3000/api` from the browser)
+
+Development-only default logins (defined in `server/db.js`) are `admin` / `admin123`,
+`io_1` / `io123`, and `sho_1` / `sho123`. They are for local development only — change
+these credentials and `JWT_SECRET` before any real deployment.
+
+## npm scripts
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Run Vite and the backend via nodemon together |
+| `npm start` | Run the backend only (`node server/index.js`) |
+| `npm run build` | Production frontend build |
+| `npm run preview` | Preview the production build (proxies to port 5000) |
+| `npm run lint` | Lint the frontend sources |
+| `npm run seed:ios` | Seed investigating officers |
+| `npm run seed:shos` | Seed station house officers |
+
+## Schema changes
+
+Schema initialization lives in `server/db.js` (PostgreSQL). Update the table creation/migration
+logic there when the data model changes.
 
 Please read `AGENT_INSTRUCTIONS.md` if you are using AI agents.

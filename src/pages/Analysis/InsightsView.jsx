@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Layout, Menu, Input, Button, Typography, Select, Tag, Spin, Alert, Empty, Progress } from 'antd';
+import { Layout, Menu, Input, Button, Typography, Select, Tag, Spin, Alert, Empty, Progress, message } from 'antd';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faFile, faUsers, faCalendarDays, faMagnifyingGlass, faTriangleExclamation,
@@ -130,14 +130,14 @@ export default function InsightsView({ caseId, headers }) {
   const fetchWiki = () => {
     setLoading(true);
     fetch(`/api/analysis/cases/${caseId}/wiki`, { headers })
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error('Failed to load case wiki'); return r.json(); })
       .then(d => {
         setWikiData(d);
         const sorted = sortPages(d.pages || []);
         if (sorted.length > 0 && !activePage) setActivePage(sorted[0].page_slug);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(err => { message.error(err.message || 'Failed to load case wiki'); setLoading(false); });
   };
 
   useEffect(() => { fetchWiki(); setQueryResult(null); setIngestResult(null); setActivePage(null); }, [caseId]);
@@ -150,8 +150,9 @@ export default function InsightsView({ caseId, headers }) {
         method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: value }),
       });
+      if (!res.ok) throw new Error('Query failed');
       setQueryResult(await res.json());
-    } catch { setQueryResult({ answer: 'Query failed. Please try again.', sourcedFrom: [] }); }
+    } catch { message.error('Query failed. Please try again.'); setQueryResult({ answer: 'Query failed. Please try again.', sourcedFrom: [] }); }
     setQuerying(false);
   };
 
@@ -178,7 +179,7 @@ export default function InsightsView({ caseId, headers }) {
       setIngestResult({ success: true, ...d });
       setUploadedFile(null); setIngestForm(p => ({ ...p, text: '' }));
       fetchWiki();
-    } catch (e) { setIngestResult({ success: false, error: e.message }); }
+    } catch (e) { message.error(e.message || 'Upload failed'); setIngestResult({ success: false, error: e.message }); }
     setIngesting(false);
     setTimeout(() => setUploadProgress(0), 1500);
   };
@@ -191,10 +192,11 @@ export default function InsightsView({ caseId, headers }) {
         method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ doc_type: ingestForm.type, content: ingestForm.text }),
       });
+      if (!res.ok) throw new Error('Ingest failed');
       const d = await res.json();
       setIngestResult(d.success ? { success: true, extracted: d.extracted } : { success: false });
       if (d.success) { setIngestForm(p => ({ ...p, text: '' })); fetchWiki(); }
-    } catch { setIngestResult({ success: false }); }
+    } catch { message.error('Ingest failed. Please try again.'); setIngestResult({ success: false }); }
     setIngesting(false);
   };
 

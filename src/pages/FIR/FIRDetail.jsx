@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Typography, Card, Descriptions, Tag, Button, Spin, message,
@@ -88,6 +88,34 @@ export default function FIRDetail() {
   const [viewComplaintData, setViewComplaintData] = useState(null);
   const [viewComplaintLoading, setViewComplaintLoading] = useState(false);
 
+  // IO Change Modal state
+  const [ioModalOpen, setIoModalOpen] = useState(false);
+  const [ioSaving, setIoSaving] = useState(false);
+  const [ioUsers, setIoUsers] = useState([]);
+  const [ioUsersLoading, setIoUsersLoading] = useState(false);
+  const [ioForm] = Form.useForm();
+
+  // Transfer FIR Modal state
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [transferSaving, setTransferSaving] = useState(false);
+  const [transferDistrict, setTransferDistrict] = useState(null);
+  const [transferReason, setTransferReason] = useState('');
+  const [transferForm] = Form.useForm();
+
+  // Status Change Modal state
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState('');
+
+  // Edit Sections Modal state
+  const [sectionsModalOpen, setSectionsModalOpen] = useState(false);
+  const [sectionsSaving, setSectionsSaving] = useState(false);
+  const [editActsSections, setEditActsSections] = useState([{ act: '', sections: '' }]);
+
+  const isIO   = profile?.role === 'io'  || profile?.role === 'sho' || profile?.role === 'admin';
+  const isSHO  = profile?.role === 'sho' || profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin';
+
   useEffect(() => {
     if (!viewComplaintId) {
       setViewComplaintData(null);
@@ -97,7 +125,13 @@ export default function FIRDetail() {
       try {
         setViewComplaintLoading(true);
         // Check localStorage first
-        const allSaved = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
+        let allSaved = [];
+        try {
+          allSaved = JSON.parse(localStorage.getItem('registeredComplaints') || '[]');
+          if (!Array.isArray(allSaved)) allSaved = [];
+        } catch (_) {
+          allSaved = [];
+        }
         const found = allSaved.find(c => c.id === viewComplaintId);
         if (found) {
           setViewComplaintData(found);
@@ -172,28 +206,39 @@ export default function FIRDetail() {
     fetchComplaint();
   }, [viewComplaintId, token]);
 
-  useEffect(() => {
-    const fetchFIR = async () => {
-      try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/firs/${id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (!res.ok) throw new Error('Failed to fetch FIR');
-        const data = await res.json();
-        
-        // Parse JSON arrays back to arrays
-        if (typeof data.accused_details === 'string') data.accused_details = JSON.parse(data.accused_details);
-        if (typeof data.acts_sections === 'string') data.acts_sections = JSON.parse(data.acts_sections);
-        
-        setFir(data);
-      } catch (err) {
-        message.error(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchFIR();
+  const parseJsonField = (value, fieldName) => {
+    if (typeof value !== 'string') return value;
+    try {
+      return JSON.parse(value);
+    } catch (_) {
+      message.warning(`Could not parse ${fieldName} for this FIR`);
+      return [];
+    }
+  };
+
+  const fetchFIR = useCallback(async () => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/firs/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch FIR');
+      const data = await res.json();
+
+      // Parse JSON arrays back to arrays (guarded against malformed data)
+      data.accused_details = parseJsonField(data.accused_details, 'accused details');
+      data.acts_sections = parseJsonField(data.acts_sections, 'acts & sections');
+
+      setFir(data);
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setLoading(false);
+    }
   }, [id, token]);
+
+  useEffect(() => {
+    fetchFIR();
+  }, [fetchFIR]);
 
   if (loading) {
     return <div style={{ textAlign: 'center', padding: '100px' }}><Spin size="large" /></div>;
@@ -202,40 +247,6 @@ export default function FIRDetail() {
   if (!fir) {
     return <div>FIR not found</div>;
   }
-
-  const isIO   = profile?.role === 'io'  || profile?.role === 'sho' || profile?.role === 'admin';
-  const isSHO  = profile?.role === 'sho' || profile?.role === 'admin';
-  const isAdmin = profile?.role === 'admin';
-
-  // IO Change Modal state
-  const [ioModalOpen, setIoModalOpen] = useState(false);
-  const [ioSaving, setIoSaving] = useState(false);
-  const [ioUsers, setIoUsers] = useState([]);
-  const [ioUsersLoading, setIoUsersLoading] = useState(false);
-  const [ioForm] = Form.useForm();
-  // Transfer FIR Modal state
-  const [transferModalOpen, setTransferModalOpen] = useState(false);
-  const [transferSaving, setTransferSaving] = useState(false);
-  const [transferDistrict, setTransferDistrict] = useState(null);
-  const [transferReason, setTransferReason] = useState('');
-  const [transferForm] = Form.useForm();
-  const fetchFIR = async () => {
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/firs/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error('Failed to fetch FIR');
-      const data = await res.json();
-      // Parse JSON arrays back to arrays
-      if (typeof data.accused_details === 'string') data.accused_details = JSON.parse(data.accused_details);
-      if (typeof data.acts_sections === 'string') data.acts_sections = JSON.parse(data.acts_sections);
-      setFir(data);
-    } catch (err) {
-      message.error(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
   // ── Change IO Handler ────────────────────────────────────────────────────────
   const handleOpenIoModal = async () => {
     ioForm.resetFields();
@@ -244,13 +255,14 @@ export default function FIRDetail() {
     try {
       // Only fetch IOs from the same police station as this FIR
       const station = fir?.police_station ? encodeURIComponent(fir.police_station) : '';
-      const url = `${import.meta.env.VITE_API_URL}/users?role=io${station ? `&station_id=${station}` : ''}`;
+      const url = `${import.meta.env.VITE_API_URL || '/api'}/users?role=io${station ? `&station_id=${station}` : ''}`;
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      if (!res.ok) throw new Error('Failed to load IO list');
       const data = await res.json();
-      setIoUsers(data);
-      if (data.length === 0) message.info(`Is thane (${fir?.police_station}) mein koi IO nahi mila`);
+      setIoUsers(Array.isArray(data) ? data : []);
+      if (Array.isArray(data) && data.length === 0) message.info(`Is thane (${fir?.police_station}) mein koi IO nahi mila`);
     } catch {
       message.warning('IO list load nahi hui');
     } finally {
@@ -313,9 +325,6 @@ export default function FIRDetail() {
     }
   };
   // ── Status Change Handler ────────────────────────────────────────────────────
-  const [statusModalOpen, setStatusModalOpen] = useState(false);
-  const [statusSaving, setStatusSaving]       = useState(false);
-  const [selectedStatus, setSelectedStatus]   = useState('');
   const handleOpenStatusModal = () => {
     setSelectedStatus(fir.status);
     setStatusModalOpen(true);
@@ -347,9 +356,6 @@ export default function FIRDetail() {
     }
   };
   // ── Edit Sections Handler ─────────────────────────────────────────────────
-  const [sectionsModalOpen, setSectionsModalOpen]   = useState(false);
-  const [sectionsSaving, setSectionsSaving]         = useState(false);
-  const [editActsSections, setEditActsSections]     = useState([{ act: '', sections: '' }]);
   const handleOpenSectionsModal = () => {
     // Deep-clone current acts to avoid mutating FIR state
     const current = fir.acts_sections?.length

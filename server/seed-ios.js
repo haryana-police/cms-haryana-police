@@ -1,4 +1,8 @@
 import db from './db.js';
+import { hashPassword } from './auth-utils.js';
+
+// Documented default password for every seeded IO: io123
+const IO_PASSWORD_HASH = hashPassword('io123');
 
 const DISTRICTS_STATIONS = {
   'AMBALA': ['AMBALA CANTT','AMBALA CITY','AMBALA SADAR','BALDEV NAGAR','BARARA','MAHESH NAGAR','MULLANA','NAGGAL','NARAINGARH','PANJOKHRA','PARAO AMBALA CANTT','SAHA','SECTOR-9 AMBALA CITY','SHAHZADPUR','WOMEN POLICE STATION NARAINGARH AMBALA','WOMEN POLICE STATION AMBALA'],
@@ -85,7 +89,7 @@ for (const [district, stations] of Object.entries(DISTRICTS_STATIONS)) {
       nameIdx++;
       const badgeNo = `IO-${district.slice(0,3).toUpperCase().replace(/[^A-Z]/g,'')}-${n.toString().padStart(3,'0')}`;
 
-      insertStmt.run(id, username, 'io123', 'io', name, badgeNo, 'Sub-Inspector (SI)', station);
+      insertStmt.run(id, username, IO_PASSWORD_HASH, 'io', name, badgeNo, 'Sub-Inspector (SI)', station);
       created++;
     }
   }

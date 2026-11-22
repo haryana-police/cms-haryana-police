@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Table, Input, Button, Typography, Tag, Modal, Card, Row, Col, Divider, Badge } from 'antd';
+import { Table, Input, Button, Typography, Tag, Modal, Card, Row, Col, Divider, Badge, message } from 'antd';
 import { SearchOutlined, EyeOutlined, UserOutlined, EnvironmentOutlined, SafetyOutlined, FileTextOutlined, TeamOutlined, InfoCircleOutlined, ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuth } from '../../hooks/useAuth';
@@ -238,6 +238,7 @@ export default function SearchComplaints({ onBack, onStartEnquiry, hideHeader })
   const [searchText, setSearchText] = useState('');
   const [viewComplaint, setViewComplaint] = useState(null);
   const { profile } = useAuth();
+  const myStation = profile?.station_id || '';
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -477,12 +478,12 @@ export default function SearchComplaints({ onBack, onStartEnquiry, hideHeader })
       const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.ok) {
-        const data = await res.json();
-        setComplaintsList(data);
-      }
+      if (!res.ok) throw new Error('Failed to load complaints');
+      const data = await res.json();
+      setComplaintsList(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error("Error loading complaints:", e);
+      message.error('Failed to load complaints');
     } finally {
       setLoading(false);
     }
@@ -528,8 +529,8 @@ export default function SearchComplaints({ onBack, onStartEnquiry, hideHeader })
       const isDestination =
         c.ioStatus === 'Transferred' &&
         profile?.role !== 'admin' &&
-        (c.policeStation || 'SAMALKHA') === profile?.station_id &&
-        (c.originalStation || 'SAMALKHA') !== profile?.station_id;
+        (c.policeStation || myStation) === myStation &&
+        (c.originalStation || myStation) !== myStation;
 
       // Build array of matching display labels for status
       const displayLabels = [rawStatus];
@@ -600,8 +601,8 @@ export default function SearchComplaints({ onBack, onStartEnquiry, hideHeader })
         const isDestination =
           record.ioStatus === 'Transferred' &&
           profile?.role !== 'admin' &&
-          (record.policeStation || 'SAMALKHA') === profile?.station_id &&
-          (record.originalStation || 'SAMALKHA') !== profile?.station_id;
+          (record.policeStation || myStation) === myStation &&
+          (record.originalStation || myStation) !== myStation;
 
         let color = 'green';
         let label = record.ioStatus || 'Registered';
@@ -721,7 +722,16 @@ export default function SearchComplaints({ onBack, onStartEnquiry, hideHeader })
             </Button>
           ),
           viewComplaint?.ioStatus === 'Convert to FIR' && (
-            <Button key="view-fir" type="primary" danger onClick={() => { setViewComplaint(null); navigate('/fir'); }}>
+            <Button
+              key="view-fir"
+              type="primary"
+              danger
+              onClick={() => {
+                setViewComplaint(null);
+                const linkedFirId = viewComplaint?.linkedFirId || viewComplaint?.linked_fir_id;
+                navigate(linkedFirId ? `/fir/${linkedFirId}` : '/fir');
+              }}
+            >
               View FIR
             </Button>
           ),

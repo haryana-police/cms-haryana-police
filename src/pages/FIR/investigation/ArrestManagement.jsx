@@ -207,10 +207,11 @@ export default function ArrestManagement({ firId, firData, accusedList = [] }) {
   const fetchArrests = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/firs/${firId}/arrests`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/firs/${firId}/arrests`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.ok) setArrests(await res.json());
+      if (!res.ok) throw new Error('Failed to load arrest records');
+      setArrests(await res.json());
     } catch (e) {
       message.error('गिरफ्तारी रिकॉर्ड लोड करने में त्रुटि');
     } finally {
@@ -223,7 +224,7 @@ export default function ArrestManagement({ firId, firData, accusedList = [] }) {
   const handleSubmit = async (vals) => {
     setSubmitting(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/firs/${firId}/arrests`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/firs/${firId}/arrests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(vals)

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Statistic, Table, Input, Tag, Typography, Spin, Empty, Alert, Select, Space, Tooltip } from 'antd';
+import { Card, Row, Col, Statistic, Table, Input, Tag, Typography, Spin, Empty, Alert, Select, Space, Tooltip, message } from 'antd';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faBuilding, faTriangleExclamation, faMagnifyingGlass, faArrowDown, faArrowUp,
@@ -34,7 +34,7 @@ export default function BankAnalysisView({ caseId, headers }) {
     fetch(`/api/analysis/cases/${caseId}/bank`, { headers })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => { setData(d); setLoading(false); })
-      .catch(e => { setError(e.message); setLoading(false); });
+      .catch(e => { message.error(e.message || 'Failed to load bank analysis'); setError(e.message); setLoading(false); });
   }, [caseId]);
 
   if (loading) return (

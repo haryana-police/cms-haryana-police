@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Timeline, Spin, Typography, Card, Space, Empty, Tag, Modal, Drawer, Button, Divider, Alert } from 'antd';
+import { Timeline, Spin, Typography, Card, Space, Empty, Tag, Modal, Drawer, Button, Divider, Alert, message } from 'antd';
 import {
     FileTextOutlined,
     CommentOutlined,
@@ -308,9 +308,9 @@ export default function TimelineView({ caseId, headers, caseData }) {
     useEffect(() => {
         setLoading(true);
         fetch(`/api/analysis/cases/${caseId}/timeline`, { headers })
-            .then(r => r.json())
-            .then(data => { setEvents(data); setLoading(false); })
-            .catch(() => setLoading(false));
+            .then(r => { if (!r.ok) throw new Error('Failed to load timeline'); return r.json(); })
+            .then(data => { setEvents(Array.isArray(data) ? data : []); setLoading(false); })
+            .catch(err => { message.error(err.message || 'Failed to load timeline'); setLoading(false); });
     }, [caseId]);
 
     const handleEventClick = (evt) => {

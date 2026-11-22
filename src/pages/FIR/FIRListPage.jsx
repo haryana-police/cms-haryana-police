@@ -125,11 +125,11 @@ export default function FIRListPage() {
   const fetchFIRs = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/firs`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/firs`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error('Failed to load FIRs');
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
       setFirs(data);
     } catch (err) {
       message.error('Failed to load FIRs: ' + err.message);

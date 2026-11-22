@@ -16,12 +16,11 @@ export default function CDRManagement({ firId, accusedList = [] }) {
   const fetchCdrs = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/firs/${firId}/cdrs`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/firs/${firId}/cdrs`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.ok) {
-        setCdrs(await res.json());
-      }
+      if (!res.ok) throw new Error('Failed to load CDRs');
+      setCdrs(await res.json());
     } catch (e) {
       console.error(e);
       message.error("Failed to load CDRs");
@@ -37,7 +36,7 @@ export default function CDRManagement({ firId, accusedList = [] }) {
   const handleRequestCDR = async (vals) => {
     setRequesting(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/firs/${firId}/cdrs`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/firs/${firId}/cdrs`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -62,7 +61,7 @@ export default function CDRManagement({ firId, accusedList = [] }) {
 
   const markReceived = async (cdrId) => {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL}/cdrs/${cdrId}/status`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/cdrs/${cdrId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -70,6 +69,7 @@ export default function CDRManagement({ firId, accusedList = [] }) {
         },
         body: JSON.stringify({ status: 'received' })
       });
+      if (!res.ok) throw new Error('Failed to update CDR status');
       message.success("Marked as Received!");
       fetchCdrs();
     } catch (e) {

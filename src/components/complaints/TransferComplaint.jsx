@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Typography, Form, Radio, Select, Input, Checkbox, Button, Card, Divider } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { Typography, Form, Radio, Select, Input, Checkbox, Button, Card, Divider, message } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
+import { useAuth } from '../../hooks/useAuth';
 
 const { Title, Paragraph, Text } = Typography;
 const { Option } = Select;
@@ -12,6 +13,10 @@ export default function TransferComplaint({ onBack }) {
   const officeType = Form.useWatch('officeType', form);
   const atrNotRequired = Form.useWatch('atrNotRequired', form);
   const [selectedDistrict, setSelectedDistrict] = useState('');
+  const [complaints, setComplaints] = useState([]);
+  const [complaintsLoading, setComplaintsLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const { token } = useAuth();
 
   const districts = [
     'AMBALA',
@@ -604,9 +609,77 @@ export default function TransferComplaint({ onBack }) {
     'HSNCB Unit Sirsa'
   ];
 
-  const handleFinish = (values) => {
-    console.log('Transfer Complaint Form Values:', values);
-    onBack();
+  useEffect(() => {
+    let cancelled = false;
+    const loadComplaints = async () => {
+      setComplaintsLoading(true);
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/complaints`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) throw new Error('Failed to load complaints');
+        const data = await res.json();
+        if (!cancelled) setComplaints(Array.isArray(data) ? data : []);
+      } catch (err) {
+        if (!cancelled) message.error(err.message);
+      } finally {
+        if (!cancelled) setComplaintsLoading(false);
+      }
+    };
+    loadComplaints();
+    return () => { cancelled = true; };
+  }, [token]);
+
+  const handleFinish = async (values) => {
+    if (values.wantToTransfer !== 'Yes') {
+      message.info('Complaint transfer cancelled.');
+      onBack();
+      return;
+    }
+
+    const selected = complaints.find(c => String(c.id) === String(values.complaintId));
+    const originalStation = selected?.policeStation || selected?.police_station || '';
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL || '/api'}/complaints/${encodeURIComponent(values.complaintId)}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            ...(selected || {}),
+            ioStatus: 'Transferred',
+            status: 'Transferred',
+            policeStation: values.transferToPoliceStation,
+            district: values.transferDistrict,
+            originalStation,
+            transferredFrom: originalStation,
+            transferReason: values.transferReason,
+            atrNotRequired: !!values.atrNotRequired,
+            actionTakenReport: values.atrNotRequired ? '' : (values.actionTakenReport || ''),
+            officeType: values.officeType,
+          }),
+        }
+      );
+      if (!res.ok) {
+        let errMsg = 'Failed to transfer complaint';
+        try {
+          const errData = await res.json();
+          errMsg = errData.error || errMsg;
+        } catch (_) {}
+        throw new Error(errMsg);
+      }
+      message.success('Complaint transferred successfully.');
+      onBack();
+    } catch (err) {
+      message.error(err.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -663,6 +736,28 @@ export default function TransferComplaint({ onBack }) {
 
           {wantToTransfer === 'Yes' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <Form.Item
+                name="complaintId"
+                label="Complaint to Transfer"
+                rules={[{ required: true, message: 'Please select a complaint' }]}
+                style={{ gridColumn: '1 / -1' }}
+              >
+                <Select
+                  showSearch
+                  loading={complaintsLoading}
+                  placeholder={complaintsLoading ? 'Loading complaints...' : 'Select complaint'}
+                  optionFilterProp="children"
+                >
+                  {complaints.map(c => (
+                    <Option key={c.id} value={c.id}>
+                      {`${c.complaint_number || c.complaintNumber || c.id} — ${
+                        c.complainant_name || [c.firstName, c.lastName].filter(Boolean).join(' ') || 'Unknown'
+                      }${c.policeStation ? ` — ${c.policeStation}` : ''}`}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+
               <div>
                   <Form.Item 
                     name="officeType" 
@@ -761,7 +856,7 @@ export default function TransferComplaint({ onBack }) {
 
 
           <div style={{ marginTop: '30px', textAlign: 'center' }}>
-            <Button type="primary" htmlType="submit" size="large" style={{ width: '200px', borderRadius: '8px' }}>
+            <Button type="primary" htmlType="submit" size="large" loading={submitting} style={{ width: '200px', borderRadius: '8px' }}>
               Submit
             </Button>
           </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Select, Tabs, Tag, Space, Spin, Empty, Tooltip } from 'antd';
+import { Select, Tabs, Tag, Space, Spin, Empty, Tooltip, message } from 'antd';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faClock, faShareNodes, faPhone, faLightbulb, faBuilding,
@@ -170,13 +170,14 @@ export default function AnalysisPage() {
   /* ── Fetch cases ──────────────────────────────────────────────────────── */
   useEffect(() => {
     fetch('/api/analysis/cases', { headers })
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error('Failed to load cases'); return r.json(); })
       .then(data => {
+        if (!Array.isArray(data)) throw new Error('Invalid cases response');
         setCases(data);
         if (data.length > 0) { setSelectedCaseId(data[0].id); setSelectedCase(data[0]); }
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(err => { message.error(err.message || 'Failed to load cases'); setLoading(false); });
   }, []);
 
   const handleCaseChange = (id) => {

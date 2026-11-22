@@ -116,16 +116,18 @@ export default function ContradictionsView({ caseId, headers }) {
   const load = () => {
     setLoading(true);
     fetch(`/api/analysis/cases/${caseId}/contradictions`, { headers })
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error('Failed to load contradiction analysis'); return r.json(); })
       .then(d => { setData(d); setRaw(d.contradictions || []); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch(err => { message.error(err.message || 'Failed to load contradiction analysis'); setLoading(false); });
   };
   useEffect(() => { load(); }, [caseId]);
 
   const handleScan = async () => {
     setScanning(true);
     try {
-      const r = await (await fetch(`/api/analysis/cases/${caseId}/scan`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' } })).json();
+      const res = await fetch(`/api/analysis/cases/${caseId}/scan`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' } });
+      if (!res.ok) throw new Error('Scan failed');
+      const r = await res.json();
       message.success(`AI scan — ${r.contradictions?.length || 0} contradictions detected`);
       load();
     } catch { message.error('Scan failed.'); }

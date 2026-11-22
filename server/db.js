@@ -1,33 +1,48 @@
 import { execSync } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { hashPassword } from './auth-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Helper function to run a query synchronously in Postgres via a subprocess
-function runPgQuerySync(sql, params = []) {
-  const payload = JSON.stringify({ sql, params });
-  const base64Payload = Buffer.from(payload).toString('base64');
-  
+// 'postgres' is only a sane local-development fallback; production deployments
+// must provide PGPASSWORD in the environment.
+const PGPASSWORD = process.env.PGPASSWORD || 'postgres';
+
+// Shared helper: send a payload (single query or a transaction batch) to one
+// pg-worker subprocess and return its parsed response.
+function runPgPayloadSync(payload) {
   try {
-    const resultStr = execSync(`node "${path.join(__dirname, 'pg-worker.js')}" ${base64Payload}`, {
-      env: {
-        ...process.env,
-        PGPASSWORD: process.env.PGPASSWORD || 'Pankaj@36085260'
-      },
+    // Send the payload on stdin: transaction batches can be larger than the
+    // OS limit for a single command-line argument.
+    const resultStr = execSync(`node "${path.join(__dirname, 'pg-worker.js')}"`, {
+      input: JSON.stringify(payload),
+      env: { ...process.env, PGPASSWORD },
       maxBuffer: 20 * 1024 * 1024 // 20MB buffer for large seed data
     }).toString();
-    
+
     const result = JSON.parse(resultStr);
     if (result.error) {
       throw new Error(result.error);
     }
-    return result.data;
+    return result;
   } catch (err) {
     console.error('PostgreSQL execution error:', err.message);
     throw err;
   }
+}
+
+// Helper function to run a query synchronously in Postgres via a subprocess.
+// Returns the worker response ({ data, rowCount }).
+function runPgQuerySync(sql, params = []) {
+  return runPgPayloadSync({ sql, params });
+}
+
+// Execute all buffered queries inside a single worker process. The worker
+// wraps them in BEGIN ... COMMIT and issues ROLLBACK on any error.
+function runPgBatchSync(queries) {
+  return runPgPayloadSync({ queries });
 }
 
 function translateQueryAndParams(sql, params = []) {
@@ -98,38 +113,67 @@ function translateQueryAndParams(sql, params = []) {
   return { sql: finalSql, params: finalParams };
 }
 
+// While a transaction callback is running, queries are buffered and sent to
+// one pg-worker at the end. NOTE: return values inside a transaction may be
+// empty — `.get()` returns undefined, `.all()` returns [] and `.run()` reports
+// `changes: 0` because the queries have not been executed yet.
+let activeTransaction = null;
+
 const db = {
   exec(sql) {
     const translated = translateQueryAndParams(sql);
-    runPgQuerySync(translated.sql);
+    if (activeTransaction) {
+      activeTransaction.queries.push(translated);
+      return;
+    }
+    runPgQuerySync(translated.sql, translated.params);
   },
   prepare(sql) {
     return {
       run(...params) {
         const translated = translateQueryAndParams(sql, params);
-        const rows = runPgQuerySync(translated.sql, translated.params);
-        return { changes: rows ? rows.length : 0, lastInsertRowid: null };
+        if (activeTransaction) {
+          activeTransaction.queries.push(translated);
+          return { changes: 0, lastInsertRowid: null };
+        }
+        const result = runPgQuerySync(translated.sql, translated.params);
+        return { changes: result.rowCount || 0, lastInsertRowid: null };
       },
       get(...params) {
         const translated = translateQueryAndParams(sql, params);
-        const rows = runPgQuerySync(translated.sql, translated.params);
+        if (activeTransaction) {
+          activeTransaction.queries.push(translated);
+          return undefined;
+        }
+        const rows = runPgQuerySync(translated.sql, translated.params).data;
         return rows && rows.length > 0 ? rows[0] : undefined;
       },
       all(...params) {
         const translated = translateQueryAndParams(sql, params);
-        return runPgQuerySync(translated.sql, translated.params) || [];
+        if (activeTransaction) {
+          activeTransaction.queries.push(translated);
+          return [];
+        }
+        return runPgQuerySync(translated.sql, translated.params).data || [];
       }
     };
   },
   transaction(fn) {
     return (...args) => {
-      runPgQuerySync('BEGIN');
+      // Nested transactions simply join the outer batch (no savepoints).
+      if (activeTransaction) return fn(...args);
+
+      const tx = { queries: [] };
+      activeTransaction = tx;
       try {
         const res = fn(...args);
-        runPgQuerySync('COMMIT');
+        if (tx.queries.length > 0) runPgBatchSync(tx.queries);
+        activeTransaction = null;
         return res;
       } catch (err) {
-        runPgQuerySync('ROLLBACK');
+        activeTransaction = null;
+        // Nothing was sent on error, so there is no open transaction to roll
+        // back here; the worker also rolls back if a buffered query fails.
         throw err;
       }
     };
@@ -140,7 +184,7 @@ const db = {
       const tableName = match[1].toLowerCase();
       const sql = `SELECT column_name as name FROM information_schema.columns WHERE table_name = $1`;
       try {
-        const rows = runPgQuerySync(sql, [tableName]);
+        const rows = runPgQuerySync(sql, [tableName]).data;
         return rows || [];
       } catch (e) {
         return [];
@@ -163,6 +207,14 @@ db.exec(`
     station_id TEXT,
     status TEXT DEFAULT 'active',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- Per-station FIR number counter (does not alter the existing firs table).
+  CREATE TABLE IF NOT EXISTS fir_sequences (
+    year INTEGER NOT NULL,
+    police_station TEXT NOT NULL,
+    next_no INTEGER NOT NULL,
+    PRIMARY KEY(year, police_station)
   );
 
   CREATE TABLE IF NOT EXISTS firs (
@@ -571,6 +623,13 @@ const IO_NAMES = [
   'Ramesh Saini','Ajay Rana','Sanjay Bishnoi','Naveen Arora','Pradeep Goel',
 ];
 
+// Default passwords stay the same; only the stored representation changes.
+// Compute one hash per default password instead of running scrypt for every
+// seeded account at startup.
+const ADMIN_PASSWORD_HASH = hashPassword('admin123');
+const IO_PASSWORD_HASH = hashPassword('io123');
+const SHO_PASSWORD_HASH = hashPassword('sho123');
+
 // Seed profiles
 const profileCount = db.prepare('SELECT COUNT(*) as c FROM profiles').get().c;
 if (profileCount === 0) {
@@ -579,9 +638,9 @@ if (profileCount === 0) {
     VALUES (@id, @username, @password, @role, @full_name, @badge_number, @rank, @station_id)
   `);
   const seedProfiles = [
-    { id: 'usr-1', username: 'admin', password: 'admin123', role: 'admin', full_name: 'Test Admin', badge_number: 'ADM-001', rank: 'SP', station_id: 'hq' },
-    { id: 'usr-2', username: 'io_1', password: 'io123', role: 'io', full_name: 'Investigating Officer Singh', badge_number: 'IO-101', rank: 'SI', station_id: 'SAMALKHA' },
-    { id: 'usr-3', username: 'sho_1', password: 'sho123', role: 'sho', full_name: 'SHO Kumar', badge_number: 'SHO-201', rank: 'Inspector', station_id: 'SAMALKHA' },
+    { id: 'usr-1', username: 'admin', password: ADMIN_PASSWORD_HASH, role: 'admin', full_name: 'Test Admin', badge_number: 'ADM-001', rank: 'SP', station_id: 'hq' },
+    { id: 'usr-2', username: 'io_1', password: IO_PASSWORD_HASH, role: 'io', full_name: 'Investigating Officer Singh', badge_number: 'IO-101', rank: 'SI', station_id: 'SAMALKHA' },
+    { id: 'usr-3', username: 'sho_1', password: SHO_PASSWORD_HASH, role: 'sho', full_name: 'SHO Kumar', badge_number: 'SHO-201', rank: 'Inspector', station_id: 'SAMALKHA' },
   ];
   db.transaction((rows) => rows.forEach(r => insertProfile.run(r)))(seedProfiles);
   console.log('Seed profiles created.');
@@ -594,6 +653,11 @@ if (shoCount <= 1) {
   const seenUsernames = new Set();
   const existingUsernames = db.prepare(`SELECT username FROM profiles WHERE role = 'sho'`).all().map(r => r.username);
   existingUsernames.forEach(u => seenUsernames.add(u));
+  // Reads inside a transaction are buffered (and return empty), so collect
+  // existing stations before opening the batch.
+  const existingShoStations = new Set(
+    db.prepare(`SELECT station_id FROM profiles WHERE role = 'sho' AND station_id IS NOT NULL`).all().map(r => r.station_id)
+  );
 
   const uniqueUsername = (base) => {
     if (!seenUsernames.has(base)) { seenUsernames.add(base); return base; }
@@ -618,8 +682,7 @@ if (shoCount <= 1) {
     for (const [district, stations] of Object.entries(DISTRICTS_STATIONS)) {
       for (const station of stations) {
         const baseUsername = toSHOUsername(district, station);
-        const existingSHO = db.prepare(`SELECT id FROM profiles WHERE role = 'sho' AND station_id = ?`).get(station);
-        if (existingSHO) continue;
+        if (existingShoStations.has(station)) continue;
 
         const username = uniqueUsername(baseUsername);
         const rand = Math.random().toString(36).slice(2, 6);
@@ -627,7 +690,7 @@ if (shoCount <= 1) {
         const badgeNo = `SHO-${district.slice(0,3).toUpperCase().replace(/[^A-Z]/g,'')}-${station.slice(0,6).replace(/[^A-Z0-9]/gi,'').toUpperCase()}`;
         const fullName = `SHO ${station}`;
 
-        insertSHO.run(id, username, 'sho123', 'sho', fullName, badgeNo, 'Inspector', station);
+        insertSHO.run(id, username, SHO_PASSWORD_HASH, 'sho', fullName, badgeNo, 'Inspector', station);
       }
     }
   })();
@@ -649,14 +712,17 @@ if (ioCount <= 1) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')
   `);
 
+  // Collect usernames up front: reads inside a transaction are buffered and
+  // therefore return empty results.
+  const existingIOUsernames = new Set(db.prepare('SELECT username FROM profiles').all().map(r => r.username));
+
   let nameIdx = 0;
   db.transaction(() => {
     for (const [district, stations] of Object.entries(DISTRICTS_STATIONS)) {
       for (const station of stations) {
         for (let n = 1; n <= 2; n++) {
           const username = toIOUsername(district, station, n);
-          const existing = db.prepare('SELECT id FROM profiles WHERE username = ?').get(username);
-          if (existing) continue;
+          if (existingIOUsernames.has(username)) continue;
 
           const rand = Math.random().toString(36).slice(2, 6);
           const id = `io-${district.slice(0,3).toLowerCase().replace(/[^a-z]/g,'')}-${rand}-${n}`;
@@ -664,7 +730,7 @@ if (ioCount <= 1) {
           nameIdx++;
           const badgeNo = `IO-${district.slice(0,3).toUpperCase().replace(/[^A-Z]/g,'')}-${n.toString().padStart(3,'0')}`;
 
-          insertIO.run(id, username, 'io123', 'io', name, badgeNo, 'Sub-Inspector (SI)', station);
+          insertIO.run(id, username, IO_PASSWORD_HASH, 'io', name, badgeNo, 'Sub-Inspector (SI)', station);
         }
       }
     }
